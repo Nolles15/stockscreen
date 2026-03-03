@@ -595,6 +595,50 @@ def _historical_year_end_price(hist: pd.DataFrame, year: int) -> float | None:
 # Bulk operations
 # ---------------------------------------------------------------------------
 
+def fetch_market_only(ticker: str) -> None:
+    """
+    Lichte fetch: alleen koers + marktdata bijwerken, geen financiële statements.
+    Veel sneller dan fetch_and_store — geschikt voor dagelijks draaien.
+    """
+    try:
+        info = yf.Ticker(ticker).info or {}
+    except Exception as e:
+        log.warning("Light fetch mislukt voor %s: %s", ticker, e)
+        return
+
+    if not info:
+        return
+
+    currency = info.get("currency") or infer_currency(ticker)
+    eur_rate = get_eur_rate(currency)
+
+    price_raw = _safe_get(info, "currentPrice", "regularMarketPrice", "previousClose")
+    if not price_raw:
+        return
+
+    market_cap_raw      = _safe_get(info, "marketCap")
+    ev_raw              = _safe_get(info, "enterpriseValue")
+    analyst_target_raw  = _safe_get(info, "targetMeanPrice")
+
+    db.upsert_market_data(ticker,
+        price                = price_raw,
+        price_eur            = price_raw * eur_rate,
+        market_cap           = market_cap_raw,
+        market_cap_eur       = (market_cap_raw * eur_rate) if market_cap_raw else None,
+        enterprise_value     = ev_raw,
+        enterprise_value_eur = (ev_raw * eur_rate) if ev_raw else None,
+        pe_ttm               = _safe_get(info, "trailingPE"),
+        ev_ebitda_ttm        = _safe_get(info, "enterpriseToEbitda"),
+        pb_ratio             = _safe_get(info, "priceToBook"),
+        last_updated         = datetime.utcnow().isoformat(),
+        analyst_target_raw   = analyst_target_raw,
+        analyst_target_eur   = (analyst_target_raw * eur_rate) if analyst_target_raw else None,
+        analyst_consensus    = info.get("recommendationKey"),
+        analyst_n            = info.get("numberOfAnalystOpinions"),
+    )
+    log.debug("Light refresh OK: %s @ %s", ticker, price_raw)
+
+
 def fetch_all_tickers(tickers: list[str], progress_cb=None) -> dict[str, list[str]]:
     """
     Fetch all tickers, updating progress via callback(ticker, idx, total).

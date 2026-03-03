@@ -10,6 +10,7 @@ import logging
 import math
 import os
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -17,7 +18,7 @@ import yaml
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
-from engine.data_fetcher import fetch_and_store, refresh_exchange_rates, get_eur_rate
+from engine.data_fetcher import fetch_and_store, fetch_market_only, refresh_exchange_rates, get_eur_rate
 from engine.screener import run_ticker, run_all
 
 # ---------------------------------------------------------------------------
@@ -56,6 +57,8 @@ def save_config(cfg: dict) -> None:
 _jobs: dict[str, dict] = {}   # job_id → {status, progress, current, errors}
 _jobs_lock = threading.Lock()
 _startup_job_id: str | None = None   # job_id of the auto-refresh triggered at startup
+
+STALE_HEAVY_DAYS = 6   # dagen zonder zware refresh → opnieuw ophalen bij next run
 
 
 def _new_job() -> str:
@@ -305,25 +308,85 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Smart refresh helpers
+# ---------------------------------------------------------------------------
+
+def _get_stale_tickers(all_tickers: list[str], max_age_days: int) -> list[str]:
+    """Geeft tickers terug die ouder zijn dan max_age_days of nog nooit zijn opgehaald."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc).date() - timedelta(days=max_age_days)).isoformat()
+    fetched = db.get_latest_fetched_dates()
+    return [t for t in all_tickers if fetched.get(t, "") < cutoff]
+
+
+def _run_light_job(jid: str, tickers: list[str]) -> None:
+    """Lichte refresh: wisselkoersen + marktdata voor alle tickers bijwerken."""
+    total = len(tickers)
+    _update_job(jid, status="running", total=total, current="Wisselkoersen ophalen...")
+    try:
+        refresh_exchange_rates()
+    except Exception as e:
+        log.warning("FX refresh mislukt: %s", e)
+
+    for idx, ticker in enumerate(tickers):
+        _update_job(jid, current=f"Marktdata {ticker}...", progress=int((idx + 1) / total * 100))
+        try:
+            fetch_market_only(ticker)
+        except Exception as e:
+            log.warning("Light refresh mislukt voor %s: %s", ticker, e)
+        time.sleep(0.3)   # voorkomt rate-limiting bij Yahoo Finance
+
+    _update_job(jid, status="done", progress=100, current="Klaar")
+    log.info("Light refresh klaar: %d tickers bijgewerkt", total)
+
+
+def _schedule_light(cfg: dict) -> None:
+    """Dagelijkse lichte refresh: alleen marktdata voor alle tickers."""
+    tickers = [s["ticker"] for s in db.get_all_stocks()]
+    if tickers:
+        jid = _new_job()
+        log.info("Geplande lichte refresh: %d tickers", len(tickers))
+        threading.Thread(target=_run_light_job, args=(jid, tickers), daemon=True).start()
+    threading.Timer(24 * 3600, _schedule_light, args=(cfg,)).start()
+
+
+def _schedule_heavy(cfg: dict) -> None:
+    """Wekelijkse zware refresh: alleen verouderde tickers opnieuw ophalen."""
+    all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+    stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
+    if stale:
+        jid = _new_job()
+        log.info("Geplande zware refresh: %d/%d verouderde tickers", len(stale), len(all_tickers))
+        threading.Thread(target=_run_refresh_job, args=(jid, stale, cfg), daemon=True).start()
+    threading.Timer(7 * 24 * 3600, _schedule_heavy, args=(cfg,)).start()
+
+
+# ---------------------------------------------------------------------------
 # API — Refresh (background job)
 # ---------------------------------------------------------------------------
 
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
-    """Start a background refresh: fetch data + recalculate all scores."""
+    """Start a background refresh: fetch data + recalculate all scores.
+
+    Als geen specifieke tickers meegegeven worden, worden alleen verouderde
+    tickers opgehaald (ouder dan STALE_HEAVY_DAYS). Stuur force=true mee
+    om alle tickers te forceren.
+    """
     data = request.get_json(silent=True) or {}
     tickers = data.get("tickers")   # optional: refresh only specific tickers
+    force   = data.get("force", False)
 
     jid = _new_job()
     cfg = load_config()
 
     if not tickers:
-        tickers = [s["ticker"] for s in db.get_all_stocks()]
-        # Also add any tickers in config watchlist not yet in DB
-        for t in cfg.get("watchlist", []):
-            if not db.get_stock(t):
-                db.upsert_stock(t, active=1, added_date=datetime.now(timezone.utc).date().isoformat())
-        tickers = [s["ticker"] for s in db.get_all_stocks()]
+        all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+        tickers = all_tickers if force else _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
+        if not tickers:
+            # Alles is al recent bijgewerkt — stuur gelijk-klare job terug
+            _update_job(jid, status="done", progress=100, current="Alles is al recent bijgewerkt", errors={})
+            return jsonify({"job_id": jid, "skipped": True})
 
     threading.Thread(target=_run_refresh_job, args=(jid, tickers, cfg), daemon=True).start()
     return jsonify({"job_id": jid})
@@ -619,31 +682,60 @@ def api_stock_detail(ticker):
 
 
 # ---------------------------------------------------------------------------
-# Startup
+# Startup — draait zowel onder Gunicorn als met python app.py
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
-    db.init_db()
+_startup_done = False
 
-    # Seed watchlist from config on first run
+
+def _on_startup() -> None:
+    """
+    Eenmalige startup-taken:
+      1. Watchlist seeden vanuit config.yaml
+      2. Lichte refresh (marktdata) voor alle tickers direct uitvoeren
+      3. Zware refresh voor verouderde tickers direct uitvoeren
+      4. Dagelijkse + wekelijkse schedulers starten
+    """
+    global _startup_job_id, _startup_done
+    if _startup_done:
+        return
+    _startup_done = True
+
     cfg = load_config()
+
+    # Seed watchlist
     for ticker in cfg.get("watchlist", []):
         if not db.get_stock(ticker):
             db.upsert_stock(ticker, active=1, added_date=datetime.now(timezone.utc).date().isoformat())
-            log.info("Added %s from watchlist config", ticker)
+            log.info("Watchlist ticker toegevoegd: %s", ticker)
 
-    # Auto-refresh on startup
-    if cfg.get("app", {}).get("auto_refresh_on_startup", True):
-        tickers = [s["ticker"] for s in db.get_all_stocks()]
-        if tickers:
-            _startup_job_id = _new_job()
-            threading.Thread(
-                target=_run_refresh_job,
-                args=(_startup_job_id, tickers, cfg),
-                daemon=True,
-            ).start()
-            log.info("Startup auto-refresh started (job %s, %d tickers)", _startup_job_id, len(tickers))
+    all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+    if all_tickers:
+        # Startup licht: marktdata voor iedereen bijwerken
+        light_jid = _new_job()
+        _startup_job_id = light_jid
+        threading.Thread(target=_run_light_job, args=(light_jid, all_tickers), daemon=True).start()
+        log.info("Startup lichte refresh gestart (%d tickers)", len(all_tickers))
 
+        # Startup zwaar: alleen verouderde tickers ophalen
+        stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
+        if stale:
+            heavy_jid = _new_job()
+            threading.Thread(target=_run_refresh_job, args=(heavy_jid, stale, cfg), daemon=True).start()
+            log.info("Startup zware refresh gestart (%d/%d verouderde tickers)", len(stale), len(all_tickers))
+
+    # Schedulers: licht dagelijks, zwaar wekelijks
+    threading.Timer(24 * 3600, _schedule_light, args=(cfg,)).start()
+    threading.Timer(7 * 24 * 3600, _schedule_heavy, args=(cfg,)).start()
+    log.info("Schedulers actief: licht elke 24u, zwaar elke 7d")
+
+
+# Wordt aangeroepen bij module-import (Gunicorn) én bij python app.py
+_on_startup()
+
+
+if __name__ == "__main__":
+    cfg = load_config()
     port = int(os.environ.get("PORT", cfg.get("app", {}).get("port", 5001)))
     log.info("Starting Stock Screener on http://localhost:%s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

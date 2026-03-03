@@ -361,6 +361,16 @@ def get_latest_fiscal_years() -> dict[str, int]:
     return {r["ticker"]: r["fy"] for r in rows}
 
 
+def get_latest_fetched_dates() -> dict[str, str]:
+    """Return {ticker: latest_fetched_date} for tickers with annual financial data."""
+    with _cursor() as cur:
+        cur.execute(
+            "SELECT ticker, MAX(fetched_date) as fd FROM financials WHERE period_type='annual' GROUP BY ticker"
+        )
+        rows = cur.fetchall()
+    return {r["ticker"]: r["fd"] for r in rows if r["fd"]}
+
+
 # ---------------------------------------------------------------------------
 # Overrides
 # ---------------------------------------------------------------------------
