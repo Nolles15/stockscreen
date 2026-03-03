@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Wannabe Oracle Stockscreener{% endblock %}
+
+{% block content %}
+<!-- Header row -->
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+  <div>
+    <h1 class="text-2xl font-bold">Dashboard</h1>
+    <p class="text-slate-400 text-sm mt-0.5">
+      Gesorteerd op grootste korting t.o.v. gecombineerde fair value
+    </p>
+  </div>
+
+  <!-- Add ticker(s) -->
+  <div class="flex gap-2">
+    <input id="new-ticker" type="text" placeholder="Ticker (bijv. ASML.AS)"
+      class="bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      onkeydown="if(event.key==='Enter') addTicker()" />
+    <button onclick="addTicker()"
+      class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-3 py-1.5 rounded-md transition">
+      + Één
+    </button>
+    <button onclick="document.getElementById('bulk-modal').classList.remove('hidden')"
+      class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-3 py-1.5 rounded-md transition">
+      + Lijst
+    </button>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 mb-4 text-sm">
+  <select id="filter-market" onchange="renderTable()"
+    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
+    <option value="">Alle markten</option>
+    <option>US</option><option>NL</option><option>BE</option>
+    <option>PL</option><option>SE</option><option>NO</option>
+    <option>DE</option><option>UK</option>
+  </select>
+
+  <select id="filter-sector" onchange="renderTable()"
+    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
+    <option value="">Alle sectoren</option>
+  </select>
+
+  <select id="filter-signal" onchange="renderTable()"
+    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
+    <option value="">Alle signalen</option>
+    <option>STRONG BUY</option><option>BUY</option>
+    <option>HOLD</option><option>SELL</option>
+  </select>
+
+  <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
+    <input type="checkbox" id="filter-showall" onchange="loadDashboard()" class="rounded" />
+    <span>Toon alle (ook lage kwaliteit)</span>
+  </label>
+  <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
+    <input type="checkbox" id="filter-hidenodata" onchange="loadDashboard()" class="rounded" />
+    <span>Verberg aandelen zonder data</span>
+  </label>
+</div>
+
+<!-- Table wrapper -->
+<div class="overflow-x-auto rounded-xl border border-slate-800">
+  <table class="w-full text-sm" id="main-table">
+    <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-3 py-3 text-left sortable" data-col="ticker" title="Aandelenticker zoals gebruikt op de beurs">Ticker</th>
+        <th class="px-3 py-3 text-left sortable" data-col="name" title="Volledige bedrijfsnaam">Naam</th>
+        <th class="px-3 py-3 text-right sortable" data-col="price_eur" title="Huidige aandelenkoers omgerekend naar euro's">Prijs</th>
+        <th class="px-3 py-3 text-right sortable" data-col="combined_fv_eur" title="Gecombineerde fair value — gewogen gemiddelde van DCF-scenario's, sectorwaardering en Graham-formule">FV</th>
+        <th class="px-3 py-3 text-right sortable" data-col="margin_of_safety" title="Marge van veiligheid: hoeveel % de koers onder (positief) of boven (negatief) de fair value ligt">Korting %</th>
+        <th class="px-3 py-3 text-right sortable" data-col="normalized_fcf_m_eur" title="Genormaliseerde free cash flow — meerjaarlijks gemiddelde na uitschieters — in miljoenen euro's">FCF</th>
+        <th class="px-3 py-3 text-center sortable" data-col="quality_score" title="Kwaliteitsscore 0–10: meet winstgevendheid (ROE/ROIC), balanssterkte, EPS/FCF-stabiliteit en Piotroski F-Score">Kwaliteit</th>
+        <th class="px-3 py-3 text-center sortable" data-col="piotroski_score" title="Piotroski F-Score 0–9: negen boekhoudkundige criteria voor financiële gezondheid. ≥7 = sterk, ≤2 = zwak">Piotroski</th>
+        <th class="px-3 py-3 text-center" title="Koopadvies op basis van kwaliteitsscore en prijs ten opzichte van fair value. Hover op het signaal voor de uitleg.">Signaal</th>
+        <th class="px-3 py-3 text-left sortable" data-col="sector" title="Bedrijfssector volgens Yahoo Finance. Hover op de sectornaam voor een toelichting.">Sector</th>
+        <th class="px-3 py-3 text-center sortable" data-col="market" title="Beursindex of -markt waarop het aandeel noteert">Markt</th>
+        <th class="px-3 py-3 text-right sortable" data-col="market_cap_m_eur" title="Marktkapitalisatie in miljoenen euro's (koers × uitstaande aandelen)">M.Cap</th>
+        <th class="px-3 py-3 text-center sortable" data-col="latest_fiscal_year" title="Recentste fiscaal jaar waarvoor jaarcijfers in de database staan. Geel = 1 jaar oud, rood = 2+ jaar oud">FY</th>
+        <th class="px-3 py-3 text-center sortable" data-col="last_updated" title="Datum van de laatste koersupdate van Yahoo Finance">Data</th>
+        <th class="px-3 py-3 text-center" title="Instellingen per aandeel">⚙</th>
+      </tr>
+    </thead>
+    <tbody id="table-body" class="divide-y divide-slate-800/60">
+      <tr><td colspan="15" class="text-center py-12 text-slate-500">
+        Klik op <strong>Refresh</strong> om data op te halen…
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p id="row-count" class="text-xs text-slate-500 mt-2"></p>
+
+<!-- Bulk-add modal -->
+<div id="bulk-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
+    <h2 class="font-semibold text-lg mb-3">Tickers in bulk toevoegen</h2>
+    <p class="text-slate-400 text-sm mb-3">
+      Plak je lijst hieronder. Één ticker per regel, of gescheiden door komma's of spaties.<br/>
+      Gebruik Yahoo Finance formaat: <span class="font-mono text-slate-300">ASML.AS · MIPS.ST · ALE.WA · AAPL</span>
+    </p>
+    <textarea id="bulk-input" rows="10"
+      placeholder="ASML.AS&#10;KBC.BR&#10;MIPS.ST&#10;AAPL&#10;..."
+      class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"></textarea>
+    <p id="bulk-feedback" class="text-xs text-slate-400 mt-2 min-h-[1.2em]"></p>
+    <div class="flex gap-3 mt-4">
+      <button onclick="submitBulk()"
+        class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-md text-sm font-medium transition">
+        Toevoegen &amp; ophalen
+      </button>
+      <button onclick="document.getElementById('bulk-modal').classList.add('hidden')"
+        class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md text-sm transition">
+        Annuleren
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _allRows = [];
+let _sortCol = 'margin_of_safety';
+let _sortDir = -1;   // -1 = desc, 1 = asc
+
+// ---- Load data on page load ------------------------------------------------
+async function loadDashboard() {
+  try {
+    const showAll    = document.getElementById('filter-showall').checked;
+    const hideNoData = document.getElementById('filter-hidenodata').checked;
+    const url = '/api/dashboard?show_all=' + showAll + '&hide_no_data=' + hideNoData + '&_=' + Date.now();
+    console.log('[Dashboard] fetch:', url);
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Server fout: ' + res.status + ' ' + res.statusText);
+    _allRows = await res.json();
+    console.log('[Dashboard] ontvangen:', _allRows.length, 'rows, show_all was:', showAll);
+    populateSectorFilter();
+    renderTable();
+  } catch (e) {
+    console.error('loadDashboard fout:', e);
+    document.getElementById('row-count').textContent = '⚠ Fout bij laden: ' + e.message;
+  }
+}
+
+function populateSectorFilter() {
+  const sel = document.getElementById('filter-sector');
+  const sectors = [...new Set(_allRows.map(r => r.sector).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Alle sectoren</option>' +
+    sectors.map(s => `<option>${s}</option>`).join('');
+}
+
+function renderTable() {
+  const mktFilter    = document.getElementById('filter-market').value;
+  const secFilter    = document.getElementById('filter-sector').value;
+  const sigFilter    = document.getElementById('filter-signal').value;
+
+  let rows = _allRows.filter(r => {
+    if (mktFilter && r.market !== mktFilter) return false;
+    if (secFilter && r.sector !== secFilter) return false;
+    if (sigFilter && r.signal !== sigFilter) return false;
+    return true;
+  });
+
+  // Sort
+  rows.sort((a, b) => {
+    const av = a[_sortCol] ?? -Infinity;
+    const bv = b[_sortCol] ?? -Infinity;
+    if (typeof av === 'string') return _sortDir * av.localeCompare(bv);
+    return _sortDir * ((av > bv ? 1 : av < bv ? -1 : 0));
+  });
+
+  const tbody = document.getElementById('table-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-slate-500">Geen resultaten</td></tr>';
+    document.getElementById('row-count').textContent = '';
+    return;
+  }
+
+  const htmlParts = [];
+  for (const r of rows) {
+    try {
+      htmlParts.push(rowHtml(r));
+    } catch (e) {
+      console.error('rowHtml crash bij ticker', r.ticker, ':', e);
+      htmlParts.push(`<tr><td colspan="15" class="text-red-400 px-3 py-1 text-xs">⚠ Renderingsfout bij ${r.ticker}: ${e.message}</td></tr>`);
+    }
+  }
+  tbody.innerHTML = htmlParts.join('');
+  document.getElementById('row-count').textContent =
+    `${rows.length} van ${_allRows.length} aandelen weergegeven`;
+
+  updateSortIndicators();
+}
+
+function dateStaleness(isoStr) {
+  // Returns {label, cssClass, tooltip} based on how old last_updated is
+  if (!isoStr) return { label: '—', css: 'text-slate-600', tooltip: 'Geen koersdatum bekend' };
+  const d = new Date(isoStr.replace(' ', 'T'));
+  const ageHours = (Date.now() - d.getTime()) / 36e5;
+  const dateStr = d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  if (ageHours < 28)  return { label: dateStr, css: 'text-green-500',  tooltip: 'Koers recent bijgewerkt · Bron: Yahoo Finance' };
+  if (ageHours < 168) return { label: dateStr, css: 'text-yellow-400', tooltip: `Koers ${Math.floor(ageHours/24)} dagen oud · Bron: Yahoo Finance` };
+  return { label: '⚠ ' + dateStr, css: 'text-red-400 font-semibold', tooltip: `Koers ${Math.floor(ageHours/24)} dagen oud — mogelijk verouderd! · Bron: Yahoo Finance` };
+}
+
+const SECTOR_DESCRIPTIONS = {
+  'Technology':             'Software, hardware en IT-diensten.',
+  'Healthcare':             'Gezondheidszorg, medische apparatuur en farmaceutica.',
+  'Financial Services':     'Banken, verzekeraars en vermogensbeheerders.',
+  'Consumer Cyclical':      "Bedrijven gevoelig voor de economische cyclus: auto's, retail, horeca.",
+  'Consumer Defensive':     'Dagelijkse consumptiegoederen: voeding, drogisterij, tabak.',
+  'Industrials':            'Machines, componenten en industriële diensten.',
+  'Energy':                 'Olie, gas en hernieuwbare energie.',
+  'Real Estate':            'Vastgoedbeheer en -ontwikkeling (incl. REITs).',
+  'Utilities':              'Nutsbedrijven: elektriciteit, gas en water.',
+  'Basic Materials':        'Grondstoffenproducenten: mijnbouw, chemie, hout.',
+  'Communication Services': 'Telecom, media en internetplatforms.',
+};
+
+function signalTooltip(r) {
+  const q   = r.quality_score;
+  const mos = r.margin_of_safety;
+  const sig = r.signal;
+
+  if (!sig || sig === 'N/A' || sig === 'INSUFFICIENT DATA' || sig === 'ERROR')
+    return 'Onvoldoende data voor signaalberekening.';
+
+  if (q !== null && q !== undefined && q < 6)
+    return `SELL — kwaliteitsdrempel\nScore ${q.toFixed(1)}/10 valt onder minimum van 6.\nZelfs bij een lage prijs worden fundamenteel zwakke bedrijven vermeden.`;
+
+  if (sig === 'STRONG BUY')
+    return `STRONG BUY — hoge kwaliteit + grote korting\nKwaliteit: ${q?.toFixed(1)}/10 (vereist ≥8)\nKorting op fair value: ${mos?.toFixed(1)}%`;
+
+  if (sig === 'BUY')
+    return `BUY — voldoende kwaliteit + aantrekkelijke prijs\nKwaliteit: ${q?.toFixed(1)}/10\nKorting op fair value: ${mos?.toFixed(1)}%`;
+
+  if (sig === 'HOLD') {
+    const desc = (mos ?? 0) >= 0 ? `${mos?.toFixed(1)}% onder fair value` : `${Math.abs(mos).toFixed(1)}% boven fair value`;
+    return `HOLD — prijs in acceptabele zone\nKwaliteit: ${q?.toFixed(1)}/10\nPrijs ligt ${desc}`;
+  }
+
+  if (sig === 'SELL')
+    return `SELL — prijs significant boven fair value\nKwaliteit: ${q?.toFixed(1)}/10\nPremie op fair value: ${Math.abs(mos ?? 0).toFixed(1)}%`;
+
+  return sig;
+}
+
+function rowHtml(r) {
+  const mos = r.margin_of_safety;
+  const mosClass = mos > 25 ? 'text-green-400 font-semibold' :
+                   mos > 0  ? 'text-green-300' :
+                   mos < -15 ? 'text-red-400' : 'text-slate-300';
+  const sigClass = 'signal-' + (r.signal || 'N/A').replace(/ /g, '\\ ');
+
+  const warn = (r.warnings || []).length > 0
+    ? `<span title="${(r.warnings||[]).map(w=>w.replace(/"/g,"'")).join('&#10;')}" class="ml-1 text-yellow-400 cursor-help">⚠</span>`
+    : '';
+
+  const stale = dateStaleness(r.last_updated);
+  // Highlight row left-border if price is stale (>7 days)
+  const rowBorder = stale.css.includes('red') ? 'border-l-2 border-red-600' :
+                    stale.css.includes('yellow') ? 'border-l-2 border-yellow-600' : '';
+
+  const fcfStr = r.normalized_fcf_m_eur !== null && r.normalized_fcf_m_eur !== undefined
+    ? fmtBig(r.normalized_fcf_m_eur)
+    : '—';
+  const fcfClass = r.normalized_fcf_m_eur < 0 ? 'text-red-400' : 'text-slate-300';
+
+  const curYear = new Date().getFullYear();
+  const fy = r.latest_fiscal_year;
+  const fyCell = fy
+    ? `<span class="text-xs font-mono px-1.5 py-0.5 rounded ${fy < curYear - 1 ? 'bg-red-900 text-red-300' : fy < curYear ? 'bg-yellow-900 text-yellow-300' : 'text-slate-500'}" title="Recentste jaarcijfers in DB: FY${fy}">${fy}</span>`
+    : '—';
+
+  const newBadge = r.is_new
+    ? ` <span class="text-xs px-1 py-0.5 rounded bg-blue-900 text-blue-300 font-semibold" title="Toegevoegd ${r.days_since_added === 0 ? 'vandaag' : r.days_since_added + ' dag(en) geleden'}">NIEUW</span>`
+    : '';
+
+  const hr = r.hist_relative || {};
+  let hrBadge = '';
+  if (hr.ev_ebitda_pct !== null && hr.ev_ebitda_pct !== undefined && (hr.years_available || 0) >= 3) {
+    const pct = hr.ev_ebitda_pct;
+    const color = pct < -20 ? 'bg-green-900 text-green-300'
+                : pct < -5  ? 'bg-emerald-900 text-emerald-300'
+                : pct <  5  ? 'text-slate-600'
+                : pct < 20  ? 'bg-yellow-900 text-yellow-300'
+                :              'bg-red-900 text-red-300';
+    const sign = pct > 0 ? '+' : '';
+    const currEv = hr.current_ev_ebitda != null ? hr.current_ev_ebitda.toFixed(1) + 'x' : '—';
+    const medEv  = hr.median_ev_ebitda  != null ? hr.median_ev_ebitda.toFixed(1)  + 'x' : '—';
+    hrBadge = ` <span class="text-xs px-1 rounded ${color}" title="EV/EBITDA: huidig ${currEv} vs. ${hr.years_available}-jaars mediaan ${medEv}">${sign}${pct.toFixed(0)}%</span>`;
+  }
+
+  return `<tr class="hover:bg-slate-800/40 transition ${rowBorder}">
+    <td class="px-3 py-2.5 font-mono font-semibold">
+      <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${newBadge}${hrBadge}${warn}
+    </td>
+    <td class="px-3 py-2.5 text-slate-300 max-w-[160px] truncate" title="${r.name||''}">${r.name||'—'}</td>
+    <td class="px-3 py-2.5 text-right">${fmtEur(r.price_eur)}</td>
+    <td class="px-3 py-2.5 text-right font-semibold">${fmtEur(r.combined_fv_eur)}</td>
+    <td class="px-3 py-2.5 text-right ${mosClass}">
+      ${mos !== null && mos !== undefined ? (mos > 0 ? '+' : '') + fmt(mos,1,'%') : '—'}
+    </td>
+    <td class="px-3 py-2.5 text-right text-xs ${fcfClass}">${fcfStr}</td>
+    <td class="px-3 py-2.5 text-center">
+      <span class="font-bold ${(r.quality_score||0) >= 8 ? 'text-green-400' : (r.quality_score||0) >= 7 ? 'text-green-300' : 'text-red-400'}">
+        ${r.quality_score !== null && r.quality_score !== undefined ? r.quality_score + '/10' : '—'}
+      </span>
+    </td>
+    <td class="px-3 py-2.5 text-center text-slate-400">
+      ${r.piotroski_score !== null && r.piotroski_score !== undefined ? r.piotroski_score + '/9' : '—'}
+    </td>
+    <td class="px-3 py-2.5 text-center">
+      <span class="px-2 py-0.5 rounded text-xs font-bold ${sigClass}" title="${signalTooltip(r).replace(/"/g,"'")}">${r.signal||'N/A'}</span>
+    </td>
+    <td class="px-3 py-2.5 text-slate-400 text-xs" title="${SECTOR_DESCRIPTIONS[r.sector] || ''}">${r.sector||'—'}</td>
+    <td class="px-3 py-2.5 text-center text-xs text-slate-400">${r.market||'—'}</td>
+    <td class="px-3 py-2.5 text-right text-xs text-slate-400">
+      ${r.market_cap_m_eur ? fmtBig(r.market_cap_m_eur) : '—'}
+    </td>
+    <td class="px-3 py-2.5 text-center">${fyCell}</td>
+    <td class="px-3 py-2.5 text-center text-xs ${stale.css}" title="${stale.tooltip}">${stale.label}</td>
+    <td class="px-3 py-2.5 text-center">
+      <button onclick="deleteTicker('${r.ticker}')"
+        class="text-slate-600 hover:text-red-400 text-xs transition" title="Verwijderen">✕</button>
+    </td>
+  </tr>`;
+}
+
+// ---- Sorting ---------------------------------------------------------------
+document.querySelectorAll('.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (_sortCol === col) {
+      _sortDir *= -1;
+    } else {
+      _sortCol = col;
+      _sortDir = col === 'margin_of_safety' ? -1 : 1;
+    }
+    renderTable();
+  });
+});
+
+function updateSortIndicators() {
+  document.querySelectorAll('.sortable').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === _sortCol) {
+      th.classList.add(_sortDir === 1 ? 'sort-asc' : 'sort-desc');
+    }
+  });
+}
+
+// ---- Add / Remove tickers --------------------------------------------------
+async function addTicker() {
+  const input  = document.getElementById('new-ticker');
+  const ticker = input.value.trim().toUpperCase();
+  if (!ticker) return;
+
+  const res  = await fetch('/api/stocks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker }),
+  });
+  const data = await res.json();
+  input.value = '';
+
+  if (data.job_id) {
+    document.getElementById('refresh-status').textContent = `${ticker} ophalen…`;
+    _pollRefresh(data.job_id);
+  }
+}
+
+async function deleteTicker(ticker) {
+  if (!confirm(`${ticker} verwijderen van watchlist?`)) return;
+  await fetch('/api/stocks/' + ticker, { method: 'DELETE' });
+  _allRows = _allRows.filter(r => r.ticker !== ticker);
+  renderTable();
+}
+
+// ---- Bulk add --------------------------------------------------------------
+async function submitBulk() {
+  const raw = document.getElementById('bulk-input').value;
+  // Split on newlines, commas, semicolons, tabs — filter empty
+  const tickers = raw.split(/[\n,;\t]+/).map(t => t.trim().toUpperCase()).filter(Boolean);
+
+  if (!tickers.length) {
+    document.getElementById('bulk-feedback').textContent = 'Geen tickers gevonden.';
+    return;
+  }
+
+  document.getElementById('bulk-feedback').textContent = `${tickers.length} tickers verwerken…`;
+
+  const res  = await fetch('/api/stocks/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers }),
+  });
+  const data = await res.json();
+
+  const msg = `✓ ${data.added.length} toegevoegd` +
+    (data.skipped.length ? `, ${data.skipped.length} al aanwezig (overgeslagen)` : '');
+  document.getElementById('bulk-feedback').textContent = msg;
+
+  if (data.job_id) {
+    document.getElementById('bulk-modal').classList.add('hidden');
+    document.getElementById('bulk-input').value = '';
+    document.getElementById('refresh-status').textContent = 'Data ophalen…';
+    _pollRefresh(data.job_id);
+  }
+}
+
+// ---- After refresh, reload table -------------------------------------------
+function onRefreshDone(job) {
+  loadDashboard();
+}
+
+// ---- Startup auto-refresh check --------------------------------------------
+async function checkStartupRefresh() {
+  try {
+    const res = await fetch('/api/startup_job');
+    const { job_id } = await res.json();
+    if (!job_id) return;
+
+    // Check if it's still running
+    const statusRes = await fetch('/api/refresh/status?job_id=' + job_id);
+    const job = await statusRes.json();
+    if (job.status === 'done') return;  // Already finished before page loaded
+
+    // Job is running — hook into existing poll mechanism
+    const btn = document.getElementById('btn-refresh');
+    btn.disabled = true;
+    btn.textContent = '⏳ Bezig…';
+    document.getElementById('refresh-status').textContent = 'Opstarten — data bijwerken…';
+    _pollRefresh(job_id);
+  } catch (e) {
+    // Non-fatal — just skip
+  }
+}
+
+// ---- Init ------------------------------------------------------------------
+loadDashboard();
+checkStartupRefresh();
+</script>
+{% endblock %}

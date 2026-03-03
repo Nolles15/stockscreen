@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}Instellingen — Wannabe Oracle Stockscreener{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">⚙ Instellingen</h1>
+
+<!-- Screening parameters -->
+<div class="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-5">
+  <h2 class="font-semibold text-slate-300 mb-4">Screening parameters</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+
+    <div>
+      <label class="block text-slate-400 mb-1">Minimale kwaliteitsscore (0–10)</label>
+      <input type="number" id="s-min-quality" min="0" max="10" step="1"
+        value="{{ config.screening.min_quality_score }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+
+    <div>
+      <label class="block text-slate-400 mb-1">Minimale marktkapitalisatie (€M)</label>
+      <input type="number" id="s-min-cap" min="0" step="50"
+        value="{{ config.screening.min_market_cap_eur }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+
+    <div>
+      <label class="block text-slate-400 mb-1">Minimum jaren historiek</label>
+      <input type="number" id="s-min-years" min="1" max="5" step="1"
+        value="{{ config.screening.required_years }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+  </div>
+</div>
+
+<!-- Signal thresholds -->
+<div class="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-5">
+  <h2 class="font-semibold text-slate-300 mb-4">Koop-/verkoopdrempels (% van gecombineerde FV)</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
+    {% for key, label, color in [
+      ('strong_buy_pct',  'Sterk KOOP (≤ X%)', 'text-green-400'),
+      ('buy_pct',         'KOOP (≤ X%)',        'text-green-300'),
+      ('hold_upper_pct',  'HOUD bovengrens',    'text-yellow-400'),
+      ('sell_pct',        'VERKOOP (> X%)',      'text-red-400'),
+      ('sell_quality_floor', 'Verkoop kwal. drempel', 'text-red-400'),
+    ] %}
+    <div>
+      <label class="block text-slate-400 mb-1 {{ color }}">{{ label }}</label>
+      <input type="number" id="sig-{{ key }}" step="1"
+        value="{{ config.signals[key] }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Valuation weights -->
+<div class="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-5">
+  <h2 class="font-semibold text-slate-300 mb-4">Waarderingsgewichten</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+    <div>
+      <label class="block text-slate-400 mb-1">Multiples gewicht (0–1)</label>
+      <input type="number" id="v-mult-w" step="0.05" min="0" max="1"
+        value="{{ config.valuation.multiples_weight }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    <div>
+      <label class="block text-slate-400 mb-1">DCF gewicht (0–1)</label>
+      <input type="number" id="v-dcf-w" step="0.05" min="0" max="1"
+        value="{{ config.valuation.dcf_weight }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    <div>
+      <label class="block text-slate-400 mb-1">Max. groei Graham (%)</label>
+      <input type="number" id="v-max-g" step="1" min="0" max="15"
+        value="{{ config.valuation.max_growth_rate }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    <div>
+      <label class="block text-slate-400 mb-1">Max. groei perpetuity (%)</label>
+      <input type="number" id="v-max-perp-g" step="1" min="0" max="10"
+        value="{{ config.valuation.max_perpetuity_growth }}"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+  </div>
+</div>
+
+<!-- Sector assumptions -->
+<div class="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-5">
+  <h2 class="font-semibold text-slate-300 mb-1">Sector assumptions</h2>
+  <p class="text-slate-500 text-xs mb-4">
+    Worden gebruikt als sector-gemiddelde multiples en als groeirate bij ontbrekende historische data.
+  </p>
+  <div class="overflow-x-auto">
+    <table class="text-xs w-full" id="sector-table">
+      <thead class="text-slate-500 uppercase border-b border-slate-700">
+        <tr>
+          <th class="py-2 text-left w-48">Sector</th>
+          <th class="py-2 text-right">Groei base (%)</th>
+          <th class="py-2 text-right">Min (%)</th>
+          <th class="py-2 text-right">Max (%)</th>
+          <th class="py-2 text-right">Req. return (%)</th>
+          <th class="py-2 text-right">P/E</th>
+          <th class="py-2 text-right">EV/EBITDA</th>
+          <th class="py-2 text-right">P/B</th>
+          <th class="py-2 text-right">EV/FCF</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800" id="sector-body">
+        {% for sector, vals in config.sectors.items() %}
+        <tr data-sector="{{ sector }}">
+          <td class="py-2 font-medium text-slate-300 pr-4">{{ sector }}</td>
+          {% for field in ['growth_base','growth_min','growth_max','required_return','pe','ev_ebitda','pb','ev_fcf'] %}
+          <td class="py-1 text-right">
+            <input type="number" step="0.5" data-field="{{ field }}"
+              value="{{ vals[field] }}"
+              class="w-16 bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-right focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Save button -->
+<div class="flex gap-3 items-center">
+  <button onclick="saveSettings()"
+    class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-md font-medium transition">
+    Opslaan
+  </button>
+  <span id="save-status" class="text-sm text-slate-400"></span>
+  <button onclick="recalcAll()" class="ml-auto bg-slate-700 hover:bg-slate-600 text-white text-sm px-4 py-2 rounded-md transition">
+    ↻ Herberekenen (geen data-fetch)
+  </button>
+</div>
+
+<!-- ============================================================
+     METHODOLOGIE
+     ============================================================ -->
+<div class="mt-10 mb-3">
+  <h2 class="text-xl font-bold">📖 Methodologie</h2>
+  <p class="text-slate-400 text-sm mt-1">
+    Uitleg hoe kwaliteitsscore en reële waarde berekend worden — met de huidige configuratiewaarden.
+  </p>
+</div>
+
+<!-- Stap 1: Normalisatie -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <h3 class="font-semibold text-slate-200 mb-2">Stap 1 — Genormaliseerde cijfers</h3>
+  <p class="text-slate-400 text-sm mb-3">
+    EPS, EBITDA en FCF worden genormaliseerd om eenmalige uitschieters te neutraliseren:
+  </p>
+  <ol class="text-sm text-slate-300 space-y-1 ml-5 list-decimal">
+    <li>Verzamel waarden van de laatste <strong>5 boekjaren</strong></li>
+    <li><strong>Winsoriseer</strong>: verwijder extreme waarden buiten Q1 − 3×IQR en Q3 + 3×IQR</li>
+    <li>Neem de <strong>mediaan</strong> van de overgebleven waarden</li>
+  </ol>
+  <p class="text-xs text-slate-500 mt-3">
+    Owner Earnings ≈ FCF. Per-aandeelwaarde = totaal FCF / uitstaande aandelen (ook gemedianed over 5 jaar).
+  </p>
+</div>
+
+<!-- Stap 2: Kwaliteitsscore -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <h3 class="font-semibold text-slate-200 mb-3">Stap 2 — Kwaliteitsscore (0–10)</h3>
+  <p class="text-slate-400 text-sm mb-3">
+    Vijf criteria, elk max 2 punten. Minimale kwaliteitsscore voor KOOP-signalen:
+    <span class="text-blue-400 font-semibold">{{ config.screening.min_quality_score }}/10</span>.
+  </p>
+  <div class="overflow-x-auto">
+    <table class="text-sm w-full">
+      <thead class="text-slate-500 text-xs uppercase border-b border-slate-700">
+        <tr>
+          <th class="py-2 text-left">Criterium</th>
+          <th class="py-2 text-center w-16">Max</th>
+          <th class="py-2 text-left pl-4">Drempel / logica</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800 text-slate-300">
+        <tr>
+          <td class="py-2 font-medium">Winstgevendheid (ROE & ROIC)</td>
+          <td class="py-2 text-center text-slate-400 font-mono">2</td>
+          <td class="py-2 pl-4 text-xs text-slate-400">
+            Gemiddelde ROE <em>én</em> ROIC &gt; 12% — geen enkel jaar &lt; 8%<br>
+            Één van beide &gt; 12% → 1 punt
+          </td>
+        </tr>
+        <tr>
+          <td class="py-2 font-medium">Balanssterkte</td>
+          <td class="py-2 text-center text-slate-400 font-mono">2</td>
+          <td class="py-2 pl-4 text-xs text-slate-400">
+            D/E &lt; 0,5 <em>én</em> rentedekkingsgraad &gt; 10× → 2 punt<br>
+            Één van beide → 1 punt · Geen rentelasten telt als ≥ 10×
+          </td>
+        </tr>
+        <tr>
+          <td class="py-2 font-medium">EPS & FCF stabiliteit</td>
+          <td class="py-2 text-center text-slate-400 font-mono">2</td>
+          <td class="py-2 pl-4 text-xs text-slate-400">
+            Variatiecoëfficiënt EPS <em>én</em> FCF &lt; 20% over 5 jaar → 2 punt<br>
+            Één van beide stabiel → 1 punt
+          </td>
+        </tr>
+        <tr>
+          <td class="py-2 font-medium">FCF altijd positief</td>
+          <td class="py-2 text-center text-slate-400 font-mono">2</td>
+          <td class="py-2 pl-4 text-xs text-slate-400">
+            FCF &gt; 0 in alle jaren + ≥ 3 jaar data → 2 punt<br>
+            FCF &gt; 0 maar &lt; 3 jaar data → 1 punt
+          </td>
+        </tr>
+        <tr>
+          <td class="py-2 font-medium">Piotroski F-Score</td>
+          <td class="py-2 text-center text-slate-400 font-mono">2</td>
+          <td class="py-2 pl-4 text-xs text-slate-400">
+            F-Score ≥ 7 → 2 punt &nbsp;·&nbsp; F-Score ≥ 5 → 1 punt &nbsp;·&nbsp; &lt; 5 → 0 punt
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Piotroski details -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <h3 class="font-semibold text-slate-200 mb-3">Piotroski F-Score (0–9)</h3>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+    <div>
+      <div class="text-slate-400 font-semibold mb-2 uppercase tracking-wide">Winstgevendheid</div>
+      <ul class="space-y-1 text-slate-300">
+        <li><span class="font-mono text-slate-500">F1</span> ROA &gt; 0</li>
+        <li><span class="font-mono text-slate-500">F2</span> Operationele kasstroom &gt; 0</li>
+        <li><span class="font-mono text-slate-500">F3</span> ROA stijgend t.o.v. vorig jaar</li>
+        <li><span class="font-mono text-slate-500">F4</span> CF/aktiva &gt; ROA (cashkwaliteit)</li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-slate-400 font-semibold mb-2 uppercase tracking-wide">Schuld & liquiditeit</div>
+      <ul class="space-y-1 text-slate-300">
+        <li><span class="font-mono text-slate-500">F5</span> Schuld/aktiva ratio dalend</li>
+        <li><span class="font-mono text-slate-500">F6</span> Current ratio stijgend</li>
+        <li><span class="font-mono text-slate-500">F7</span> Geen dilutie (&lt; 2% nieuwe aandelen)</li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-slate-400 font-semibold mb-2 uppercase tracking-wide">Efficiency</div>
+      <ul class="space-y-1 text-slate-300">
+        <li><span class="font-mono text-slate-500">F8</span> Brutomarge stijgend</li>
+        <li><span class="font-mono text-slate-500">F9</span> Asset turnover stijgend</li>
+      </ul>
+    </div>
+  </div>
+  <p class="text-xs text-slate-500 mt-3">
+    ROIC = EBIT × (1 − 25%) / (eigen vermogen + schuld). Bij &lt; 6 bekende criteria wordt de score als onbetrouwbaar gemarkeerd.
+  </p>
+</div>
+
+<!-- Stap 3: Waardering -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <h3 class="font-semibold text-slate-200 mb-1">Stap 3 — Reële waarde per aandeel</h3>
+  <p class="text-slate-400 text-sm mb-4">
+    Gecombineerde FV =
+    <span class="text-blue-400 font-mono font-semibold">{{ (config.valuation.multiples_weight * 100)|int }}%</span>
+    × Multiples FV +
+    <span class="text-purple-400 font-mono font-semibold">{{ (config.valuation.dcf_weight * 100)|int }}%</span>
+    × Gemiddelde(Graham IV, Perpetuity FV)
+  </p>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <!-- Method A -->
+    <div class="bg-slate-800/60 rounded-lg p-4">
+      <div class="text-xs font-bold uppercase tracking-wide text-blue-400 mb-3">
+        Methode A — Multiples ({{ (config.valuation.multiples_weight * 100)|int }}%)
+      </div>
+      <p class="text-xs text-slate-400 mb-2">
+        Elke multiple = max(historische mediaan, sector-gemiddelde uit config)
+      </p>
+      <ul class="text-xs text-slate-300 space-y-1.5">
+        <li><span class="font-mono text-slate-400 w-28 inline-block">P/E FV</span> = Norm. EPS × P/E multiple</li>
+        <li><span class="font-mono text-slate-400 w-28 inline-block">EV/EBITDA FV</span> = (Norm. EBITDA × EV/EBITDA − netto schuld) ÷ aandelen</li>
+        <li><span class="font-mono text-slate-400 w-28 inline-block">P/B FV</span> = Boekwaarde/aandeel × P/B multiple</li>
+        <li><span class="font-mono text-slate-400 w-28 inline-block">EV/FCF FV</span> = (Norm. FCF × EV/FCF − netto schuld) ÷ aandelen</li>
+      </ul>
+      <p class="text-xs text-slate-500 mt-2">Multiples FV = gemiddelde van beschikbare deelmethoden (&gt; 0)</p>
+    </div>
+
+    <!-- Method B -->
+    <div class="bg-slate-800/60 rounded-lg p-4">
+      <div class="text-xs font-bold uppercase tracking-wide text-purple-400 mb-3">
+        Methode B — DCF ({{ (config.valuation.dcf_weight * 100)|int }}%)
+      </div>
+      <div class="space-y-3">
+        <div>
+          <div class="text-xs font-medium text-slate-200 mb-1">Graham IV (50% van B)</div>
+          <code class="block text-xs bg-slate-900 rounded px-3 py-1.5 text-slate-300">
+            FV = Norm. EPS × (8,5 + 2 × g)
+          </code>
+          <div class="text-xs text-slate-500 mt-1">
+            g = sectorgroei uit config · max g = {{ config.valuation.max_growth_rate }}%
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-medium text-slate-200 mb-1">Perpetuity FV (50% van B)</div>
+          <code class="block text-xs bg-slate-900 rounded px-3 py-1.5 text-slate-300">
+            FV = Norm. Owner Earnings/aandeel ÷ (r − g)
+          </code>
+          <div class="text-xs text-slate-500 mt-1">
+            r = vereist rendement uit sector config · max g = {{ config.valuation.max_perpetuity_growth }}%
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenarios -->
+  <div class="bg-slate-800/30 rounded-lg p-4">
+    <div class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Scenario's</div>
+    <div class="grid grid-cols-3 gap-3 text-xs text-center">
+      <div class="bg-slate-800 rounded-lg p-3">
+        <div class="text-blue-300 font-semibold mb-1">Conservatief</div>
+        <div class="text-slate-400">Groei = growth_min</div>
+        <div class="text-slate-400">r = vereist rendement + 1%</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-3">
+        <div class="text-green-400 font-semibold mb-1">Base</div>
+        <div class="text-slate-400">Groei = growth_base</div>
+        <div class="text-slate-400">r = vereist rendement</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-3">
+        <div class="text-yellow-400 font-semibold mb-1">Optimistisch</div>
+        <div class="text-slate-400">Groei = growth_max</div>
+        <div class="text-slate-400">r = vereist rendement − 1%</div>
+      </div>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">
+      Bij de Multiples-methode zijn er geen scenario's; die gebruikt altijd de base-multiple.
+      De gecombineerde FV op het dashboard is altijd het base-scenario.
+    </p>
+  </div>
+</div>
+
+<!-- Stap 4: Signaallogica -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <h3 class="font-semibold text-slate-200 mb-3">Stap 4 — Signaallogica</h3>
+  <p class="text-slate-400 text-sm mb-1">
+    Koers% van FV = huidige koers ÷ gecombineerde FV × 100%<br>
+    Korting% = 100% − Koers% van FV &nbsp;(positief = goedkoop, negatief = duur)
+  </p>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-xs">
+    <div class="flex items-start gap-3 bg-green-950/40 border border-green-900 rounded-lg p-3">
+      <span class="bg-green-900 text-white font-bold px-2 py-0.5 rounded text-xs whitespace-nowrap">STERK KOOP</span>
+      <div class="text-slate-300">
+        Koers ≤ <strong>{{ config.signals.strong_buy_pct }}%</strong> van FV
+        (≥ {{ 100 - config.signals.strong_buy_pct }}% korting)
+        <em>én</em> kwaliteitsscore ≥ 8
+      </div>
+    </div>
+    <div class="flex items-start gap-3 bg-green-950/20 border border-green-900/50 rounded-lg p-3">
+      <span class="bg-green-700 text-white font-bold px-2 py-0.5 rounded text-xs whitespace-nowrap">KOOP</span>
+      <div class="text-slate-300">
+        Koers ≤ <strong>{{ config.signals.buy_pct }}%</strong> van FV
+        <em>én</em> kwaliteitsscore ≥ {{ config.screening.min_quality_score }}
+      </div>
+    </div>
+    <div class="flex items-start gap-3 bg-yellow-950/20 border border-yellow-900/50 rounded-lg p-3">
+      <span class="bg-yellow-800 text-white font-bold px-2 py-0.5 rounded text-xs whitespace-nowrap">HOUD</span>
+      <div class="text-slate-300">
+        Koers ≤ <strong>{{ config.signals.hold_upper_pct }}%</strong> van FV
+        (ook de {{ config.signals.hold_upper_pct }}–{{ config.signals.sell_pct }}% zone)
+      </div>
+    </div>
+    <div class="flex items-start gap-3 bg-red-950/20 border border-red-900/50 rounded-lg p-3">
+      <span class="bg-red-800 text-white font-bold px-2 py-0.5 rounded text-xs whitespace-nowrap">VERKOOP</span>
+      <div class="text-slate-300">
+        Kwaliteitsscore &lt; <strong>{{ config.signals.sell_quality_floor }}</strong>
+        <em>of</em> koers &gt; <strong>{{ config.signals.sell_pct }}%</strong> van FV
+      </div>
+    </div>
+  </div>
+  <p class="text-xs text-slate-500 mt-3">
+    Onvoldoende data → N/A. Geen koers in systeem → geen signaal.
+    Kwaliteitsscore vereiste ({{ config.screening.min_quality_score }}/10) is configureerbaar hierboven.
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveSettings() {
+  const screening = {
+    min_quality_score:  parseFloat(document.getElementById('s-min-quality').value),
+    min_market_cap_eur: parseFloat(document.getElementById('s-min-cap').value),
+    required_years:     parseInt(document.getElementById('s-min-years').value),
+  };
+  const signals = {
+    strong_buy_pct:    parseFloat(document.getElementById('sig-strong_buy_pct').value),
+    buy_pct:           parseFloat(document.getElementById('sig-buy_pct').value),
+    hold_upper_pct:    parseFloat(document.getElementById('sig-hold_upper_pct').value),
+    sell_pct:          parseFloat(document.getElementById('sig-sell_pct').value),
+    sell_quality_floor: parseFloat(document.getElementById('sig-sell_quality_floor').value),
+  };
+  const valuation = {
+    multiples_weight:     parseFloat(document.getElementById('v-mult-w').value),
+    dcf_weight:           parseFloat(document.getElementById('v-dcf-w').value),
+    max_growth_rate:      parseFloat(document.getElementById('v-max-g').value),
+    max_perpetuity_growth: parseFloat(document.getElementById('v-max-perp-g').value),
+  };
+
+  // Collect sector data
+  const sectors = {};
+  document.querySelectorAll('#sector-body tr[data-sector]').forEach(row => {
+    const sec = row.dataset.sector;
+    sectors[sec] = {};
+    row.querySelectorAll('input[data-field]').forEach(inp => {
+      sectors[sec][inp.dataset.field] = parseFloat(inp.value);
+    });
+  });
+
+  const res = await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ screening, signals, valuation, sectors }),
+  });
+  const data = await res.json();
+  document.getElementById('save-status').textContent = data.ok ? '✓ Opgeslagen' : '✗ Fout';
+  setTimeout(() => document.getElementById('save-status').textContent = '', 3000);
+}
+
+async function recalcAll() {
+  const status = document.getElementById('save-status');
+  status.textContent = 'Herberekenen…';
+  const res = await fetch('/api/recalculate', { method: 'POST' });
+  const results = await res.json();
+  const ok = results.filter(r => r.ok).length;
+  status.textContent = `✓ ${ok}/${results.length} herberekend`;
+  setTimeout(() => status.textContent = '', 4000);
+}
+</script>
+{% endblock %}

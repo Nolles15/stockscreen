@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+.env.*
+
+# Lokale database (wordt vervangen door PostgreSQL op Railway)
+data/
+
+# Windows
+*.bat
+*.vbs
+setup.bat
+start.bat
+start_hidden.vbs
+stop.bat
+
+# Editor
+.vscode/
+*.swp

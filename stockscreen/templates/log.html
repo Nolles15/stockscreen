@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Geschiedenis — Wannabe Oracle Stockscreener{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+  <div>
+    <h1 class="text-2xl font-bold">Activiteitengeschiedenis</h1>
+    <p class="text-slate-400 text-sm mt-0.5">
+      Alle import-, fetch- en berekeningsacties — nieuwste bovenaan
+    </p>
+  </div>
+  <div class="flex gap-2 items-center">
+    <input id="filter-ticker" type="text" placeholder="Filter op ticker…"
+      oninput="loadLog()"
+      class="bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-blue-500 uppercase" />
+    <select id="filter-status" onchange="loadLog()"
+      class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-sm focus:outline-none">
+      <option value="">Alle statussen</option>
+      <option value="ok">✓ OK</option>
+      <option value="warning">⚠ Waarschuwing</option>
+      <option value="error">✗ Fout</option>
+    </select>
+    <select id="filter-action" onchange="loadLog()"
+      class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-sm focus:outline-none">
+      <option value="">Alle acties</option>
+      <option value="add">Toegevoegd</option>
+      <option value="fetch">Data ophalen</option>
+      <option value="recalculate">Herberekend</option>
+      <option value="remove">Verwijderd</option>
+      <option value="manual_price">Handmatige prijs</option>
+      <option value="override">Override</option>
+    </select>
+  </div>
+</div>
+
+<div class="overflow-x-auto rounded-xl border border-slate-800">
+  <table class="w-full text-sm" id="log-table">
+    <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-3 py-3 text-left w-44">Tijdstip</th>
+        <th class="px-3 py-3 text-left w-28">Ticker</th>
+        <th class="px-3 py-3 text-left w-32">Actie</th>
+        <th class="px-3 py-3 text-left w-24">Status</th>
+        <th class="px-3 py-3 text-left">Details</th>
+      </tr>
+    </thead>
+    <tbody id="log-body" class="divide-y divide-slate-800/60">
+      <tr><td colspan="5" class="text-center py-12 text-slate-500">Laden…</td></tr>
+    </tbody>
+  </table>
+</div>
+<p id="log-count" class="text-xs text-slate-500 mt-2"></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _allEntries = [];
+
+async function loadLog() {
+  const ticker = document.getElementById('filter-ticker').value.trim().toUpperCase();
+  const url = '/api/log?limit=500' + (ticker ? '&ticker=' + ticker : '');
+  const res = await fetch(url);
+  _allEntries = await res.json();
+  renderLog();
+}
+
+function renderLog() {
+  const statusF = document.getElementById('filter-status').value;
+  const actionF = document.getElementById('filter-action').value;
+
+  let rows = _allEntries.filter(r => {
+    if (statusF && r.status !== statusF) return false;
+    if (actionF && r.action !== actionF) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('log-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-500">Geen resultaten</td></tr>';
+    document.getElementById('log-count').textContent = '';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => rowHtml(r)).join('');
+  document.getElementById('log-count').textContent = `${rows.length} van ${_allEntries.length} vermeldingen`;
+}
+
+function rowHtml(r) {
+  const statusClass = r.status === 'ok'      ? 'text-green-400' :
+                      r.status === 'warning'  ? 'text-yellow-400' :
+                      r.status === 'error'    ? 'text-red-400'    : 'text-slate-400';
+  const statusIcon  = r.status === 'ok'      ? '✓' :
+                      r.status === 'warning'  ? '⚠' :
+                      r.status === 'error'    ? '✗'  : '·';
+
+  const actionLabel = {
+    add:          'Toegevoegd',
+    fetch:        'Data ophalen',
+    recalculate:  'Herberekend',
+    remove:       'Verwijderd',
+    manual_price: 'Handmatige prijs',
+    override:     'Override',
+  }[r.action] || r.action;
+
+  const ts = r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 16) : '—';
+
+  // Build details string
+  let details = '';
+  if (r.details && typeof r.details === 'object') {
+    const parts = [];
+    if (r.details.source)   parts.push('Bron: ' + r.details.source);
+    if (r.details.signal)   parts.push('Signaal: ' + r.details.signal);
+    if (r.details.error)    parts.push('Fout: ' + r.details.error);
+    if (r.details.warnings && r.details.warnings.length)
+      parts.push(r.details.warnings.slice(0,2).join(' · '));
+    details = parts.join(' · ');
+  } else if (r.details) {
+    details = String(r.details);
+  }
+
+  const tickerLink = r.ticker
+    ? `<a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-mono font-semibold">${r.ticker}</a>`
+    : '<span class="text-slate-600">—</span>';
+
+  return `<tr class="hover:bg-slate-800/40 transition ${r.status === 'error' ? 'bg-red-950/20' : ''}">
+    <td class="px-3 py-2.5 text-slate-400 text-xs font-mono">${ts}</td>
+    <td class="px-3 py-2.5">${tickerLink}</td>
+    <td class="px-3 py-2.5 text-slate-300">${actionLabel}</td>
+    <td class="px-3 py-2.5 font-semibold text-sm ${statusClass}">${statusIcon} ${r.status}</td>
+    <td class="px-3 py-2.5 text-slate-400 text-xs max-w-xs truncate" title="${details}">${details || '—'}</td>
+  </tr>`;
+}
+
+loadLog();
+</script>
+{% endblock %}

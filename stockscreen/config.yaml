@@ -1,0 +1,144 @@
+app:
+  port: 5001
+  name: Stockscreener
+  auto_refresh_on_startup: true
+  new_ticker_days: 7
+
+screening:
+  min_quality_score: 7
+  min_market_cap_eur: 200
+  required_years: 3
+signals:
+  strong_buy_pct: 60
+  buy_pct: 75
+  hold_upper_pct: 115
+  sell_pct: 130
+  sell_quality_floor: 6
+valuation:
+  multiples_weight: 0.6
+  dcf_weight: 0.4
+  outlier_iqr_multiplier: 3.0
+  default_required_return: 10
+  max_growth_rate: 8
+  max_perpetuity_growth: 5
+sectors:
+  Technology:
+    growth_base: 6
+    growth_min: 4
+    growth_max: 8
+    required_return: 11
+    pe: 25
+    ev_ebitda: 16
+    pb: 5
+    ev_fcf: 22
+  Financial Services:
+    growth_base: 4
+    growth_min: 2
+    growth_max: 6
+    required_return: 10
+    pe: 12
+    ev_ebitda: 8
+    pb: 1.4
+    ev_fcf: 14
+  Healthcare:
+    growth_base: 5
+    growth_min: 3
+    growth_max: 7
+    required_return: 10
+    pe: 20
+    ev_ebitda: 13
+    pb: 3.5
+    ev_fcf: 20
+  Consumer Staples:
+    growth_base: 3
+    growth_min: 2
+    growth_max: 5
+    required_return: 9
+    pe: 18
+    ev_ebitda: 12
+    pb: 3
+    ev_fcf: 18
+  Consumer Discretionary:
+    growth_base: 5
+    growth_min: 3
+    growth_max: 7
+    required_return: 11
+    pe: 20
+    ev_ebitda: 12
+    pb: 3
+    ev_fcf: 18
+  Industrials:
+    growth_base: 4
+    growth_min: 2
+    growth_max: 6
+    required_return: 10
+    pe: 18
+    ev_ebitda: 11
+    pb: 2.5
+    ev_fcf: 16
+  Energy:
+    growth_base: 3
+    growth_min: 1
+    growth_max: 5
+    required_return: 11
+    pe: 14
+    ev_ebitda: 8
+    pb: 1.8
+    ev_fcf: 12
+  Materials:
+    growth_base: 3
+    growth_min: 1
+    growth_max: 5
+    required_return: 10
+    pe: 15
+    ev_ebitda: 9
+    pb: 2
+    ev_fcf: 14
+  Utilities:
+    growth_base: 2
+    growth_min: 1
+    growth_max: 3
+    required_return: 9
+    pe: 16
+    ev_ebitda: 10
+    pb: 1.5
+    ev_fcf: 15
+  Real Estate:
+    growth_base: 3
+    growth_min: 2
+    growth_max: 5
+    required_return: 9
+    pe: 20
+    ev_ebitda: 15
+    pb: 1.8
+    ev_fcf: 20
+  Default:
+    growth_base: 4
+    growth_min: 2
+    growth_max: 6
+    required_return: 10
+    pe: 18
+    ev_ebitda: 11
+    pb: 2.5
+    ev_fcf: 16
+watchlist:
+- ALE.WA
+- UNT.WA
+- XTP.WA
+- BFT.WA
+- GPW.WA
+- CBF.WA
+- ASKER.ST
+- MIPS.ST
+- CLA-B.ST
+- ELTEL.ST
+- SVEDB.ST
+- SIP.BR
+- KBC.BR
+- UMI.BR
+- ASML.AS
+- BSGR.AS
+- FLOW.AS
+- GSF.OL
+- ELK.OL
+- CAMBI.OL

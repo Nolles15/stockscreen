@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Wannabe Oracle Stockscreener{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            strong_buy: '#14532d',
+            buy:        '#15803d',
+            hold:       '#854d0e',
+            sell:       '#991b1b',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+    .signal-STRONG\ BUY { background:#14532d; color:#fff; }
+    .signal-BUY         { background:#15803d; color:#fff; }
+    .signal-HOLD        { background:#854d0e; color:#fff; }
+    .signal-SELL        { background:#991b1b; color:#fff; }
+    .signal-N\/A, .signal-ERROR, .signal-INSUFFICIENT\ DATA
+                        { background:#374151; color:#fff; }
+    th { white-space: nowrap; }
+    .sortable { cursor:pointer; user-select:none; }
+    .sortable:hover { background:#1e293b; }
+    .sort-asc::after  { content: ' ↑'; }
+    .sort-desc::after { content: ' ↓'; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center gap-6">
+    <a href="/" class="flex items-center gap-2 font-bold text-white tracking-tight">
+      <img src="/static/oracle-logo.png" alt="logo" class="h-9 w-9 rounded-full object-cover" />
+      <span class="text-base leading-tight">Wannabe Oracle<br><span class="text-xs font-normal text-slate-400">Stockscreener</span></span>
+    </a>
+    <a href="/" class="text-slate-400 hover:text-white text-sm {% if request.path == '/' %}text-white font-medium{% endif %}">Dashboard</a>
+    <a href="/settings" class="text-slate-400 hover:text-white text-sm {% if request.path == '/settings' %}text-white font-medium{% endif %}">⚙ Instellingen</a>
+    <a href="/log" class="text-slate-400 hover:text-white text-sm {% if request.path == '/log' %}text-white font-medium{% endif %}">📋 Geschiedenis</a>
+    <div class="ml-auto flex items-center gap-3">
+      <span id="refresh-status" class="text-xs text-slate-500"></span>
+      <button id="btn-refresh"
+        onclick="startRefresh()"
+        class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded-md font-medium transition">
+        ↻ Refresh
+      </button>
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main class="px-6 py-6 max-w-screen-2xl mx-auto">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+  // ---- Global refresh logic ------------------------------------------------
+  let _refreshPoll = null;
+
+  async function startRefresh(tickers) {
+    const btn = document.getElementById('btn-refresh');
+    const status = document.getElementById('refresh-status');
+    btn.disabled = true;
+    btn.textContent = '⏳ Bezig…';
+    status.textContent = 'Ophalen gegevens…';
+
+    try {
+      const body = tickers ? { tickers } : {};
+      const res  = await fetch('/api/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const { job_id } = await res.json();
+      _pollRefresh(job_id);
+    } catch(e) {
+      status.textContent = 'Fout: ' + e.message;
+      btn.disabled = false;
+      btn.textContent = '↻ Refresh';
+    }
+  }
+
+  function _pollRefresh(jobId) {
+    if (_refreshPoll) clearInterval(_refreshPoll);
+    _refreshPoll = setInterval(async () => {
+      const res = await fetch('/api/refresh/status?job_id=' + jobId);
+      const btn = document.getElementById('btn-refresh');
+      const status = document.getElementById('refresh-status');
+      if (!res.ok) {
+        clearInterval(_refreshPoll);
+        btn.disabled = false;
+        btn.textContent = '↻ Refresh';
+        status.textContent = 'Verbinding verbroken — herstart de app';
+        return;
+      }
+      const job = await res.json();
+      status.textContent = `${job.current || ''} (${job.progress || 0}%)`;
+      if (job.status === 'done') {
+        clearInterval(_refreshPoll);
+        btn.disabled = false;
+        btn.textContent = '↻ Refresh';
+        const errCount = Object.keys(job.errors || {}).length;
+        status.textContent = errCount > 0
+          ? `✓ Klaar — ${errCount} waarschuwing(en)`
+          : '✓ Klaar';
+        if (typeof onRefreshDone === 'function') onRefreshDone(job);
+      }
+    }, 1500);
+  }
+
+  function fmt(val, decimals=2, suffix='') {
+    if (val === null || val === undefined) return '—';
+    return Number(val).toFixed(decimals) + suffix;
+  }
+  function fmtEur(val, decimals=2) {
+    if (val === null || val === undefined) return '—';
+    return '€' + Number(val).toFixed(decimals);
+  }
+  function fmtBig(valM) {
+    // valM is al in miljoenen; toont B met 2 decimalen als >= 1000M
+    if (valM === null || valM === undefined) return '—';
+    if (Math.abs(valM) >= 1000) return (valM / 1000).toFixed(2) + 'B';
+    return Math.round(valM) + 'M';
+  }
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

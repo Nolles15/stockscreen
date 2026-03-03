@@ -1,0 +1,878 @@
+{% extends "base.html" %}
+{% block title %}{{ ticker }} — Wannabe Oracle Stockscreener{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="/" class="text-slate-400 hover:text-white text-sm">← Terug naar dashboard</a>
+</div>
+
+<!-- Header -->
+<div class="flex items-start justify-between flex-wrap gap-4 mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">{{ ticker }}</h1>
+    <p class="text-slate-400 mt-1">{{ stock.name if stock else '' }}</p>
+    <p class="text-xs text-slate-500 mt-0.5">
+      {{ stock.sector if stock else '' }} · {{ stock.market if stock else '' }} · {{ stock.currency if stock else '' }}
+    </p>
+    {% if stock and stock.description %}
+    <p class="text-slate-400 text-sm mt-2 max-w-2xl leading-relaxed" id="stock-desc-short">
+      {{ stock.description[:400] }}{% if stock.description|length > 400 %}<button
+        onclick="document.getElementById('stock-desc-short').textContent = {{ stock.description|tojson }}; this.remove()"
+        class="text-blue-400 hover:underline ml-1 text-xs">meer lezen…</button>{% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+  <!-- Prijs + data-versheid -->
+  <div class="text-right">
+    {% if market %}
+    <div class="text-2xl font-bold">
+      {{ '€%.2f'|format(market.price_eur) if market.price_eur else '—' }}
+    </div>
+    <div class="text-xs mt-0.5
+      {% if market.last_updated %}
+        {% set age_str = market.last_updated[:10] %}
+        text-slate-400
+      {% else %}text-red-400{% endif %}">
+      {% if market.last_updated %}
+        Koers van {{ market.last_updated[:10] }} · Bron: Yahoo Finance
+      {% else %}
+        Geen koersdata beschikbaar
+      {% endif %}
+    </div>
+    {% endif %}
+    <div class="flex gap-2 mt-2 justify-end">
+      <button onclick="document.getElementById('manual-price-panel').classList.toggle('hidden')"
+        class="bg-slate-700 hover:bg-slate-600 text-white text-xs px-3 py-1.5 rounded-md transition">
+        ✏ Koers handmatig invoeren
+      </button>
+      <button onclick="startRefresh(['{{ ticker }}'])"
+        class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded-md">
+        ↻ Refresh
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Handmatige koersinvoer (verborgen tot klik) -->
+<div id="manual-price-panel" class="hidden bg-slate-900 border border-yellow-700 rounded-xl p-4 mb-5">
+  <h3 class="text-yellow-400 font-semibold text-sm mb-2">✏ Handmatige koers invoeren</h3>
+  <p class="text-slate-400 text-xs mb-3">
+    Gebruik dit als Yahoo Finance geen actuele koers heeft. De ingevoerde prijs wordt opgeslagen
+    en gebruikt voor signaalberekening. Vul in de <strong>lokale valuta</strong> in
+    ({{ stock.currency if stock else 'EUR' }}).
+  </p>
+  <div class="flex gap-2 flex-wrap items-end">
+    <div>
+      <label class="block text-xs text-slate-500 mb-1">Koers ({{ stock.currency if stock else 'EUR' }})</label>
+      <input id="manual-price" type="number" step="0.01" min="0" placeholder="bijv. 150.00"
+        class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1">Opmerking</label>
+      <input id="manual-price-note" type="text" placeholder="bijv. Bloomberg 20 feb"
+        class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+    </div>
+    <button onclick="saveManualPrice()"
+      class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm px-4 py-1.5 rounded-md transition">
+      Opslaan &amp; herberekenen
+    </button>
+    <span id="manual-price-status" class="text-xs text-slate-400"></span>
+  </div>
+</div>
+
+<!-- Signal + FV summary -->
+<div id="signal-cards" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+  {% if scores %}
+  {% set sig = scores.signal or 'N/A' %}
+  <div class="col-span-1 rounded-xl p-4 signal-{{ sig|replace(' ','\ ') }} flex flex-col items-center justify-center">
+    <div class="text-xs font-semibold uppercase tracking-wide opacity-75">Signaal</div>
+    <div class="text-xl font-black mt-1">{{ sig }}</div>
+  </div>
+
+  {% macro fv_card(label, val) %}
+  <div class="bg-slate-900 rounded-xl p-4 flex flex-col">
+    <div class="text-xs text-slate-500 uppercase tracking-wide">{{ label }}</div>
+    <div class="text-lg font-bold mt-1">{{ '€%.2f'|format(val) if val else '—' }}</div>
+  </div>
+  {% endmacro %}
+
+  {{ fv_card('Gecombineerde FV', scores.combined_fv_eur) }}
+  {{ fv_card('Conservatief', scores.conservative_fv_eur) }}
+  {{ fv_card('Base', scores.base_fv_eur) }}
+  {{ fv_card('Optimistisch', scores.optimistic_fv_eur) }}
+  {{ fv_card('Multiples FV', scores.multiples_fv_eur) }}
+  {{ fv_card('Graham FV', scores.graham_fv_eur) }}
+  {{ fv_card('Perpetuity FV', scores.perpetuity_fv_eur) }}
+  {% endif %}
+</div>
+
+<!-- Analyst consensus -->
+{% if market and market.analyst_consensus %}
+{% set cons = market.analyst_consensus | lower %}
+<div class="bg-slate-900 rounded-xl p-4 border border-slate-800 mb-4">
+  <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide mb-3">Analyst consensus</h2>
+  <div class="flex flex-wrap gap-6 text-sm items-baseline">
+    <span>
+      Consensus:
+      <span class="font-bold ml-1 {% if 'buy' in cons %}text-green-400{% elif 'hold' in cons %}text-yellow-400{% else %}text-red-400{% endif %}">
+        {{ market.analyst_consensus | upper | replace('_', ' ') }}
+      </span>
+    </span>
+    {% if market.analyst_target_eur %}
+    <span class="text-slate-300">
+      Koersdoel:
+      <span class="font-mono font-semibold ml-1">€{{ '%.2f'|format(market.analyst_target_eur) }}</span>
+      {% if market.analyst_n %}
+      <span class="text-slate-500 text-xs ml-1">(N={{ market.analyst_n }})</span>
+      {% endif %}
+    </span>
+    {% endif %}
+    {% if market.analyst_target_eur and scores and scores.combined_fv_eur %}
+    {% set div_pct = (market.analyst_target_eur - scores.combined_fv_eur) / scores.combined_fv_eur * 100 %}
+    <span class="text-slate-400">
+      Eigen model:
+      <span class="font-mono font-semibold text-slate-200 ml-1">€{{ '%.2f'|format(scores.combined_fv_eur) }}</span>
+      <span class="ml-2 {% if div_pct > 10 %}text-green-400{% elif div_pct < -10 %}text-red-400{% else %}text-slate-400{% endif %}"
+        title="Positief = consensus ziet meer waarde dan eigen model. Negatief = eigen model conservatiever dan consensus.">
+        (consensus {{ '+' if div_pct > 0 else '' }}{{ '%.0f'|format(div_pct) }}%)
+      </span>
+    </span>
+    {% endif %}
+    {% if market.analyst_target_eur and market.price_eur %}
+    {% set upside_pct = (market.analyst_target_eur - market.price_eur) / market.price_eur * 100 %}
+    <span class="text-slate-400">
+      Upside vs. koers:
+      <span class="font-semibold ml-1 {% if upside_pct > 15 %}text-green-400{% elif upside_pct > 0 %}text-yellow-400{% else %}text-red-400{% endif %}">
+        {{ '+' if upside_pct > 0 else '' }}{{ '%.0f'|format(upside_pct) }}%
+      </span>
+    </span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Quality + Piotroski -->
+{% if scores %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+
+  <!-- Quality score breakdown -->
+  <div class="bg-slate-900 rounded-xl p-5 border border-slate-800">
+    <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide mb-3">
+      Kwaliteitsscore — {{ scores.quality_score|round(1) if scores.quality_score is not none else '?' }}/10
+    </h2>
+    {% if scores.quality_breakdown %}
+    {% set bd = scores.quality_breakdown %}
+    {% for key, pts in bd.items() %}
+    <div class="flex items-center justify-between py-1.5 border-b border-slate-800 last:border-0">
+      <span class="text-sm text-slate-300">
+        {% if key == 'profitability' %}ROE & ROIC consistentie
+        {% elif key == 'balance_sheet' %}Balanssterkte (D/E + IC)
+        {% elif key == 'stability' %}EPS & FCF stabiliteit
+        {% elif key == 'fcf_positive' %}FCF positief (5 jaar)
+        {% elif key == 'piotroski' %}Piotroski F-Score
+        {% else %}{{ key }}{% endif %}
+      </span>
+      <span class="font-bold {% if pts == 2 %}text-green-400{% elif pts == 1 %}text-yellow-400{% else %}text-red-400{% endif %}">
+        {{ pts|int }}/2
+      </span>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if scores.accruals_ratio is not none %}
+    {% set ar = scores.accruals_ratio %}
+    <div class="flex items-center justify-between py-1.5 border-t border-slate-700 mt-2 pt-2">
+      <span class="text-sm text-slate-300"
+        title="Accruals ratio = (nettoresultaat − operationele kasstroom) / totale activa. Negatief = winsten gedekt door echte kasstroom (goed). Positief = boekhoudkundige winst zonder cashbasis (waarschuwing).">
+        Winstkwaliteit (accruals)
+      </span>
+      <span class="font-bold font-mono {% if ar < -2 %}text-green-400{% elif ar < 3 %}text-yellow-400{% else %}text-red-400{% endif %}">
+        {{ '%.1f'|format(ar) }}%
+      </span>
+    </div>
+    <p class="text-xs text-slate-500 mt-0.5">
+      {% if ar < -5 %}Uitstekend — winsten ruimschoots gedekt door kasstroom
+      {% elif ar < 0 %}Goed — winsten gedekt door operationele kasstroom
+      {% elif ar < 3 %}Neutraal — kleine accruals component
+      {% else %}⚠ Winst niet volledig gedekt door operationele kasstroom{% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+  <!-- Piotroski breakdown -->
+  <div class="bg-slate-900 rounded-xl p-5 border border-slate-800">
+    <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide mb-3">
+      Piotroski F-Score — {{ scores.piotroski_score|int if scores.piotroski_score is not none else '?' }}/9
+    </h2>
+    {% if scores.piotroski_breakdown %}
+    {% set labels = {
+      'F1': 'ROA > 0', 'F2': 'Operationele kasstroom > 0', 'F3': 'ROA stijgend',
+      'F4': 'Cashkwaliteit (CF/A > ROA)', 'F5': 'Schuldquote dalend',
+      'F6': 'Current ratio stijgend', 'F7': 'Geen dilutie',
+      'F8': 'Brutomarge stijgend', 'F9': 'Asset turnover stijgend'
+    } %}
+    {% for f, val in scores.piotroski_breakdown.items() %}
+    <div class="flex items-center justify-between py-1 border-b border-slate-800 last:border-0">
+      <span class="text-sm text-slate-300">{{ labels.get(f, f) }}</span>
+      <span class="{% if val == true %}text-green-400{% elif val == false %}text-red-400{% else %}text-slate-500{% endif %} font-mono text-sm">
+        {% if val == true %}✓{% elif val == false %}✗{% else %}?{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Historische relatieve waardering -->
+{% if scores and scores.hist_relative and scores.hist_relative.years_available is defined and scores.hist_relative.years_available >= 3 %}
+{% set hr = scores.hist_relative %}
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide mb-3">
+    Historische relatieve waardering
+    <span class="text-slate-600 font-normal normal-case ml-1">({{ hr.years_available }}-jaars mediaan)</span>
+  </h2>
+  <div class="overflow-x-auto">
+    <table class="text-sm w-full max-w-lg">
+      <thead class="text-slate-500 text-xs uppercase border-b border-slate-700">
+        <tr>
+          <th class="py-2 text-left">Maatstaf</th>
+          <th class="py-2 text-right">Huidig</th>
+          <th class="py-2 text-right">Mediaan</th>
+          <th class="py-2 text-right">Afwijking</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        {% if hr.current_ev_ebitda is not none or hr.median_ev_ebitda is not none %}
+        {% set pct = hr.ev_ebitda_pct %}
+        <tr class="hover:bg-slate-800/30">
+          <td class="py-2 text-slate-300"
+            title="Enterprise Value / EBITDA — hoe goedkoper t.o.v. eigen geschiedenis, hoe groter de kans op mean-reversion.">
+            EV/EBITDA
+          </td>
+          <td class="py-2 text-right font-mono">
+            {{ '%.1f'|format(hr.current_ev_ebitda) + 'x' if hr.current_ev_ebitda is not none else '—' }}
+          </td>
+          <td class="py-2 text-right font-mono text-slate-400">
+            {{ '%.1f'|format(hr.median_ev_ebitda) + 'x' if hr.median_ev_ebitda is not none else '—' }}
+          </td>
+          <td class="py-2 text-right font-semibold {% if pct is not none and pct < -10 %}text-green-400{% elif pct is not none and pct > 10 %}text-red-400{% else %}text-slate-400{% endif %}">
+            {% if pct is not none %}{{ '+' if pct > 0 else '' }}{{ '%.0f'|format(pct) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% if hr.current_pe is not none or hr.median_pe is not none %}
+        {% set pct = hr.pe_pct %}
+        <tr class="hover:bg-slate-800/30">
+          <td class="py-2 text-slate-300">P/E</td>
+          <td class="py-2 text-right font-mono">
+            {{ '%.1f'|format(hr.current_pe) + 'x' if hr.current_pe is not none else '—' }}
+          </td>
+          <td class="py-2 text-right font-mono text-slate-400">
+            {{ '%.1f'|format(hr.median_pe) + 'x' if hr.median_pe is not none else '—' }}
+          </td>
+          <td class="py-2 text-right font-semibold {% if pct is not none and pct < -10 %}text-green-400{% elif pct is not none and pct > 10 %}text-red-400{% else %}text-slate-400{% endif %}">
+            {% if pct is not none %}{{ '+' if pct > 0 else '' }}{{ '%.0f'|format(pct) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% if hr.current_pb is not none or hr.median_pb is not none %}
+        {% set pct = hr.pb_pct %}
+        <tr class="hover:bg-slate-800/30">
+          <td class="py-2 text-slate-300">P/B</td>
+          <td class="py-2 text-right font-mono">
+            {{ '%.1f'|format(hr.current_pb) + 'x' if hr.current_pb is not none else '—' }}
+          </td>
+          <td class="py-2 text-right font-mono text-slate-400">
+            {{ '%.1f'|format(hr.median_pb) + 'x' if hr.median_pb is not none else '—' }}
+          </td>
+          <td class="py-2 text-right font-semibold {% if pct is not none and pct < -10 %}text-green-400{% elif pct is not none and pct > 10 %}text-red-400{% else %}text-slate-400{% endif %}">
+            {% if pct is not none %}{{ '+' if pct > 0 else '' }}{{ '%.0f'|format(pct) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-slate-600 mt-2">
+    Negatief % = huidig goedkoper dan historisch gemiddelde (potentieel mean-reversion kans).
+    Positief % = duurder dan eigen geschiedenis.
+  </p>
+</div>
+{% endif %}
+
+<!-- Jaarcijfers bulk-invoer -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-4">
+  <div class="flex items-center justify-between mb-1">
+    <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide">Jaarcijfers invoeren</h2>
+    <button onclick="document.getElementById('bulk-year-panel').classList.toggle('hidden')"
+      class="text-xs text-slate-500 hover:text-slate-300 transition">toon / verberg ▾</button>
+  </div>
+  <p class="text-xs text-slate-500 mb-3">
+    Vul alle cijfers voor één jaar in één keer in. Laat velden leeg die je niet wilt overschrijven.
+    Waarden in <strong>lokale valuta</strong> ({{ stock.currency if stock else 'EUR' }}), <strong>absolute bedragen</strong> — niet in miljoenen.
+  </p>
+  <div id="bulk-year-panel">
+    <div class="flex items-end gap-3 mb-4">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Fiscaal jaar <span class="text-red-400">*</span></label>
+        <input id="bulk-year" type="number" placeholder="bijv. 2025" min="2000" max="2099" value="{{ (annual[0].fiscal_year + 1) if annual else '' }}"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Bron / opmerking</label>
+        <input id="bulk-note" type="text" placeholder="bijv. Jaarverslag 2025"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 mb-4">
+      {% set bulk_fields = [
+        ('revenue',            'Omzet',                   'totaal'),
+        ('gross_profit',       'Brutowinst',              'omzet minus kostprijs'),
+        ('ebit',               'EBIT',                    'operationeel resultaat'),
+        ('ebitda',             'EBITDA',                  'EBIT + afschrijvingen'),
+        ('net_income',         'Nettoresultaat',           'na belasting'),
+        ('eps_diluted',        'EPS (verwaterd)',          'winst per aandeel'),
+        ('interest_expense',   'Rentelasten',              'betaalde rente'),
+        ('operating_cf',       'Operationele kasstroom',   'totaal'),
+        ('capex',              'Capex',                   'negatief getal, bijv. -50000000'),
+        ('fcf',                'Free Cash Flow',           'oper. CF minus capex'),
+        ('total_assets',       'Balanstotaal',             'totale activa'),
+        ('current_assets',     'Vlottende activa',        'kortlopende activa'),
+        ('current_liabilities','Kortlopende schulden',    'kortlopende verplichtingen'),
+        ('total_equity',       'Eigen vermogen',           'totaal op balans'),
+        ('total_debt',         'Schuld',                   'totale rentedragende schuld'),
+        ('shares_outstanding', 'Uitstaande aandelen',     'exact aantal (niet in miljoenen)'),
+        ('book_value_ps',      'Boekwaarde per aandeel',  'eigen vermogen / aandelen'),
+        ('roe',                'ROE',                     'nettoresultaat / eigen vermogen, bijv. 0.15 voor 15%'),
+      ] %}
+      {% for field, label, hint in bulk_fields %}
+      <div>
+        <label class="block text-xs text-slate-400 mb-1" title="{{ hint }}">{{ label }}</label>
+        <input id="bulk-{{ field }}" type="number" step="any" placeholder="{{ hint }}"
+          class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button onclick="saveBulkYear()"
+        class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded transition">
+        Alles opslaan &amp; herberekenen
+      </button>
+      <span id="bulk-status" class="text-xs text-slate-400"></span>
+    </div>
+
+    <hr class="border-slate-700 my-5" />
+
+    <!-- CSV import -->
+    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Meerdere jaren importeren via CSV</h3>
+    <p class="text-xs text-slate-500 mb-3">
+      Eerste rij = kolomnamen (<code class="text-slate-400">year</code>, daarna veldnamen), daarna één rij per jaar. Bedragen in lokale valuta, absoluut (niet in miljoenen).
+      <button onclick="downloadCSVTemplate()" class="text-blue-400 underline hover:text-blue-300 ml-1">Template downloaden</button>
+    </p>
+    <div class="flex flex-wrap items-center gap-3 mb-2">
+      <input type="file" id="csv-file" accept=".csv,.txt"
+        class="text-xs text-slate-400 file:bg-slate-700 file:border-0 file:text-white file:text-xs file:px-3 file:py-1.5 file:rounded file:mr-2 file:cursor-pointer" />
+      <button onclick="importCSV()" id="csv-import-btn" disabled
+        class="bg-green-700 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded transition">
+        Importeren
+      </button>
+      <span id="csv-status" class="text-xs text-slate-400"></span>
+    </div>
+    <p id="csv-preview" class="text-xs text-slate-500 hidden"></p>
+  </div>
+</div>
+
+<!-- Manual overrides -->
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-6">
+  <button onclick="document.getElementById('single-override-panel').classList.toggle('hidden')"
+    class="w-full text-left">
+    <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide mb-1 hover:text-slate-300 transition">
+      Losse aanpassing (één veld) ▾
+    </h2>
+  </button>
+  <div id="single-override-panel" class="hidden">
+  <p class="text-xs text-slate-500 mb-3">
+    Overschrijf een financieel cijfer voor een specifiek jaar. Waarden in de <strong>lokale valuta</strong>
+    van het aandeel ({{ stock.currency if stock else 'EUR' }}), absolute bedragen (niet in miljoenen).
+    Na opslaan automatisch herberekend.
+  </p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-2">
+    <div class="sm:col-span-2">
+      <label class="block text-xs text-slate-500 mb-1">Veld</label>
+      <select id="ov-field" onchange="updateFieldHint()"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+        <option value="">-- Kies een veld --</option>
+        <optgroup label="Winst &amp; kasstroom">
+          <option value="eps_diluted">EPS (verwaterd) — per aandeel</option>
+          <option value="ebit">EBIT — operationeel resultaat</option>
+          <option value="ebitda">EBITDA — totaal bedrag</option>
+          <option value="net_income">Nettoresultaat — totaal</option>
+          <option value="revenue">Omzet — totaal</option>
+          <option value="fcf">Free Cash Flow — totaal</option>
+          <option value="operating_cf">Operationele kasstroom — totaal</option>
+          <option value="capex">Capex — totaal (als negatief getal)</option>
+        </optgroup>
+        <optgroup label="Balans">
+          <option value="total_equity">Eigen vermogen — totaal</option>
+          <option value="total_debt">Schuld — totaal</option>
+          <option value="shares_outstanding">Uitstaande aandelen — exact aantal</option>
+          <option value="interest_expense">Rentelasten — totaal</option>
+          <option value="book_value_ps">Boekwaarde per aandeel</option>
+        </optgroup>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1">Jaar <span class="font-normal">(leeg = alle jaren)</span></label>
+      <input id="ov-year" type="number" placeholder="bijv. 2023" min="2000" max="2099"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1">Waarde</label>
+      <input id="ov-value" type="number" step="any" placeholder="bijv. 1500000000"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1">Opmerking</label>
+      <input id="ov-note" type="text" placeholder="Bron / reden"
+        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3 mb-4">
+    <button onclick="saveOverride()"
+      class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded transition">
+      Opslaan &amp; herberekenen
+    </button>
+    <span id="ov-hint" class="text-xs text-slate-500 italic"></span>
+    <span id="ov-status" class="text-xs text-slate-400"></span>
+  </div>
+
+  <!-- Active overrides list -->
+  <div id="override-list">
+    {% if overrides %}
+    <table class="text-sm w-full">
+      <thead class="text-slate-500 text-xs uppercase border-b border-slate-700">
+        <tr>
+          <th class="py-1.5 text-left">Veld</th>
+          <th class="py-1.5 text-left">Jaar</th>
+          <th class="py-1.5 text-right">Waarde</th>
+          <th class="py-1.5 text-left pl-4">Opmerking</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        {% for ov in overrides %}
+        <tr class="hover:bg-slate-800/30">
+          <td class="py-1.5 font-mono text-blue-300">{{ ov.field }}</td>
+          <td class="py-1.5 text-slate-400">{{ ov.year if ov.year else 'alle jaren' }}</td>
+          <td class="py-1.5 text-right font-semibold">{{ ov.value }}</td>
+          <td class="py-1.5 text-slate-500 text-xs pl-4">{{ ov.note or '' }}</td>
+          <td class="py-1.5 text-right">
+            <button onclick="deleteOverride('{{ ov.field }}', {{ ov.year if ov.year else 'null' }})"
+              class="text-slate-600 hover:text-red-400 text-xs">✕</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-slate-500 text-sm">Geen overrides ingesteld.</p>
+    {% endif %}
+  </div>
+  </div>
+</div>
+
+<!-- Annual financials table -->
+{% macro fmtM(val) %}{%- if val is not none -%}{%- if val | abs >= 1e9 -%}{{ '%.2f'|format(val/1e9) }}B{%- else -%}{{ '%.0f'|format(val/1e6) }}M{%- endif -%}{%- else -%}—{%- endif -%}{% endmacro %}
+<div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-6">
+  <h2 class="font-semibold text-sm text-slate-400 uppercase tracking-wide mb-2">Jaarlijkse financiën</h2>
+  {% if override_set %}
+  <p class="text-xs text-yellow-500/80 mb-3">
+    <span class="inline-block bg-yellow-900/40 text-yellow-200 px-1 rounded mr-1">geel</span>
+    = handmatig ingevoerde waarde (override). Verwijder de override zodra Yahoo Finance de juiste cijfers heeft.
+  </p>
+  {% endif %}
+  {% if annual %}
+  <div class="overflow-x-auto">
+    <table class="text-sm w-full">
+      <thead class="text-slate-500 text-xs uppercase border-b border-slate-700">
+        <tr>
+          <th class="py-2 text-left">Jaar</th>
+          <th class="py-2 text-right">Omzet</th>
+          <th class="py-2 text-right">EBIT</th>
+          <th class="py-2 text-right">EBITDA</th>
+          <th class="py-2 text-right">Nettoresultaat</th>
+          <th class="py-2 text-right">EPS</th>
+          <th class="py-2 text-right">FCF</th>
+          <th class="py-2 text-right">ROE</th>
+          <th class="py-2 text-right">D/E</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        {% if ttm %}
+        {% set de_ttm = (ttm.total_debt / ttm.total_equity) if ttm.total_debt and ttm.total_equity and ttm.total_equity > 0 else None %}
+        <tr class="hover:bg-slate-800/30 bg-blue-950/20">
+          <td class="py-2 font-semibold text-blue-400">TTM</td>
+          <td class="py-2 text-right text-slate-300">{{ fmtM(ttm.revenue) }}</td>
+          <td class="py-2 text-right">{{ fmtM(ttm.ebit) }}</td>
+          <td class="py-2 text-right">{{ fmtM(ttm.ebitda) }}</td>
+          <td class="py-2 text-right">{{ fmtM(ttm.net_income) }}</td>
+          <td class="py-2 text-right font-mono">{{ '%.2f'|format(ttm.eps_diluted) if ttm.eps_diluted else '—' }}</td>
+          <td class="py-2 text-right {% if ttm.fcf and ttm.fcf > 0 %}text-green-400{% elif ttm.fcf %}text-red-400{% endif %}">
+            {{ fmtM(ttm.fcf) }}
+          </td>
+          <td class="py-2 text-right">{{ '%.1f'|format(ttm.roe * 100) + '%' if ttm.roe else '—' }}</td>
+          <td class="py-2 text-right {% if de_ttm and de_ttm < 0.5 %}text-green-400{% elif de_ttm %}text-red-400{% endif %}">
+            {{ '%.2f'|format(de_ttm) if de_ttm is not none else '—' }}
+          </td>
+        </tr>
+        {% endif %}
+        {% for row in annual %}
+        {% set yr = row.fiscal_year %}
+        {% set de = (row.total_debt / row.total_equity) if row.total_debt and row.total_equity and row.total_equity > 0 else None %}
+        {# Macro: cel geel markeren als er een override is voor dit veld+jaar #}
+        {% macro ov_class(field) %}{% if (field + ':' + yr|string) in override_set or (field + ':None') in override_set %}bg-yellow-900/40 text-yellow-200{% endif %}{% endmacro %}
+        <tr class="hover:bg-slate-800/30">
+          <td class="py-2 font-semibold">{{ yr }}</td>
+          <td class="py-2 text-right text-slate-300 {{ ov_class('revenue') }}">{{ fmtM(row.revenue) }}</td>
+          <td class="py-2 text-right {{ ov_class('ebit') }}">{{ fmtM(row.ebit) }}</td>
+          <td class="py-2 text-right {{ ov_class('ebitda') }}">{{ fmtM(row.ebitda) }}</td>
+          <td class="py-2 text-right {{ ov_class('net_income') }}">{{ fmtM(row.net_income) }}</td>
+          <td class="py-2 text-right font-mono {{ ov_class('eps_diluted') }}">{{ '%.2f'|format(row.eps_diluted) if row.eps_diluted else '—' }}</td>
+          <td class="py-2 text-right {{ ov_class('fcf') }} {% if not (('fcf:' + yr|string) in override_set) %}{% if row.fcf and row.fcf > 0 %}text-green-400{% elif row.fcf %}text-red-400{% endif %}{% endif %}">
+            {{ fmtM(row.fcf) }}
+          </td>
+          <td class="py-2 text-right">{{ '%.1f'|format(row.roe * 100) + '%' if row.roe else '—' }}</td>
+          <td class="py-2 text-right {% if de and de < 0.5 %}text-green-400{% elif de %}text-red-400{% endif %}">
+            {{ '%.2f'|format(de) if de is not none else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-slate-500 text-sm">Geen historische data. Klik op Refresh om op te halen.</p>
+  {% endif %}
+</div>
+
+<!-- Warnings -->
+{% if scores and scores.warnings %}
+<div class="bg-amber-950/40 border border-amber-800 rounded-xl p-4 mb-4">
+  <h3 class="text-amber-400 font-semibold text-sm mb-2">⚠ Waarschuwingen</h3>
+  <ul class="text-amber-200/80 text-sm space-y-1">
+    {% for w in scores.warnings %}
+    <li>• {{ w }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TICKER = '{{ ticker }}';
+
+const FIELD_HINTS = {
+  eps_diluted:        'Winst per aandeel (verwaterd) — per aandeel in lokale valuta',
+  ebit:               'Operationeel resultaat vóór rente & belasting — totaalbedrag (bijv. 5000000000)',
+  ebitda:             'EBIT + afschrijvingen — totaalbedrag',
+  net_income:         'Nettoresultaat na belasting — totaalbedrag',
+  revenue:            'Totale omzet — totaalbedrag',
+  fcf:                'Free Cash Flow = operationele CF minus capex — totaalbedrag',
+  operating_cf:       'Operationele kasstroom — totaalbedrag',
+  capex:              'Investeringsuitgaven — voer in als negatief getal (bijv. -2000000000)',
+  total_equity:       'Totaal eigen vermogen op de balans — totaalbedrag',
+  total_debt:         'Totale schuld (kort + lang) — totaalbedrag',
+  shares_outstanding: 'Aantal uitstaande aandelen — exact aantal (niet in miljoenen)',
+  interest_expense:   'Rentelasten — totaalbedrag betaalde rente',
+  book_value_ps:      'Boekwaarde per aandeel = eigen vermogen / uitstaande aandelen',
+};
+
+function updateFieldHint() {
+  const field = document.getElementById('ov-field').value;
+  document.getElementById('ov-hint').textContent = FIELD_HINTS[field] || '';
+}
+
+async function saveManualPrice() {
+  const price  = parseFloat(document.getElementById('manual-price').value);
+  const note   = document.getElementById('manual-price-note').value;
+  const status = document.getElementById('manual-price-status');
+
+  if (!price || price <= 0) {
+    status.textContent = 'Voer een geldige prijs in (groter dan 0).';
+    status.className = 'text-xs text-red-400';
+    return;
+  }
+
+  status.textContent = 'Opslaan…';
+  status.className = 'text-xs text-slate-400';
+
+  try {
+    const res  = await fetch('/api/price/' + TICKER, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price, note }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Onbekende fout');
+
+    status.textContent = `✓ Opgeslagen (€${data.price_eur?.toFixed(2) ?? '?'}) — pagina wordt herladen…`;
+    status.className = 'text-xs text-green-400';
+    setTimeout(() => location.reload(), 1200);
+  } catch(e) {
+    status.textContent = 'Fout: ' + e.message;
+    status.className = 'text-xs text-red-400';
+  }
+}
+
+async function saveOverride() {
+  const field  = document.getElementById('ov-field').value;
+  const year   = document.getElementById('ov-year').value || null;
+  const value  = document.getElementById('ov-value').value;
+  const note   = document.getElementById('ov-note').value;
+  const status = document.getElementById('ov-status');
+
+  if (!field || value === '') {
+    status.textContent = 'Veld en waarde zijn verplicht.';
+    status.className = 'text-xs text-red-400';
+    return;
+  }
+
+  status.textContent = 'Opslaan…';
+  status.className = 'text-xs text-slate-400';
+
+  try {
+    const res = await fetch('/api/overrides/' + TICKER, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, year: year ? parseInt(year) : null, value: parseFloat(value), note }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Onbekende fout');
+
+    status.textContent = 'Herberekening…';
+    await fetch('/api/recalculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickers: [TICKER] }),
+    });
+    status.textContent = '✓ Opgeslagen — pagina wordt herladen…';
+    status.className = 'text-xs text-green-400';
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) {
+    status.textContent = 'Fout: ' + e.message;
+    status.className = 'text-xs text-red-400';
+  }
+}
+
+async function deleteOverride(field, year) {
+  if (!confirm(`Override voor "${field}" verwijderen?`)) return;
+  await fetch('/api/overrides/' + TICKER, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ field, year }),
+  });
+  location.reload();
+}
+
+async function saveBulkYear() {
+  const year   = document.getElementById('bulk-year').value;
+  const note   = document.getElementById('bulk-note').value;
+  const status = document.getElementById('bulk-status');
+
+  if (!year) {
+    status.textContent = 'Vul een fiscaal jaar in.';
+    status.className = 'text-xs text-red-400';
+    return;
+  }
+
+  const BULK_FIELDS = [
+    'revenue', 'gross_profit', 'ebit', 'ebitda', 'net_income', 'eps_diluted',
+    'interest_expense', 'operating_cf', 'capex', 'fcf',
+    'total_assets', 'current_assets', 'current_liabilities',
+    'total_equity', 'total_debt', 'shares_outstanding',
+    'book_value_ps', 'roe',
+  ];
+
+  const entries = [];
+  for (const field of BULK_FIELDS) {
+    const raw = document.getElementById('bulk-' + field).value;
+    if (raw !== '') entries.push({ field, value: parseFloat(raw) });
+  }
+
+  if (entries.length === 0) {
+    status.textContent = 'Vul minstens één waarde in.';
+    status.className = 'text-xs text-red-400';
+    return;
+  }
+
+  status.textContent = `0 / ${entries.length} opgeslagen…`;
+  status.className = 'text-xs text-slate-400';
+
+  try {
+    for (let i = 0; i < entries.length; i++) {
+      const { field, value } = entries[i];
+      const res = await fetch('/api/overrides/' + TICKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, year: parseInt(year), value, note }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Fout bij opslaan van ${field}`);
+      }
+      status.textContent = `${i + 1} / ${entries.length} opgeslagen…`;
+    }
+
+    status.textContent = 'Herberekening…';
+    await fetch('/api/recalculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickers: [TICKER] }),
+    });
+    status.textContent = '✓ Alles opgeslagen — pagina wordt herladen…';
+    status.className = 'text-xs text-green-400';
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) {
+    status.textContent = 'Fout: ' + e.message;
+    status.className = 'text-xs text-red-400';
+  }
+}
+
+// ---- CSV import ----
+const CSV_FIELDS = [
+  'revenue', 'ebit', 'ebitda', 'net_income', 'eps_diluted',
+  'interest_expense', 'operating_cf', 'capex', 'fcf',
+  'total_equity', 'total_debt', 'shares_outstanding',
+];
+
+let _csvRows = null;
+
+function downloadCSVTemplate() {
+  const header = ['year', ...CSV_FIELDS].join(',');
+  const example = ['2025', ...CSV_FIELDS.map(() => '')].join(',');
+  const blob = new Blob([header + '\n' + example + '\n'], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = TICKER + '_template.csv';
+  a.click();
+}
+
+document.getElementById('csv-file').addEventListener('change', function() {
+  const status  = document.getElementById('csv-status');
+  const preview = document.getElementById('csv-preview');
+  const btn     = document.getElementById('csv-import-btn');
+  _csvRows = null;
+  btn.disabled = true;
+  preview.classList.add('hidden');
+
+  const file = this.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) {
+      status.textContent = 'CSV moet minstens een koptekstrij en één datarij bevatten.';
+      status.className = 'text-xs text-red-400';
+      return;
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const yearIdx = headers.indexOf('year');
+    if (yearIdx === -1) {
+      status.textContent = 'Kolom "year" niet gevonden in de koptekstrij.';
+      status.className = 'text-xs text-red-400';
+      return;
+    }
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim());
+      const yr = parseInt(cols[yearIdx]);
+      if (!yr || isNaN(yr)) continue;
+      const row = { year: yr };
+      for (const f of CSV_FIELDS) {
+        const idx = headers.indexOf(f);
+        if (idx !== -1 && cols[idx] !== '' && cols[idx] !== undefined) {
+          const v = parseFloat(cols[idx]);
+          if (!isNaN(v)) row[f] = v;
+        }
+      }
+      rows.push(row);
+    }
+
+    if (rows.length === 0) {
+      status.textContent = 'Geen geldige datarijen gevonden.';
+      status.className = 'text-xs text-red-400';
+      return;
+    }
+
+    _csvRows = rows;
+    const total = rows.reduce((s, r) => s + Object.keys(r).filter(k => k !== 'year').length, 0);
+    preview.textContent = `${rows.length} jaar gevonden (${rows.map(r => r.year).join(', ')}), ${total} velden totaal.`;
+    preview.classList.remove('hidden');
+    status.textContent = '';
+    btn.disabled = false;
+  };
+  reader.readAsText(file);
+});
+
+async function importCSV() {
+  if (!_csvRows || _csvRows.length === 0) return;
+  const status = document.getElementById('csv-status');
+  const btn    = document.getElementById('csv-import-btn');
+  const note   = document.getElementById('bulk-note').value || '';
+
+  const entries = [];
+  for (const row of _csvRows) {
+    const { year, ...fields } = row;
+    for (const [field, value] of Object.entries(fields)) {
+      entries.push({ field, year, value });
+    }
+  }
+
+  btn.disabled = true;
+  status.textContent = `0 / ${entries.length} opgeslagen…`;
+  status.className = 'text-xs text-slate-400';
+
+  try {
+    for (let i = 0; i < entries.length; i++) {
+      const { field, year, value } = entries[i];
+      const res = await fetch('/api/overrides/' + TICKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, year, value, note }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Fout bij ${field} (${year})`);
+      }
+      status.textContent = `${i + 1} / ${entries.length} opgeslagen…`;
+    }
+
+    status.textContent = 'Herberekening…';
+    await fetch('/api/recalculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickers: [TICKER] }),
+    });
+    status.textContent = '✓ Geïmporteerd — pagina wordt herladen…';
+    status.className = 'text-xs text-green-400';
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) {
+    status.textContent = 'Fout: ' + e.message;
+    status.className = 'text-xs text-red-400';
+    btn.disabled = false;
+  }
+}
+
+function onRefreshDone() { location.reload(); }
+</script>
+{% endblock %}
