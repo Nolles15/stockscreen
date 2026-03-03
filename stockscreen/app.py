@@ -35,6 +35,9 @@ app.secret_key = os.environ.get("SECRET_KEY", "stockscreen-local-dev-only")
 
 CONFIG_PATH = "config.yaml"
 
+# Tabellen aanmaken bij elke startup (CREATE TABLE IF NOT EXISTS — veilig idempotent)
+db.init_db()
+
 
 def load_config() -> dict:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
