@@ -289,8 +289,15 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
             errors[ticker] = [str(e)]
             db.log_activity("fetch", ticker, "error", {"error": str(e)})
 
-    for idx, ticker in enumerate(tickers):
-        _update_job(jid, current=f"Calculating {ticker}…", progress=60 + int(idx / total * 38))
+    # Scoreberekening: ververs de net-gefetchte tickers + bijvangen van ontbrekende scores
+    scored_set = {r["ticker"] for r in db.get_all_scores()}
+    gap_tickers = [s["ticker"] for s in db.get_all_stocks() if s["ticker"] not in scored_set]
+    fetched_set = set(tickers)
+    calc_tickers = tickers + [t for t in gap_tickers if t not in fetched_set]
+    total_calc = len(calc_tickers)
+
+    for idx, ticker in enumerate(calc_tickers):
+        _update_job(jid, current=f"Calculating {ticker}…", progress=60 + int(idx / total_calc * 38))
         try:
             result = run_ticker(ticker, cfg)
             db.log_activity("recalculate", ticker, "ok", {
@@ -304,7 +311,8 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
             db.log_activity("recalculate", ticker, "error", {"error": str(e)})
 
     _update_job(jid, status="done", progress=100, current="Klaar", errors=errors)
-    log.info("Refresh job %s complete. Errors: %s", jid, len(errors))
+    log.info("Refresh job %s complete. Fetched: %d, Calculated: %d, Errors: %d",
+             jid, len(tickers), total_calc, len(errors))
 
 
 # ---------------------------------------------------------------------------
@@ -383,10 +391,6 @@ def api_refresh():
     if not tickers:
         all_tickers = [s["ticker"] for s in db.get_all_stocks()]
         tickers = all_tickers if force else _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
-        if not tickers:
-            # Alles is al recent bijgewerkt — stuur gelijk-klare job terug
-            _update_job(jid, status="done", progress=100, current="Alles is al recent bijgewerkt", errors={})
-            return jsonify({"job_id": jid, "skipped": True})
 
     threading.Thread(target=_run_refresh_job, args=(jid, tickers, cfg), daemon=True).start()
     return jsonify({"job_id": jid})
