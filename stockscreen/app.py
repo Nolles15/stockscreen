@@ -711,18 +711,19 @@ def _on_startup() -> None:
 
     all_tickers = [s["ticker"] for s in db.get_all_stocks()]
     if all_tickers:
-        # Startup licht: marktdata voor iedereen bijwerken
-        light_jid = _new_job()
-        _startup_job_id = light_jid
-        threading.Thread(target=_run_light_job, args=(light_jid, all_tickers), daemon=True).start()
-        log.info("Startup lichte refresh gestart (%d tickers)", len(all_tickers))
-
-        # Startup zwaar: alleen verouderde tickers ophalen
         stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
         if stale:
+            # Zware refresh voor verouderde tickers (update ook marktdata → geen aparte lichte nodig)
             heavy_jid = _new_job()
+            _startup_job_id = heavy_jid
             threading.Thread(target=_run_refresh_job, args=(heavy_jid, stale, cfg), daemon=True).start()
             log.info("Startup zware refresh gestart (%d/%d verouderde tickers)", len(stale), len(all_tickers))
+        else:
+            # Alles is vers: alleen marktdata even bijwerken
+            light_jid = _new_job()
+            _startup_job_id = light_jid
+            threading.Thread(target=_run_light_job, args=(light_jid, all_tickers), daemon=True).start()
+            log.info("Startup lichte refresh gestart (%d tickers, alles vers)", len(all_tickers))
 
     # Schedulers: licht dagelijks, zwaar wekelijks
     threading.Timer(24 * 3600, _schedule_light, args=(cfg,)).start()
