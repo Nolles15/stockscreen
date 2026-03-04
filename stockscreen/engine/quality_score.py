@@ -270,17 +270,35 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
     else:
         breakdown["stability"] = 0.0
 
-    # ---- 4. FCF positivity (max 2) ------------------------------------------
-    # Condition: FCF > 0 in every available year (of last 5)
+    # ---- 4. FCF-kwaliteit + cashconversie (max 2) ---------------------------
+    # FCF > 0 elk jaar EN OCF/EBITDA > 70% in meerderheid van jaren
     fcf_years = [(r.get("fcf"), r.get("fiscal_year")) for r in rows if r.get("fcf") is not None]
 
+    # OCF/EBITDA-ratio: maat voor hoe goed winst omgezet wordt in cash
+    ocf_ebitda_ratios = []
+    for r in rows:
+        ocf    = r.get("operating_cf")
+        ebitda = r.get("ebitda")
+        if ocf is not None and ebitda and ebitda > 0:
+            ocf_ebitda_ratios.append(ocf / ebitda)
+    good_cash_conversion = (
+        len(ocf_ebitda_ratios) >= 2
+        and sum(1 for v in ocf_ebitda_ratios if v > 0.70) / len(ocf_ebitda_ratios) >= 0.75
+    )
+
     if not fcf_years:
-        warnings.append("No FCF data available — FCF positivity criterion skipped.")
+        warnings.append("No FCF data available — FCF quality criterion skipped.")
         breakdown["fcf_positive"] = 0.0
     else:
         all_positive = all(fcf > 0 for fcf, _ in fcf_years)
-        if all_positive and len(fcf_years) >= 3:
+        if all_positive and len(fcf_years) >= 3 and good_cash_conversion:
             breakdown["fcf_positive"] = 2.0
+        elif all_positive and len(fcf_years) >= 3:
+            breakdown["fcf_positive"] = 1.5
+            if not ocf_ebitda_ratios:
+                pass  # geen OCF/EBITDA data: niet afstraffen
+            else:
+                warnings.append("FCF consistent positief maar cashconversie (OCF/EBITDA) matig — check earnings quality.")
         elif all_positive:
             breakdown["fcf_positive"] = 1.0
         else:

@@ -97,11 +97,19 @@ def multiples_fair_value(
     hist_pb     = historical_median_multiple(historical_multiples, "pb_ratio",  iqr_multiplier)
     hist_evfcf  = historical_median_multiple(historical_multiples, "ev_fcf",    iqr_multiplier)
 
-    # Use max(historical, sector) for conservatism with small-caps
-    use_pe    = max(filter(None, [hist_pe,   sc.get("pe")]),    default=sc.get("pe",    18.0))
-    use_eveb  = max(filter(None, [hist_eveb, sc.get("ev_ebitda")]), default=sc.get("ev_ebitda", 11.0))
-    use_pb    = max(filter(None, [hist_pb,   sc.get("pb")]),    default=sc.get("pb",    2.5))
-    use_evfcf = max(filter(None, [hist_evfcf, sc.get("ev_fcf")]), default=sc.get("ev_fcf", 16.0))
+    # Gewogen gemiddelde: 65% historisch median + 35% sectorgemiddelde.
+    # Als er geen historische data is, valt het terug op het sectorgemiddelde.
+    # Dit voorkomt dat bedrijven die historisch op hoge multiples handelden
+    # (bijv. groeibedrijven) structureel te hoog gewaardeerd worden.
+    def _blend(hist, sector_default, fallback):
+        if hist is not None:
+            return 0.65 * hist + 0.35 * sector_default
+        return sector_default if sector_default is not None else fallback
+
+    use_pe    = _blend(hist_pe,    sc.get("pe"),       18.0)
+    use_eveb  = _blend(hist_eveb,  sc.get("ev_ebitda"), 11.0)
+    use_pb    = _blend(hist_pb,    sc.get("pb"),         2.5)
+    use_evfcf = _blend(hist_evfcf, sc.get("ev_fcf"),   16.0)
 
     # Fair values (per share)
     pe_fv: Optional[float] = (eps * use_pe) if eps else None

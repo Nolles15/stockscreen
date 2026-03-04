@@ -129,6 +129,25 @@ def _calc_accruals(rows: list[dict]) -> Optional[float]:
     return round(sum(ratios) / len(ratios) * 100, 2)
 
 
+def _calc_revenue_cagr(annual_rows: list[dict], years: int = 3) -> Optional[float]:
+    """CAGR van omzet over de laatste `years` jaar. Negatief = omzetkrimp."""
+    rev_data = [
+        (r.get("fiscal_year"), r.get("revenue"))
+        for r in annual_rows
+        if r.get("fiscal_year") and r.get("revenue") and r["revenue"] > 0
+    ]
+    rev_data.sort(key=lambda x: x[0])
+    if len(rev_data) < 2:
+        return None
+    if len(rev_data) > years:
+        rev_data = rev_data[-(years + 1):]
+    oldest, newest = rev_data[0], rev_data[-1]
+    n_years = newest[0] - oldest[0]
+    if n_years <= 0:
+        return None
+    return (newest[1] / oldest[1]) ** (1 / n_years) - 1
+
+
 # ---------------------------------------------------------------------------
 # Per-ticker pipeline
 # ---------------------------------------------------------------------------
@@ -186,6 +205,27 @@ def run_ticker(ticker: str, config: dict) -> dict:
             warnings.append(
                 f"Recentste jaarcijfers in DB: FY{latest_fy} — FY{current_year - 1} mogelijk al beschikbaar. Klik Refresh."
             )
+
+    # Data freshness check: waarschuw als laatste fetch > 90 dagen geleden is
+    if annual_rows:
+        fetched_date_str = annual_rows[0].get("fetched_date")
+        if fetched_date_str:
+            try:
+                fetched_dt = datetime.fromisoformat(fetched_date_str[:10])
+                days_old = (datetime.utcnow() - fetched_dt).days
+                if days_old > 90:
+                    warnings.append(
+                        f"Jaarcijfers zijn {days_old} dagen oud — overweeg een Refresh om recentere data op te halen."
+                    )
+            except (ValueError, TypeError):
+                pass
+
+    # Revenue-trend check: waarschuw bij structureel dalende omzet (value trap indicator)
+    rev_cagr = _calc_revenue_cagr(annual_rows)
+    if rev_cagr is not None and rev_cagr < -0.02:
+        warnings.append(
+            f"Omzetkrimp: 3-jaars CAGR = {rev_cagr * 100:.1f}% — mogelijke value trap. Controleer concurrentiepositie."
+        )
 
     if not annual_rows:
         db.upsert_scores(
