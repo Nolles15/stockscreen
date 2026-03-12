@@ -57,6 +57,10 @@
     <input type="checkbox" id="filter-hidenodata" onchange="loadDashboard()" class="rounded" />
     <span>Verberg aandelen zonder data</span>
   </label>
+  <button onclick="copyTickers()" id="btn-copy-tickers"
+    class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm px-3 py-1.5 rounded-md transition">
+    Kopieer tikkers
+  </button>
 </div>
 
 <!-- Table wrapper -->
@@ -120,6 +124,7 @@
 {% block scripts %}
 <script>
 let _allRows = [];
+let _visibleRows = [];
 let _sortCol = 'margin_of_safety';
 let _sortDir = -1;   // -1 = desc, 1 = asc
 
@@ -185,11 +190,32 @@ function renderTable() {
       htmlParts.push(`<tr><td colspan="15" class="text-red-400 px-3 py-1 text-xs">⚠ Renderingsfout bij ${r.ticker}: ${e.message}</td></tr>`);
     }
   }
+  _visibleRows = rows;
   tbody.innerHTML = htmlParts.join('');
   document.getElementById('row-count').textContent =
     `${rows.length} van ${_allRows.length} aandelen weergegeven`;
 
   updateSortIndicators();
+}
+
+async function copyTickers() {
+  const tickers = _visibleRows.map(r => r.ticker).join('\n');
+  if (!tickers) return;
+  try {
+    await navigator.clipboard.writeText(tickers);
+    const btn = document.getElementById('btn-copy-tickers');
+    const orig = btn.textContent;
+    btn.textContent = `Gekopieerd (${_visibleRows.length})`;
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch (e) {
+    // Fallback: textarea-select voor oudere browsers
+    const ta = document.createElement('textarea');
+    ta.value = tickers;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
 }
 
 function dateStaleness(isoStr) {
