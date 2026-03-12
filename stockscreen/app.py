@@ -58,6 +58,10 @@ _jobs: dict[str, dict] = {}   # job_id → {status, progress, current, errors}
 _jobs_lock = threading.Lock()
 _startup_job_id: str | None = None   # job_id of the auto-refresh triggered at startup
 
+# Dashboard-cache: wordt gevuld door api_dashboard(), geleegd na elke refresh/recalculate.
+_dashboard_cache: dict = {"data": None, "expires": 0.0}
+_DASHBOARD_CACHE_TTL = 90  # seconden
+
 STALE_HEAVY_DAYS = 6   # dagen zonder zware refresh → opnieuw ophalen bij next run
 
 
@@ -159,87 +163,87 @@ def settings():
 
 @app.route("/api/dashboard")
 def api_dashboard():
-    """Return all stocks with latest calculated scores, merged with market data."""
-    stocks      = db.get_all_stocks()
-    scores      = {s["ticker"]: s for s in db.get_all_scores()}
-    markets     = {s["ticker"]: db.get_market_data(s["ticker"]) for s in stocks}
-    latest_fys  = db.get_latest_fiscal_years()
+    """Return alle aandelen met scores en marktdata. Filtering gebeurt client-side."""
+    # Geef gecachede response terug als die nog vers is (max 90s)
+    now = time.time()
+    if _dashboard_cache["data"] is not None and now < _dashboard_cache["expires"]:
+        return jsonify(_dashboard_cache["data"])
 
     cfg = load_config()
-    min_quality   = cfg.get("screening", {}).get("min_quality_score", 7)
-    min_cap       = cfg.get("screening", {}).get("min_market_cap_eur", 200)
-    new_days      = cfg.get("app", {}).get("new_ticker_days", 7)
-    show_all      = request.args.get("show_all",    "false").lower() == "true"
-    hide_no_data  = request.args.get("hide_no_data", "false").lower() == "true"
-
-    today = datetime.now(timezone.utc).date()
+    min_quality = cfg.get("screening", {}).get("min_quality_score", 7)
+    min_cap     = cfg.get("screening", {}).get("min_market_cap_eur", 200)
+    new_days    = cfg.get("app", {}).get("new_ticker_days", 7)
+    today       = datetime.now(timezone.utc).date()
 
     rows = []
-    for stock in stocks:
-        t   = stock["ticker"]
-        sc  = scores.get(t, {})
-        mkt = markets.get(t) or {}
+    for r in db.get_dashboard_data():
+        t        = r["ticker"]
+        mc_eur_m = (r.get("market_cap_eur") / 1e6) if r.get("market_cap_eur") else None
+        q_score  = r.get("quality_score")
+        signal   = r.get("signal")
 
-        mc_eur_m = (mkt.get("market_cap_eur") / 1e6) if mkt.get("market_cap_eur") else None
-        q_score  = sc.get("quality_score")
-        signal   = sc.get("signal")
+        norm_fcf_raw = r.get("normalized_fcf")
+        eur_rate     = get_eur_rate(r.get("currency") or "EUR")
+        fcf_m_eur    = (norm_fcf_raw * eur_rate / 1e6) if norm_fcf_raw is not None else None
 
-        # Verberg aandelen zonder data als dat gevraagd wordt.
-        if hide_no_data and signal == "INSUFFICIENT DATA":
-            continue
-
-        # Apply filters unless show_all.
-        # Tickers with INSUFFICIENT DATA are always shown (no data ≠ low quality).
-        if not show_all and signal != "INSUFFICIENT DATA":
-            if q_score is not None and q_score < min_quality:
-                continue
-            if min_cap > 0 and mc_eur_m is not None and mc_eur_m < min_cap:
-                continue
-
-        # FCF in millions EUR
-        norm_fcf_raw = sc.get("normalized_fcf")
-        eur_rate = get_eur_rate(stock.get("currency") or "EUR")
-        fcf_m_eur = (norm_fcf_raw * eur_rate / 1e6) if norm_fcf_raw is not None else None
-
-        # "New" ticker badge
-        added_str = stock.get("added_date")
+        added_str = r.get("added_date")
         try:
             days_since_added = (today - datetime.fromisoformat(added_str).date()).days if added_str else None
         except (ValueError, TypeError):
             days_since_added = None
-        is_new = days_since_added is not None and days_since_added <= new_days
+
+        # Markeringen voor client-side filtering — server filtert niet meer
+        low_quality = (
+            q_score is not None
+            and q_score < min_quality
+            and signal != "INSUFFICIENT DATA"
+        )
+        small_cap = (
+            min_cap > 0
+            and mc_eur_m is not None
+            and mc_eur_m < min_cap
+            and signal != "INSUFFICIENT DATA"
+        )
 
         rows.append({
-            "ticker":           t,
-            "name":             stock.get("name") or t,
-            "sector":           stock.get("sector"),
-            "market":           stock.get("market"),
-            "currency":         stock.get("currency"),
-            "price":            mkt.get("price"),
-            "price_eur":        mkt.get("price_eur"),
-            "market_cap_m_eur": mc_eur_m,
-            "combined_fv_eur":  sc.get("combined_fv_eur"),
-            "conservative_fv_eur": sc.get("conservative_fv_eur"),
-            "base_fv_eur":      sc.get("base_fv_eur"),
-            "optimistic_fv_eur": sc.get("optimistic_fv_eur"),
+            "ticker":               t,
+            "name":                 r.get("name") or t,
+            "sector":               r.get("sector"),
+            "market":               r.get("market"),
+            "currency":             r.get("currency"),
+            "price":                r.get("price"),
+            "price_eur":            r.get("price_eur"),
+            "market_cap_m_eur":     mc_eur_m,
+            "combined_fv_eur":      r.get("combined_fv_eur"),
+            "conservative_fv_eur":  r.get("conservative_fv_eur"),
+            "base_fv_eur":          r.get("base_fv_eur"),
+            "optimistic_fv_eur":    r.get("optimistic_fv_eur"),
             "normalized_fcf_m_eur": fcf_m_eur,
-            "margin_of_safety": sc.get("margin_of_safety"),
-            "price_vs_fv_pct":  _price_vs_fv(mkt.get("price_eur"), sc.get("combined_fv_eur")),
-            "quality_score":    q_score,
-            "piotroski_score":  sc.get("piotroski_score"),
-            "signal":           sc.get("signal") or "N/A",
-            "last_updated":        mkt.get("last_updated"),
-            "last_calculated":     sc.get("last_calculated"),
-            "warnings":            sc.get("warnings") or [],
-            "latest_fiscal_year":  latest_fys.get(t),
-            "hist_relative":       sc.get("hist_relative") or {},
-            "is_new":              is_new,
-            "days_since_added":    days_since_added,
+            "margin_of_safety":     r.get("margin_of_safety"),
+            "price_vs_fv_pct":      _price_vs_fv(r.get("price_eur"), r.get("combined_fv_eur")),
+            "quality_score":        q_score,
+            "piotroski_score":      r.get("piotroski_score"),
+            "signal":               signal or "N/A",
+            "last_updated":         r.get("last_updated"),
+            "last_calculated":      r.get("last_calculated"),
+            "warnings":             r.get("warnings") or [],
+            "latest_fiscal_year":   r.get("latest_fy"),
+            "hist_relative":        r.get("hist_relative") or {},
+            "is_new":               days_since_added is not None and days_since_added <= new_days,
+            "days_since_added":     days_since_added,
+            # Markeringen voor client-side filtering
+            "low_quality":          low_quality,
+            "small_cap":            small_cap,
         })
 
-    # Sort by margin_of_safety descending
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
-    return jsonify(_sanitize(rows))
+    result = _sanitize(rows)
+
+    # Sla op in cache
+    _dashboard_cache["data"] = result
+    _dashboard_cache["expires"] = now + _DASHBOARD_CACHE_TTL
+
+    return jsonify(result)
 
 
 def _price_vs_fv(price_eur, fv_eur):
@@ -313,6 +317,9 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
     _update_job(jid, status="done", progress=100, current="Klaar", errors=errors)
     log.info("Refresh job %s complete. Fetched: %d, Calculated: %d, Errors: %d",
              jid, len(tickers), total_calc, len(errors))
+
+    # Dashboard-cache legen zodat verse scores direct zichtbaar zijn
+    _dashboard_cache["data"] = None
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +437,7 @@ def api_recalculate():
         except Exception as e:
             results.append({"ticker": ticker, "ok": False, "error": str(e)})
 
+    _dashboard_cache["data"] = None  # cache legen na herberekening
     return jsonify(results)
 
 

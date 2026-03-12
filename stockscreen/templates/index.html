@@ -50,11 +50,11 @@
   </select>
 
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
-    <input type="checkbox" id="filter-showall" onchange="loadDashboard()" class="rounded" />
+    <input type="checkbox" id="filter-showall" onchange="renderTable()" class="rounded" />
     <span>Toon alle (ook lage kwaliteit)</span>
   </label>
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
-    <input type="checkbox" id="filter-hidenodata" onchange="loadDashboard()" class="rounded" />
+    <input type="checkbox" id="filter-hidenodata" onchange="renderTable()" class="rounded" />
     <span>Verberg aandelen zonder data</span>
   </label>
   <button onclick="copyTickers()" id="btn-copy-tickers"
@@ -131,14 +131,11 @@ let _sortDir = -1;   // -1 = desc, 1 = asc
 // ---- Load data on page load ------------------------------------------------
 async function loadDashboard() {
   try {
-    const showAll    = document.getElementById('filter-showall').checked;
-    const hideNoData = document.getElementById('filter-hidenodata').checked;
-    const url = '/api/dashboard?show_all=' + showAll + '&hide_no_data=' + hideNoData + '&_=' + Date.now();
-    console.log('[Dashboard] fetch:', url);
+    const url = '/api/dashboard?_=' + Date.now();
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('Server fout: ' + res.status + ' ' + res.statusText);
     _allRows = await res.json();
-    console.log('[Dashboard] ontvangen:', _allRows.length, 'rows, show_all was:', showAll);
+    console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
     populateSectorFilter();
     renderTable();
   } catch (e) {
@@ -158,11 +155,15 @@ function renderTable() {
   const mktFilter    = document.getElementById('filter-market').value;
   const secFilter    = document.getElementById('filter-sector').value;
   const sigFilter    = document.getElementById('filter-signal').value;
+  const showAll      = document.getElementById('filter-showall').checked;
+  const hideNoData   = document.getElementById('filter-hidenodata').checked;
 
   let rows = _allRows.filter(r => {
     if (mktFilter && r.market !== mktFilter) return false;
     if (secFilter && r.sector !== secFilter) return false;
     if (sigFilter && r.signal !== sigFilter) return false;
+    if (hideNoData && r.signal === 'INSUFFICIENT DATA') return false;
+    if (!showAll && (r.low_quality || r.small_cap)) return false;
     return true;
   });
 
