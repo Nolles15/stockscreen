@@ -371,6 +371,50 @@ def get_latest_fetched_dates() -> dict[str, str]:
     return {r["ticker"]: r["fd"] for r in rows if r["fd"]}
 
 
+def get_dashboard_data() -> list[dict]:
+    """
+    Fetch all active stocks with their market data, calculated scores, 
+    latest fiscal year and latest fetched date in one optimized query.
+    Used to prevent the N+1 query problem on the dashboard.
+    """
+    sql = """
+        SELECT 
+            s.ticker, s.name, s.sector, s.market, s.currency, s.added_date,
+            m.price, m.price_eur, m.market_cap as market_cap_raw, m.market_cap_eur, m.last_updated,
+            c.quality_score, c.quality_breakdown, c.piotroski_score, c.piotroski_breakdown,
+            c.normalized_eps, c.normalized_ebitda, c.normalized_fcf, c.normalized_owner_earn,
+            c.multiples_fv_eur, c.graham_fv_eur, c.perpetuity_fv_eur, c.combined_fv_eur,
+            c.conservative_fv_eur, c.base_fv_eur, c.optimistic_fv_eur,
+            c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
+            fy.latest_fy
+        FROM stocks s
+        LEFT JOIN market_data m ON s.ticker = m.ticker
+        LEFT JOIN calculated_scores c ON s.ticker = c.ticker
+        LEFT JOIN (
+            SELECT ticker, MAX(fiscal_year) as latest_fy 
+            FROM financials 
+            WHERE period_type='annual' 
+            GROUP BY ticker
+        ) fy ON s.ticker = fy.ticker
+        WHERE s.active = 1
+    """
+    with _cursor() as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+        
+    results = []
+    for row in rows:
+        r = dict(row)
+        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative"):
+            if r.get(key):
+                try:
+                    r[key] = json.loads(r[key])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        results.append(r)
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Overrides
 # ---------------------------------------------------------------------------

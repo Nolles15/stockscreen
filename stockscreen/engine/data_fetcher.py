@@ -641,21 +641,48 @@ def fetch_market_only(ticker: str) -> None:
 
 def fetch_all_tickers(tickers: list[str], progress_cb=None) -> dict[str, list[str]]:
     """
-    Fetch all tickers, updating progress via callback(ticker, idx, total).
+    Fetch all tickers concurrently (max 5 workers to avoid yfinance rate limits).
+    Updates progress via callback(ticker, idx, total).
     Returns {ticker: [warnings]}.
     """
+    import concurrent.futures
+
     # Refresh FX rates once before processing
     refresh_exchange_rates()
 
     results = {}
     total = len(tickers)
-    for idx, ticker in enumerate(tickers):
-        if progress_cb:
-            progress_cb(ticker, idx, total)
+    
+    # We use a Lock to safely increment idx and call progress_cb from multiple threads
+    from threading import Lock
+    idx_lock = Lock()
+    current_idx = 0
+
+    def _fetch_worker(ticker: str):
+        nonlocal current_idx
         try:
             warnings = fetch_and_store(ticker)
-            results[ticker] = warnings
         except Exception as e:
             log.exception("Unexpected error fetching %s", ticker)
-            results[ticker] = [str(e)]
+            warnings = [str(e)]
+            
+        with idx_lock:
+            current_idx += 1
+            if progress_cb:
+                progress_cb(ticker, current_idx - 1, total)
+                
+        return ticker, warnings
+
+    # Max 5 workers to avoid Yahoo Finance "Too Many Requests" rate limits
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_ticker = {executor.submit(_fetch_worker, t): t for t in tickers}
+        for future in concurrent.futures.as_completed(future_to_ticker):
+            t = future_to_ticker[future]
+            try:
+                t_res, warnings_res = future.result()
+                results[t_res] = warnings_res
+            except Exception as e:
+                log.exception("Worker failed for %s", t)
+                results[t] = [f"Worker failed: {e}"]
+
     return results
