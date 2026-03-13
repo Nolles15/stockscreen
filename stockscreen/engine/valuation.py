@@ -102,9 +102,10 @@ def multiples_fair_value(
     # Dit voorkomt dat bedrijven die historisch op hoge multiples handelden
     # (bijv. groeibedrijven) structureel te hoog gewaardeerd worden.
     def _blend(hist, sector_default, fallback):
+        s = sector_default if sector_default is not None else fallback
         if hist is not None:
-            return 0.65 * hist + 0.35 * sector_default
-        return sector_default if sector_default is not None else fallback
+            return 0.65 * hist + 0.35 * s
+        return s
 
     use_pe    = _blend(hist_pe,    sc.get("pe"),       18.0)
     use_eveb  = _blend(hist_eveb,  sc.get("ev_ebitda"), 11.0)
