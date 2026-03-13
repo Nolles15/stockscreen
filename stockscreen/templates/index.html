@@ -119,6 +119,18 @@
     </div>
   </div>
 </div>
+
+<!-- Bulk import rapport modal -->
+<div id="bulk-report-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-lg shadow-2xl" style="max-height:80vh;overflow-y:auto">
+    <h2 class="font-semibold text-lg mb-4">Import rapport</h2>
+    <div id="bulk-report-content" class="space-y-4"></div>
+    <button onclick="document.getElementById('bulk-report-modal').classList.add('hidden')"
+      class="mt-5 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md text-sm transition">
+      Sluiten
+    </button>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -127,6 +139,8 @@ let _allRows = [];
 let _visibleRows = [];
 let _sortCol = 'margin_of_safety';
 let _sortDir = -1;   // -1 = desc, 1 = asc
+let _lastBulkAdded = [];    // tickers die net via bulk zijn toegevoegd
+let _lastBulkSkipped = [];  // tickers die al aanwezig waren
 
 // ---- Load data on page load ------------------------------------------------
 async function loadDashboard() {
@@ -424,21 +438,82 @@ async function submitBulk() {
   });
   const data = await res.json();
 
-  const msg = `✓ ${data.added.length} toegevoegd` +
-    (data.skipped.length ? `, ${data.skipped.length} al aanwezig (overgeslagen)` : '');
+  _lastBulkAdded   = data.added   || [];
+  _lastBulkSkipped = data.skipped || [];
+
+  const msg = `✓ ${_lastBulkAdded.length} nieuw toegevoegd` +
+    (_lastBulkSkipped.length ? `, ${_lastBulkSkipped.length} al aanwezig (overgeslagen)` : '');
   document.getElementById('bulk-feedback').textContent = msg;
 
   if (data.job_id) {
     document.getElementById('bulk-modal').classList.add('hidden');
     document.getElementById('bulk-input').value = '';
-    document.getElementById('refresh-status').textContent = 'Data ophalen…';
+    document.getElementById('refresh-status').textContent = `Data ophalen voor ${_lastBulkAdded.length} nieuwe tikkers…`;
     _pollRefresh(data.job_id);
   }
 }
 
 // ---- After refresh, reload table -------------------------------------------
 function onRefreshDone(job) {
-  loadDashboard();
+  const showReport = _lastBulkAdded.length > 0;
+  loadDashboard().then(() => {
+    if (showReport) showBulkReport();
+  });
+}
+
+function showBulkReport() {
+  const addedSet = new Set(_lastBulkAdded);
+  const withData  = _allRows.filter(r => addedSet.has(r.ticker) && r.signal !== 'INSUFFICIENT DATA');
+  const noData    = _allRows.filter(r => addedSet.has(r.ticker) && r.signal === 'INSUFFICIENT DATA');
+  // Tickers that were added but not yet in _allRows (shouldn't happen, but be safe)
+  const inRows    = new Set(_allRows.map(r => r.ticker));
+  const missing   = _lastBulkAdded.filter(t => !inRows.has(t));
+
+  let html = `<p class="text-sm text-slate-400">${_lastBulkAdded.length} tikkers verwerkt` +
+    (_lastBulkSkipped.length ? ` · ${_lastBulkSkipped.length} al aanwezig (overgeslagen)` : '') + `.</p>`;
+
+  if (withData.length) {
+    html += `<div>
+      <p class="text-green-400 font-medium text-sm mb-1">✓ ${withData.length} succesvol — data ontvangen</p>
+      <div class="text-xs font-mono text-slate-300 flex flex-wrap gap-x-3 gap-y-0.5">
+        ${withData.map(r => `<span>${r.ticker}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (noData.length) {
+    html += `<div>
+      <p class="text-red-400 font-medium text-sm mb-1">✗ ${noData.length} geen data — controleer de ticker-code</p>
+      <div class="text-xs font-mono text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
+        ${noData.map(r => `<span>${r.ticker}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (missing.length) {
+    html += `<div>
+      <p class="text-yellow-400 font-medium text-sm mb-1">⚠ ${missing.length} niet gevonden in resultaten</p>
+      <div class="text-xs font-mono text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
+        ${missing.map(t => `<span>${t}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (_lastBulkSkipped.length) {
+    html += `<div>
+      <p class="text-slate-500 font-medium text-sm mb-1">— ${_lastBulkSkipped.length} al aanwezig (overgeslagen)</p>
+      <div class="text-xs font-mono text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
+        ${_lastBulkSkipped.map(t => `<span>${t}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('bulk-report-content').innerHTML = html;
+  document.getElementById('bulk-report-modal').classList.remove('hidden');
+
+  // Reset zodat het rapport niet opnieuw verschijnt bij de volgende refresh
+  _lastBulkAdded   = [];
+  _lastBulkSkipped = [];
 }
 
 // ---- Startup auto-refresh check --------------------------------------------
