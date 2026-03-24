@@ -59,16 +59,21 @@ def init_db() -> None:
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS stocks (
-                ticker       TEXT PRIMARY KEY,
-                name         TEXT,
-                sector       TEXT,
-                market       TEXT,
-                currency     TEXT,
-                active       INTEGER DEFAULT 1,
-                added_date   TEXT,
-                notes        TEXT,
-                description  TEXT
+                ticker             TEXT PRIMARY KEY,
+                name               TEXT,
+                sector             TEXT,
+                market             TEXT,
+                currency           TEXT,
+                financial_currency TEXT,
+                active             INTEGER DEFAULT 1,
+                added_date         TEXT,
+                notes              TEXT,
+                description        TEXT
             )
+        """)
+        # Migratie: kolom toevoegen aan bestaande DB (PostgreSQL)
+        cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS financial_currency TEXT
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS financials (

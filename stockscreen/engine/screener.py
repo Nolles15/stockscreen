@@ -170,7 +170,11 @@ def run_ticker(ticker: str, config: dict) -> dict:
 
     sector   = stock_info.get("sector") or "Default"
     currency = stock_info.get("currency") or "EUR"
-    eur_rate = get_eur_rate(currency)
+    # Gebruik financial_currency voor de EUR-rate bij de valuatie:
+    # ADR-tickers handelen in USD maar rapporteren cijfers in JPY/INR/etc.
+    # De EUR-conversie moet op de rapportagevaluta gebaseerd zijn.
+    financial_currency = stock_info.get("financial_currency") or currency
+    eur_rate = get_eur_rate(financial_currency)
 
     # Load overrides early so we can synthesize rows for manually-entered years
     overrides = db.get_overrides(ticker)

@@ -43,6 +43,16 @@ FX_TICKERS = {
     "GBP": "EURGBP=X",
     "CHF": "EURCHF=X",
     "DKK": "EURDKK=X",
+    # Extra valuta's voor ADR-financiële statements
+    "JPY": "EURJPY=X",
+    "INR": "EURINR=X",
+    "CAD": "EURCAD=X",
+    "AUD": "EURAUD=X",
+    "HKD": "EURHKD=X",
+    "CNY": "EURCNY=X",
+    "KRW": "EURKRW=X",
+    "TWD": "EURTWD=X",
+    "BRL": "EURBRL=X",
 }
 
 
@@ -165,12 +175,16 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
 
     # ---- Meta ---------------------------------------------------------------
     currency = info.get("currency") or infer_currency(ticker)
+    # financialCurrency = valuta van de jaarrekening (kan afwijken van handelvaluta bij ADRs)
+    # Bijv. TM handelt in USD maar rapporteert in JPY; WIT/IBN rapporteren in INR
+    financial_currency = info.get("financialCurrency") or currency
     result["meta"] = {
-        "name":        info.get("longName") or info.get("shortName") or ticker,
-        "sector":      info.get("sector") or "Unknown",
-        "currency":    currency,
-        "market":      _detect_market(ticker),
-        "description": info.get("longBusinessSummary"),
+        "name":              info.get("longName") or info.get("shortName") or ticker,
+        "sector":            info.get("sector") or "Unknown",
+        "currency":          currency,
+        "financial_currency": financial_currency,
+        "market":            _detect_market(ticker),
+        "description":       info.get("longBusinessSummary"),
     }
 
     # ---- Current market data ------------------------------------------------
@@ -242,12 +256,23 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
             current_assets  = _df_value(bal, ["Current Assets", "Total Current Assets"], bal_idx)
             current_liab    = _df_value(bal, ["Current Liabilities", "Total Current Liabilities"], bal_idx)
             net_ppe         = _df_value(bal, ["Net PPE", "Net Property Plant And Equipment", "NetPPE"], bal_idx)
-            bvps            = None  # yfinance "Book Value" = total equity, niet per aandeel; fallback hieronder
-            shares          = _df_value(bal, [
-                "Ordinary Shares Number", "Share Issued", "Common Stock Shares Outstanding"
-            ], bal_idx) or _safe_get(info, "sharesOutstanding")
+            bvps            = None
             inventory       = _df_value(bal, ["Inventory", "Inventories"], bal_idx)
             cash            = _df_value(bal, ["Cash And Cash Equivalents", "Cash", "CashAndCashEquivalents"], bal_idx)
+
+            # Shares: bij A/B-aandelenstructuren (bijv. BRK-B) geeft de balans soms
+            # het A-equivalent aantal terug, terwijl de koers die van het B-aandeel is.
+            # info["sharesOutstanding"] geeft altijd het aantal in de handelsklasse.
+            bal_shares  = _df_value(bal, [
+                "Ordinary Shares Number", "Share Issued", "Common Stock Shares Outstanding"
+            ], bal_idx)
+            info_shares = _safe_get(info, "sharesOutstanding")
+            if bal_shares and info_shares:
+                ratio = max(bal_shares, info_shares) / min(bal_shares, info_shares)
+                shares = info_shares if ratio > 5 else bal_shares
+            else:
+                shares = bal_shares or info_shares
+
             if total_debt is not None and cash is not None:
                 net_debt = total_debt - cash
                 net_cash = -net_debt
@@ -267,7 +292,8 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
 
             # Derived ratios
             roe = (net_income / total_equity) if net_income and total_equity else None
-            if bvps is None and total_equity and shares and shares > 0:
+            bvps = None
+            if total_equity and shares and shares > 0:
                 bvps = total_equity / shares
 
             annual_row = {
@@ -484,6 +510,7 @@ def fetch_and_store(ticker: str) -> list[str]:
             sector=meta.get("sector"),
             market=meta.get("market"),
             currency=meta.get("currency"),
+            financial_currency=meta.get("financial_currency"),
             description=meta.get("description"),
             active=1,
         )
