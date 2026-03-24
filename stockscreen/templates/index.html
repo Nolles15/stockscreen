@@ -32,9 +32,6 @@
   <select id="filter-market" onchange="renderTable()"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alle markten</option>
-    <option>US</option><option>NL</option><option>BE</option>
-    <option>PL</option><option>SE</option><option>NO</option>
-    <option>DE</option><option>UK</option>
   </select>
 
   <select id="filter-sector" onchange="renderTable()"
@@ -150,6 +147,7 @@ async function loadDashboard() {
     if (!res.ok) throw new Error('Server fout: ' + res.status + ' ' + res.statusText);
     _allRows = await res.json();
     console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
+    populateMarketFilter();
     populateSectorFilter();
     renderTable();
   } catch (e) {
@@ -158,11 +156,20 @@ async function loadDashboard() {
   }
 }
 
+function populateMarketFilter() {
+  const sel = document.getElementById('filter-market');
+  const current = sel.value;
+  const markets = [...new Set(_allRows.map(r => r.market).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Alle markten</option>' +
+    markets.map(m => `<option${m === current ? ' selected' : ''}>${m}</option>`).join('');
+}
+
 function populateSectorFilter() {
   const sel = document.getElementById('filter-sector');
+  const current = sel.value;
   const sectors = [...new Set(_allRows.map(r => r.sector).filter(Boolean))].sort();
   sel.innerHTML = '<option value="">Alle sectoren</option>' +
-    sectors.map(s => `<option>${s}</option>`).join('');
+    sectors.map(s => `<option${s === current ? ' selected' : ''}>${s}</option>`).join('');
 }
 
 function renderTable() {
