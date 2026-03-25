@@ -72,7 +72,9 @@
     status.textContent = 'Ophalen gegevens…';
 
     try {
-      const body = tickers ? { tickers } : {};
+      // Handmatige refresh: altijd force=true zodat alle tickers opgehaald worden.
+      // De geplande achtergrondtaken gebruiken de slimme stale-logica.
+      const body = tickers ? { tickers } : { force: true };
       const res  = await fetch('/api/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
