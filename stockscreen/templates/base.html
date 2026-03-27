@@ -3,65 +3,241 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Wannabe Oracle Stockscreener{% endblock %}</title>
+  <title>{% block title %}Stockscreener{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            strong_buy: '#14532d',
-            buy:        '#15803d',
-            hold:       '#854d0e',
-            sell:       '#991b1b',
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
-    .signal-STRONG\ BUY { background:#14532d; color:#fff; }
-    .signal-BUY         { background:#15803d; color:#fff; }
-    .signal-HOLD        { background:#854d0e; color:#fff; }
-    .signal-SELL        { background:#991b1b; color:#fff; }
-    .signal-N\/A, .signal-ERROR, .signal-INSUFFICIENT\ DATA
-                        { background:#374151; color:#fff; }
+    /* ─── Design tokens (zelfde als aandelenanalyse) ─── */
+    :root {
+      --bg:          #EEEEED;
+      --surface:     #FFFFFF;
+      --surface-2:   #E9E9E7;
+      --text-1:      #0A0A0A;
+      --text-2:      #555555;
+      --text-3:      #999999;
+      --border:      #E2E2E0;
+      --buy:         #166534;
+      --buy-bg:      #F0FDF4;
+      --buy-border:  #BBF7D0;
+      --hold:        #854D0E;
+      --hold-bg:     #FFFBEB;
+      --hold-border: #FDE68A;
+      --pass:        #991B1B;
+      --pass-bg:     #FEF2F2;
+      --pass-border: #FECACA;
+      --radius:      16px;
+      --radius-sm:   10px;
+      --shadow:      0 1px 2px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.04);
+      --font:        'Plus Jakarta Sans', -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font) !important; -webkit-font-smoothing: antialiased; }
+
+    /* ─── Tailwind kleur-overrides (dark → cream) ─── */
+    body,
+    .bg-slate-950 { background-color: var(--bg) !important; color: var(--text-1) !important; }
+    .bg-slate-900 { background-color: var(--surface) !important; }
+    .bg-slate-800 { background-color: var(--surface-2) !important; }
+    .bg-slate-700 { background-color: #D5D5D3 !important; }
+
+    .text-white,
+    .text-slate-100,
+    .text-slate-200,
+    .text-slate-300 { color: var(--text-1) !important; }
+    .text-slate-400  { color: var(--text-2) !important; }
+    .text-slate-500,
+    .text-slate-600  { color: var(--text-3) !important; }
+
+    .border-slate-800,
+    .border-slate-700 { border-color: var(--border) !important; }
+
+    .divide-y > * + * { border-color: var(--border) !important; }
+
+    /* hover op tabel-rijen */
+    tr:hover { background-color: #F5F5F3 !important; }
+    .hover\:bg-slate-800:hover,
+    .hover\:bg-slate-600:hover { background-color: var(--surface-2) !important; color: var(--text-1) !important; }
+
+    /* sortable header hover */
+    .sortable:hover { background-color: var(--surface-2) !important; }
+
+    /* inputs & selects */
+    input, select, textarea {
+      font-family: var(--font) !important;
+      background-color: var(--surface) !important;
+      color: var(--text-1) !important;
+      border-color: var(--border) !important;
+    }
+    input::placeholder, textarea::placeholder { color: var(--text-3) !important; }
+    input:focus, select:focus, textarea:focus {
+      outline: none !important;
+      box-shadow: 0 0 0 2px var(--text-1) !important;
+      border-color: var(--text-1) !important;
+    }
+
+    /* knoppen */
+    .bg-blue-600 { background-color: var(--text-1) !important; color: #fff !important; }
+    .bg-blue-600:hover, .hover\:bg-blue-500:hover { background-color: #333 !important; }
+
+    /* thead */
+    thead { background-color: var(--surface-2) !important; }
+    thead th { color: var(--text-3) !important; }
+
+    /* tabel */
+    table { border-collapse: collapse; }
+    .overflow-x-auto.rounded-xl { border-color: var(--border) !important; background: var(--surface) !important; }
+
+    /* modals */
+    .bg-black\/70 { background-color: rgba(0,0,0,0.5) !important; }
+
+    /* signals — zelfde kleuren als aandelenanalyse */
+    .signal-STRONG\ BUY {
+      background: var(--text-1); color: #fff;
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px; letter-spacing: 0.3px;
+    }
+    .signal-BUY {
+      background: var(--buy-bg); color: var(--buy);
+      border: 1px solid var(--buy-border);
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
+    }
+    .signal-HOLD {
+      background: var(--hold-bg); color: var(--hold);
+      border: 1px solid var(--hold-border);
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
+    }
+    .signal-SELL,
+    .signal-N\/A,
+    .signal-ERROR,
+    .signal-INSUFFICIENT\ DATA {
+      background: var(--pass-bg); color: var(--pass);
+      border: 1px solid var(--pass-border);
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
+    }
+
+    /* sort indicators */
+    .sort-asc::after  { content: ' ↑'; color: var(--text-1); }
+    .sort-desc::after { content: ' ↓'; color: var(--text-1); }
     th { white-space: nowrap; }
-    .sortable { cursor:pointer; user-select:none; }
-    .sortable:hover { background:#1e293b; }
-    .sort-asc::after  { content: ' ↑'; }
-    .sort-desc::after { content: ' ↓'; }
+    .sortable { cursor: pointer; user-select: none; }
+
+    /* ─── NAVIGATIE ─── */
+    #main-nav {
+      background: rgba(255,255,255,0.94);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .nav-inner {
+      max-width: 1320px; margin: 0 auto;
+      padding: 0 32px;
+      display: flex; align-items: stretch; gap: 0;
+      height: 64px;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 12px;
+      padding-right: 32px;
+      border-right: 1px solid var(--border);
+      text-decoration: none;
+    }
+    .nav-brand-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--text-1); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 800; flex-shrink: 0;
+    }
+    .nav-brand-label { font-size: 14px; font-weight: 700; color: var(--text-1); letter-spacing: -0.2px; }
+    .nav-brand-sub   { font-size: 11px; color: var(--text-3); }
+
+    /* tool-tabs */
+    .nav-tabs { display: flex; align-items: stretch; gap: 0; }
+    .nav-tab {
+      display: flex; align-items: center;
+      padding: 0 20px;
+      font-size: 13px; font-weight: 600;
+      color: var(--text-3);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .nav-tab:hover { color: var(--text-1); }
+    .nav-tab.active { color: var(--text-1); border-bottom-color: var(--text-1); }
+    .nav-tab.external::after { content: ' ↗'; font-size: 10px; opacity: 0.5; }
+
+    /* intern nav (Dashboard / Settings / Log) */
+    .nav-internal {
+      display: flex; align-items: stretch;
+      border-left: 1px solid var(--border);
+      margin-left: 16px; padding-left: 16px; gap: 0;
+    }
+    .nav-internal a {
+      display: flex; align-items: center;
+      padding: 0 14px;
+      font-size: 12px; font-weight: 600; color: var(--text-3);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .nav-internal a:hover { color: var(--text-1); }
+    .nav-internal a.active { color: var(--text-1); border-bottom-color: var(--text-1); }
+
+    /* refresh rechts */
+    .nav-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .btn-refresh {
+      background: var(--text-1); color: #fff;
+      font-family: var(--font); font-size: 13px; font-weight: 600;
+      padding: 7px 16px; border-radius: 8px; border: none;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-refresh:hover:not(:disabled) { background: #333; }
+    .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+    #refresh-status { font-size: 12px; color: var(--text-3); }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
+<body>
 
   <!-- Nav -->
-  <nav class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center gap-6">
-    <a href="/" class="flex items-center gap-2 font-bold text-white tracking-tight">
-      <img src="/static/oracle-logo.png" alt="logo" class="h-9 w-9 rounded-full object-cover" />
-      <span class="text-base leading-tight">Wannabe Oracle<br><span class="text-xs font-normal text-slate-400">Stockscreener</span></span>
-    </a>
-    <a href="/" class="text-slate-400 hover:text-white text-sm {% if request.path == '/' %}text-white font-medium{% endif %}">Dashboard</a>
-    <a href="/settings" class="text-slate-400 hover:text-white text-sm {% if request.path == '/settings' %}text-white font-medium{% endif %}">⚙ Instellingen</a>
-    <a href="/log" class="text-slate-400 hover:text-white text-sm {% if request.path == '/log' %}text-white font-medium{% endif %}">📋 Geschiedenis</a>
-    <div class="ml-auto flex items-center gap-3">
-      <span id="refresh-status" class="text-xs text-slate-500"></span>
-      <button id="btn-refresh"
-        onclick="startRefresh()"
-        class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded-md font-medium transition">
-        ↻ Refresh
-      </button>
+  <nav id="main-nav">
+    <div class="nav-inner">
+      <!-- Brand -->
+      <a class="nav-brand" href="/">
+        <div class="nav-brand-icon">S</div>
+        <div>
+          <div class="nav-brand-label">Aandelentools</div>
+          <div class="nav-brand-sub">Nolles</div>
+        </div>
+      </a>
+
+      <!-- Tool-tabs (links naar de drie tools) -->
+      <div class="nav-tabs">
+        <a class="nav-tab" href="https://nolles15.github.io/fundamenteleanalyses/" target="_blank" rel="noopener">Analyses</a>
+        <a class="nav-tab" href="https://nolles15.github.io/fundamenteleanalyses/portefeuille.html" target="_blank" rel="noopener">Portefeuille</a>
+        <a class="nav-tab active" href="/">Screener</a>
+      </div>
+
+      <!-- Intern sub-nav -->
+      <div class="nav-internal">
+        <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+        <a href="/settings" {% if request.path == '/settings' %}class="active"{% endif %}>Instellingen</a>
+        <a href="/log" {% if request.path == '/log' %}class="active"{% endif %}>Geschiedenis</a>
+      </div>
+
+      <!-- Refresh -->
+      <div class="nav-actions">
+        <span id="refresh-status"></span>
+        <button id="btn-refresh" class="btn-refresh" onclick="startRefresh()">↻ Refresh</button>
+      </div>
     </div>
   </nav>
 
   <!-- Content -->
-  <main class="px-6 py-6 max-w-screen-2xl mx-auto">
+  <main style="max-width:1320px; margin:0 auto; padding:32px;">
     {% block content %}{% endblock %}
   </main>
 
   <script>
-  // ---- Global refresh logic ------------------------------------------------
   let _refreshPoll = null;
 
   async function startRefresh(tickers) {
@@ -72,8 +248,6 @@
     status.textContent = 'Ophalen gegevens…';
 
     try {
-      // Handmatige refresh: altijd force=true zodat alle tickers opgehaald worden.
-      // De geplande achtergrondtaken gebruiken de slimme stale-logica.
       const body = tickers ? { tickers } : { force: true };
       const res  = await fetch('/api/refresh', {
         method: 'POST',
@@ -99,7 +273,7 @@
         clearInterval(_refreshPoll);
         btn.disabled = false;
         btn.textContent = '↻ Refresh';
-        status.textContent = 'Verbinding verbroken — herstart de app';
+        status.textContent = 'Verbinding verbroken';
         return;
       }
       const job = await res.json();
@@ -109,9 +283,7 @@
         btn.disabled = false;
         btn.textContent = '↻ Refresh';
         const errCount = Object.keys(job.errors || {}).length;
-        status.textContent = errCount > 0
-          ? `✓ Klaar — ${errCount} waarschuwing(en)`
-          : '✓ Klaar';
+        status.textContent = errCount > 0 ? `✓ Klaar — ${errCount} waarschuwing(en)` : '✓ Klaar';
         if (typeof onRefreshDone === 'function') onRefreshDone(job);
       }
     }, 1500);
@@ -126,7 +298,6 @@
     return '€' + Number(val).toFixed(decimals);
   }
   function fmtBig(valM) {
-    // valM is al in miljoenen; toont B met 2 decimalen als >= 1000M
     if (valM === null || valM === undefined) return '—';
     if (Math.abs(valM) >= 1000) return (valM / 1000).toFixed(2) + 'B';
     return Math.round(valM) + 'M';

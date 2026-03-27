@@ -246,9 +246,9 @@ function dateStaleness(isoStr) {
   const d = new Date(isoStr.replace(' ', 'T'));
   const ageHours = (Date.now() - d.getTime()) / 36e5;
   const dateStr = d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-  if (ageHours < 28)  return { label: dateStr, css: 'text-green-500',  tooltip: 'Koers recent bijgewerkt · Bron: Yahoo Finance' };
-  if (ageHours < 168) return { label: dateStr, css: 'text-yellow-400', tooltip: `Koers ${Math.floor(ageHours/24)} dagen oud · Bron: Yahoo Finance` };
-  return { label: '⚠ ' + dateStr, css: 'text-red-400 font-semibold', tooltip: `Koers ${Math.floor(ageHours/24)} dagen oud — mogelijk verouderd! · Bron: Yahoo Finance` };
+  if (ageHours < 28)  return { label: dateStr, css: 'text-green-700',  tooltip: 'Koers recent bijgewerkt · Bron: Yahoo Finance' };
+  if (ageHours < 168) return { label: dateStr, css: 'text-yellow-700', tooltip: `Koers ${Math.floor(ageHours/24)} dagen oud · Bron: Yahoo Finance` };
+  return { label: '⚠ ' + dateStr, css: 'text-red-700 font-semibold', tooltip: `Koers ${Math.floor(ageHours/24)} dagen oud — mogelijk verouderd! · Bron: Yahoo Finance` };
 }
 
 const SECTOR_DESCRIPTIONS = {
@@ -295,9 +295,9 @@ function signalTooltip(r) {
 
 function rowHtml(r) {
   const mos = r.margin_of_safety;
-  const mosClass = mos > 25 ? 'text-green-400 font-semibold' :
-                   mos > 0  ? 'text-green-300' :
-                   mos < -15 ? 'text-red-400' : 'text-slate-300';
+  const mosClass = mos > 25 ? 'text-green-700 font-semibold' :
+                   mos > 0  ? 'text-green-600' :
+                   mos < -15 ? 'text-red-700' : 'text-slate-500';
   const sigClass = 'signal-' + (r.signal || 'N/A').replace(/ /g, '\\ ');
 
   const warn = (r.warnings || []).length > 0
@@ -317,22 +317,22 @@ function rowHtml(r) {
   const curYear = new Date().getFullYear();
   const fy = r.latest_fiscal_year;
   const fyCell = fy
-    ? `<span class="text-xs font-mono px-1.5 py-0.5 rounded ${fy < curYear - 1 ? 'bg-red-900 text-red-300' : fy < curYear ? 'bg-yellow-900 text-yellow-300' : 'text-slate-500'}" title="Recentste jaarcijfers in DB: FY${fy}">${fy}</span>`
+    ? `<span class="text-xs font-mono px-1.5 py-0.5 rounded ${fy < curYear - 1 ? 'bg-red-100 text-red-700' : fy < curYear ? 'bg-yellow-100 text-yellow-700' : 'text-slate-400'}" title="Recentste jaarcijfers in DB: FY${fy}">${fy}</span>`
     : '—';
 
   const newBadge = r.is_new
-    ? ` <span class="text-xs px-1 py-0.5 rounded bg-blue-900 text-blue-300 font-semibold" title="Toegevoegd ${r.days_since_added === 0 ? 'vandaag' : r.days_since_added + ' dag(en) geleden'}">NIEUW</span>`
+    ? ` <span class="text-xs px-1 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold" title="Toegevoegd ${r.days_since_added === 0 ? 'vandaag' : r.days_since_added + ' dag(en) geleden'}">NIEUW</span>`
     : '';
 
   const hr = r.hist_relative || {};
   let hrBadge = '';
   if (hr.ev_ebitda_pct !== null && hr.ev_ebitda_pct !== undefined && (hr.years_available || 0) >= 3) {
     const pct = hr.ev_ebitda_pct;
-    const color = pct < -20 ? 'bg-green-900 text-green-300'
-                : pct < -5  ? 'bg-emerald-900 text-emerald-300'
-                : pct <  5  ? 'text-slate-600'
-                : pct < 20  ? 'bg-yellow-900 text-yellow-300'
-                :              'bg-red-900 text-red-300';
+    const color = pct < -20 ? 'bg-green-100 text-green-700'
+                : pct < -5  ? 'bg-emerald-100 text-emerald-700'
+                : pct <  5  ? 'text-slate-400'
+                : pct < 20  ? 'bg-yellow-100 text-yellow-700'
+                :              'bg-red-100 text-red-700';
     const sign = pct > 0 ? '+' : '';
     const currEv = hr.current_ev_ebitda != null ? hr.current_ev_ebitda.toFixed(1) + 'x' : '—';
     const medEv  = hr.median_ev_ebitda  != null ? hr.median_ev_ebitda.toFixed(1)  + 'x' : '—';
@@ -351,7 +351,7 @@ function rowHtml(r) {
     </td>
     <td class="px-3 py-2.5 text-right text-xs ${fcfClass}">${fcfStr}</td>
     <td class="px-3 py-2.5 text-center">
-      <span class="font-bold ${(r.quality_score||0) >= 8 ? 'text-green-400' : (r.quality_score||0) >= 7 ? 'text-green-300' : 'text-red-400'}">
+      <span class="font-bold ${(r.quality_score||0) >= 8 ? 'text-green-700' : (r.quality_score||0) >= 7 ? 'text-green-600' : 'text-red-700'}">
         ${r.quality_score !== null && r.quality_score !== undefined ? r.quality_score + '/10' : '—'}
       </span>
     </td>
