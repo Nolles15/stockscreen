@@ -39,15 +39,20 @@ def determine_signal(
     Returns {"signal": str, "margin_of_safety": float, "price_vs_fv_pct": float}
     """
     sig_cfg  = config.get("signals", {})
-    strong_buy_pct = sig_cfg.get("strong_buy_pct", 60) / 100.0
-    buy_pct        = sig_cfg.get("buy_pct",        75) / 100.0
-    hold_upper_pct = sig_cfg.get("hold_upper_pct", 115) / 100.0
-    sell_pct       = sig_cfg.get("sell_pct",       130) / 100.0
-    sell_q_floor   = sig_cfg.get("sell_quality_floor", 6)
-    min_quality    = config.get("screening", {}).get("min_quality_score", 7)
+    strong_buy_pct     = sig_cfg.get("strong_buy_pct", 60) / 100.0
+    buy_pct            = sig_cfg.get("buy_pct",        75) / 100.0
+    hold_upper_pct     = sig_cfg.get("hold_upper_pct", 115) / 100.0
+    sell_pct           = sig_cfg.get("sell_pct",       130) / 100.0
+    sell_pct_compounder = sig_cfg.get("sell_pct_high_quality", 175) / 100.0
+    sell_q_floor       = sig_cfg.get("sell_quality_floor", 6)
+    min_quality        = config.get("screening", {}).get("min_quality_score", 7)
 
     price_vs_fv = price_eur / combined_fv_eur     # < 1 = undervalued
     mos = (1 - price_vs_fv) * 100                 # positive = discount, negative = premium
+
+    # Compounders (quality ≥ 9) krijgen hogere SELL-drempel: ze mogen meer
+    # boven de FV noteren omdat ze hun waardering blijven ingroeien.
+    effective_sell_pct = sell_pct_compounder if quality >= 9 else sell_pct
 
     if quality < sell_q_floor:
         signal = "SELL"
@@ -57,10 +62,10 @@ def determine_signal(
         signal = "BUY"
     elif price_vs_fv <= hold_upper_pct:
         signal = "HOLD"
-    elif price_vs_fv > sell_pct:
+    elif price_vs_fv > effective_sell_pct:
         signal = "SELL"
     else:
-        signal = "HOLD"   # 115%–130% zone: cautious hold
+        signal = "HOLD"   # boven hold_upper maar onder sell-drempel: cautious hold
 
     return {
         "signal":          signal,

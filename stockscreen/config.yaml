@@ -13,6 +13,7 @@ signals:
   buy_pct: 75
   hold_upper_pct: 115
   sell_pct: 130
+  sell_pct_high_quality: 175   # compounders (quality >= 9) pas SELL bij 175% van FV
   sell_quality_floor: 6
 valuation:
   multiples_weight: 0.6

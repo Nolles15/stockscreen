@@ -93,14 +93,19 @@ def normalize_all(annual_rows: list[dict], iqr_multiplier: float = 3.0) -> dict:
         if roe is not None:
             roe_values.append(roe)
 
-        # ROIC = EBIT × (1-t) / (Equity + Debt)
-        # Use simplified tax rate of 25% as proxy
-        ebit   = r.get("ebit")
-        equity = r.get("total_equity")
-        debt   = r.get("total_debt", 0) or 0
-        if ebit is not None and equity is not None and (equity + debt) > 0:
+        # ROIC = EBIT × (1-t) / Invested Capital
+        # Invested Capital = Equity + Debt - overtollige Cash
+        # Overtollige cash aftrekken voorkomt dat cash-rijke bedrijven (Apple, MIPS)
+        # onterecht laag scoren doordat idle cash de noemer opblaast.
+        ebit     = r.get("ebit")
+        equity   = r.get("total_equity")
+        debt     = r.get("total_debt", 0) or 0
+        net_cash = r.get("net_cash", 0) or 0
+        excess_cash = max(0.0, net_cash)   # alleen positieve nettocash aftrekken
+        invested_capital = (equity or 0) + debt - excess_cash
+        if ebit is not None and equity is not None and invested_capital > 0:
             nopat = ebit * 0.75
-            roic_values.append(nopat / (equity + debt))
+            roic_values.append(nopat / invested_capital)
 
     avg_roe  = safe_median(roe_values)  if roe_values  else None
     avg_roic = safe_median(roic_values) if roic_values else None

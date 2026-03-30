@@ -187,11 +187,14 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
         roe_yr = r.get("roe")
         if roe_yr is not None and roe_yr < 0.08:
             no_bad_roe = False
-        ebit   = r.get("ebit")
-        equity = r.get("total_equity")
-        debt   = r.get("total_debt", 0) or 0
-        if ebit is not None and equity is not None and (equity + debt) > 0:
-            roic_yr = (ebit * 0.75) / (equity + debt)
+        ebit       = r.get("ebit")
+        equity     = r.get("total_equity")
+        debt       = r.get("total_debt", 0) or 0
+        net_cash   = r.get("net_cash", 0) or 0
+        excess_cash = max(0.0, net_cash)
+        invested_capital = (equity or 0) + debt - excess_cash
+        if ebit is not None and equity is not None and invested_capital > 0:
+            roic_yr = (ebit * 0.75) / invested_capital
             if roic_yr < 0.08:
                 no_bad_roic = False
 
