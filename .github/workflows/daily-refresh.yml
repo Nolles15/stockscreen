@@ -1,7 +1,11 @@
 name: Daily refresh
 
-# Roterende refresh: elke nacht worden de ~90 oudste tickers ververst.
-# Met 621 tickers betekent dit dat alles binnen ~7 dagen vers is.
+# Roterende refresh: elke nacht worden de N oudste tickers ververst.
+# Met 621 tickers en limit=90 betekent dit dat alles binnen ~7 dagen vers is.
+#
+# Architectuur: per-ticker synchrone calls. GitHub Actions houdt zelf de loop
+# aan, dus geen in-memory state op Fly. Dat maakt de pipeline restart-safe —
+# een Fly-restart midden in een batch kost hooguit één mislukte ticker.
 #
 # Benodigde secrets in GitHub (Settings → Secrets and variables → Actions):
 #   CRON_TOKEN — identiek aan fly secret CRON_TOKEN
@@ -22,52 +26,64 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 180   # ruim: 500 tickers × ~15s = ~2u
     steps:
-      - name: Trigger batch refresh
-        id: trigger
+      - name: Fetch batch list
+        id: batch
         env:
           APP_URL:    ${{ secrets.APP_URL }}
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
           LIMIT:      ${{ github.event.inputs.limit || '90' }}
         run: |
           set -euo pipefail
-          RESP=$(curl -sS -X POST \
+          RESP=$(curl -sS --max-time 30 \
             -H "X-Cron-Token: ${CRON_TOKEN}" \
-            "${APP_URL}/api/cron/refresh-batch?limit=${LIMIT}")
-          echo "Response: ${RESP}"
-          JOB_ID=$(echo "${RESP}" | jq -r '.job_id // empty')
-          N=$(echo "${RESP}" | jq -r '.n_tickers // 0')
-          if [ -z "${JOB_ID}" ] || [ "${JOB_ID}" = "null" ]; then
-            echo "::error::Geen job_id teruggekregen — endpoint gaf: ${RESP}"
+            "${APP_URL}/api/cron/next-batch?limit=${LIMIT}")
+          COUNT=$(echo "${RESP}" | jq -r '.count // 0')
+          TOTAL=$(echo "${RESP}" | jq -r '.total // 0')
+          OLDEST=$(echo "${RESP}" | jq -r '.oldest_date // "never"')
+          echo "Batch: ${COUNT} tickers (oudste datum ${OLDEST}, totaal ${TOTAL})"
+          echo "${RESP}" | jq -r '.tickers[]' > tickers.txt
+          echo "count=${COUNT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Refresh each ticker sequentially
+        env:
+          APP_URL:    ${{ secrets.APP_URL }}
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          TOTAL:      ${{ steps.batch.outputs.count }}
+        run: |
+          set -uo pipefail   # geen -e: 1 mislukte ticker mag niet de workflow kicken
+          OK=0
+          FAIL=0
+          IDX=0
+          while IFS= read -r T; do
+            [ -z "${T}" ] && continue
+            IDX=$((IDX + 1))
+            # Per ticker max 100s wachten; Fly gunicorn-timeout is 120s
+            RESP=$(curl -sS --max-time 100 -X POST \
+              -H "X-Cron-Token: ${CRON_TOKEN}" \
+              "${APP_URL}/api/cron/refresh-one/${T}" 2>&1 || echo '{"ok":false,"error":"curl-failed"}')
+            STATUS=$(echo "${RESP}" | jq -r '.ok // false' 2>/dev/null || echo "false")
+            SIGNAL=$(echo "${RESP}" | jq -r '.signal // "?"'  2>/dev/null || echo "?")
+            FV=$(echo     "${RESP}" | jq -r '.combined_fv // "?"' 2>/dev/null || echo "?")
+            ELAPSED=$(echo "${RESP}" | jq -r '.elapsed_s // "?"' 2>/dev/null || echo "?")
+            if [ "${STATUS}" = "true" ]; then
+              OK=$((OK + 1))
+              printf "[%3d/%s] ✓ %-12s  signal=%-10s  fv=%-10s  (%ss)\n" \
+                "${IDX}" "${TOTAL}" "${T}" "${SIGNAL}" "${FV}" "${ELAPSED}"
+            else
+              FAIL=$((FAIL + 1))
+              ERR=$(echo "${RESP}" | jq -r '.error // "unknown"' 2>/dev/null || echo "parse-error")
+              printf "[%3d/%s] ✗ %-12s  (%s)\n" "${IDX}" "${TOTAL}" "${T}" "${ERR}"
+            fi
+          done < tickers.txt
+          echo ""
+          echo "=== Klaar ==="
+          echo "Succes: ${OK}"
+          echo "Fouten: ${FAIL}"
+          # Workflow faalt alleen als >20% van de tickers faalde — eenzame yfinance-timeouts
+          # zijn normaal en mogen niet de hele run kicken.
+          if [ "${TOTAL}" -gt 0 ] && [ "${FAIL}" -gt "$((TOTAL / 5))" ]; then
+            echo "::error::>20% van tickers faalde (${FAIL}/${TOTAL}) — check Fly logs"
             exit 1
           fi
-          echo "Batch gestart: job=${JOB_ID}, n=${N}"
-          echo "job_id=${JOB_ID}" >> "${GITHUB_OUTPUT}"
-
-      - name: Wait for completion
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          JOB_ID:  ${{ steps.trigger.outputs.job_id }}
-        run: |
-          set -euo pipefail
-          # Max 40 minuten pollen (80 × 30s). 90 tickers duren typisch ~15-25 min.
-          for i in $(seq 1 80); do
-            sleep 30
-            RESP=$(curl -sS "${APP_URL}/api/refresh/status?job_id=${JOB_ID}" || echo '{}')
-            STATUS=$(echo "${RESP}" | jq -r '.status // "unknown"')
-            PROGRESS=$(echo "${RESP}" | jq -r '.progress // 0')
-            CURRENT=$(echo "${RESP}" | jq -r '.current // ""')
-            printf "[%3ds] status=%s progress=%s%%  %s\n" "$((i*30))" "${STATUS}" "${PROGRESS}" "${CURRENT}"
-            if [ "${STATUS}" = "done" ]; then
-              ERR_COUNT=$(echo "${RESP}" | jq -r '.errors | length')
-              echo "✓ Klaar — ${ERR_COUNT} ticker-fouten (niet-fataal)"
-              exit 0
-            fi
-            if [ "${STATUS}" = "error" ]; then
-              echo "::error::Job faalde: ${CURRENT}"
-              exit 1
-            fi
-          done
-          echo "::error::Timeout na 40 min — job nog bezig. Check Fly logs."
-          exit 1

@@ -496,12 +496,9 @@ def api_cron_refresh_batch():
     Spawnt een background job en retourneert het job_id. De cron-runner
     moet /api/refresh/status pollen om te zien wanneer de batch klaar is.
     """
-    expected = os.environ.get("CRON_TOKEN")
-    provided = request.headers.get("X-Cron-Token", "")
-    if not expected:
-        return jsonify({"error": "CRON_TOKEN niet geconfigureerd op de server"}), 503
-    if provided != expected:
-        return jsonify({"error": "unauthorized"}), 401
+    auth_err = _check_cron_auth()
+    if auth_err is not None:
+        return auth_err
 
     try:
         limit = max(1, min(500, int(request.args.get("limit", "90"))))
@@ -531,6 +528,122 @@ def api_cron_refresh_batch():
         "oldest_ticker": batch[0],
         "oldest_date": oldest_date,
         "poll_url": f"/api/refresh/status?job_id={jid}",
+    })
+
+
+def _check_cron_auth():
+    """Retourneert None bij geldig token, anders (response, status)-tuple."""
+    expected = os.environ.get("CRON_TOKEN")
+    provided = request.headers.get("X-Cron-Token", "")
+    if not expected:
+        return jsonify({"error": "CRON_TOKEN niet geconfigureerd op de server"}), 503
+    if provided != expected:
+        return jsonify({"error": "unauthorized"}), 401
+    return None
+
+
+@app.route("/api/cron/next-batch", methods=["GET"])
+def api_cron_next_batch():
+    """Geeft de N oudste tickers terug zonder ze op te halen.
+
+    Auth: X-Cron-Token header.
+    Param: ?limit=N (default 90, max 1000).
+
+    Wordt door de externe cron-runner gebruikt om zelf een loop te draaien:
+    voor elke ticker in deze lijst roept de runner vervolgens /api/cron/refresh-one
+    aan. Zo hoeft de server geen lange achtergrond-state bij te houden.
+    """
+    auth_err = _check_cron_auth()
+    if auth_err is not None:
+        return auth_err
+
+    try:
+        limit = max(1, min(1000, int(request.args.get("limit", "90"))))
+    except ValueError:
+        limit = 90
+
+    all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+    if not all_tickers:
+        return jsonify({"tickers": [], "total": 0})
+
+    fetched = db.get_latest_fetched_dates()
+    ordered = sorted(all_tickers, key=lambda t: fetched.get(t) or "0000-00-00")
+    batch = ordered[:limit]
+
+    return jsonify({
+        "tickers": batch,
+        "count": len(batch),
+        "total": len(all_tickers),
+        "oldest_date": fetched.get(batch[0]) or "never",
+    })
+
+
+@app.route("/api/cron/refresh-one/<ticker>", methods=["POST"])
+def api_cron_refresh_one(ticker):
+    """Synchroon één ticker ophalen + herrekenen. Retourneert resultaat direct.
+
+    Auth: X-Cron-Token header.
+
+    Ontworpen om snel te zijn (<30s) zodat de call altijd binnen het gunicorn-
+    request-timeout blijft. Een externe cron-runner roept deze endpoint in een
+    loop aan voor elke ticker uit /api/cron/next-batch.
+
+    Retourneert: {ticker, ok, signal, combined_fv, price, warnings, elapsed_s}
+    """
+    auth_err = _check_cron_auth()
+    if auth_err is not None:
+        return auth_err
+
+    t = ticker.upper()
+    if not db.get_stock(t):
+        return jsonify({"ticker": t, "ok": False, "error": "ticker niet in DB"}), 404
+
+    cfg = load_config()
+    t0 = time.time()
+    fetch_warnings: list[str] = []
+    calc_result: dict = {}
+
+    try:
+        fetch_warnings = fetch_and_store(t) or []
+        status = "warning" if fetch_warnings else "ok"
+        db.log_activity("fetch", t, status, {
+            "source": "Yahoo Finance",
+            "warnings": fetch_warnings,
+        })
+    except Exception as e:
+        log.exception("refresh-one fetch faalde voor %s", t)
+        db.log_activity("fetch", t, "error", {"error": str(e)})
+        return jsonify({
+            "ticker": t, "ok": False, "phase": "fetch",
+            "error": str(e), "elapsed_s": round(time.time() - t0, 1),
+        }), 200  # 200 zodat de cron-runner doorgaat; ok=false zegt dat deze faalde
+
+    try:
+        calc_result = run_ticker(t, cfg)
+        db.log_activity("recalculate", t, "ok", {
+            "signal": calc_result.get("signal"),
+            "fv": calc_result.get("combined_fv"),
+        })
+    except Exception as e:
+        log.exception("refresh-one calc faalde voor %s", t)
+        db.log_activity("recalculate", t, "error", {"error": str(e)})
+        return jsonify({
+            "ticker": t, "ok": False, "phase": "calc",
+            "error": str(e), "elapsed_s": round(time.time() - t0, 1),
+        }), 200
+
+    # Cache legen zodat het dashboard direct de nieuwe waardes ziet
+    _dashboard_cache["data"] = None
+
+    return jsonify({
+        "ticker":      t,
+        "ok":          True,
+        "signal":      calc_result.get("signal"),
+        "combined_fv": calc_result.get("combined_fv"),
+        "price":       calc_result.get("price"),
+        "quality":     calc_result.get("quality_score"),
+        "warnings":    fetch_warnings + (calc_result.get("warnings") or []),
+        "elapsed_s":   round(time.time() - t0, 1),
     })
 
 
