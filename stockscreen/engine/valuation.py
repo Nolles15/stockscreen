@@ -20,9 +20,74 @@ Conservative / Base / Optimistic:
 """
 
 import logging
+import statistics
 from typing import Optional
 
 log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Robustness helpers (Fase 4)
+# ---------------------------------------------------------------------------
+
+# Graham-multiplier werd in 1962 geijkt op een AAA bedrijfsobligatierendement van 4.4%.
+# In een hoger-rente-omgeving is de klassieke formule te hoog; we schalen mee met de
+# required_return zodat Graham een conservatieve benchmark blijft (nooit inflerend).
+GRAHAM_REFERENCE_YIELD = 4.4
+
+# Minimum r - g spread voor een stabiele Gordon Growth — onder de 2% explodeert de
+# denominator en krijg je onzinnige FV's.
+PERPETUITY_MIN_SPREAD = 0.02
+
+# Single-method outlier-filters binnen multiples_fair_value.
+MULTIPLE_OUTLIER_LOW  = 0.20
+MULTIPLE_OUTLIER_HIGH = 5.0
+
+# Cross-method outlier-filter in combined_fair_value (multiples / Graham / perpetuity).
+METHOD_OUTLIER_LOW  = 0.33
+METHOD_OUTLIER_HIGH = 3.0
+
+
+def _filter_outliers(values: list[float], lo: float, hi: float) -> list[float]:
+    """
+    Filter waarden die buiten [lo × mediaan, hi × mediaan] vallen.
+    Alleen actief bij ≥3 waarden (daaronder is mediaan niet betekenisvol).
+    """
+    clean = [v for v in values if v is not None and v > 0]
+    if len(clean) < 3:
+        return clean
+    med = statistics.median(clean)
+    if med <= 0:
+        return clean
+    return [v for v in clean if lo * med <= v <= hi * med]
+
+
+def _spread_pct(values: list[float]) -> Optional[float]:
+    """(max − min) / mediaan × 100 — hoe hoger, hoe meer disagreement tussen methodes."""
+    clean = [v for v in values if v is not None and v > 0]
+    if len(clean) < 2:
+        return None
+    med = statistics.median(clean)
+    if med <= 0:
+        return None
+    return (max(clean) - min(clean)) / med * 100
+
+
+def _confidence_label(spread: Optional[float], n_methods: int) -> str:
+    """
+    Confidence in de FV o.b.v. disagreement tussen methodes.
+    - 1 methode beschikbaar: low (geen cross-validatie mogelijk)
+    - spread < 30%: high
+    - spread 30-60%: medium
+    - spread > 60%: low
+    """
+    if n_methods < 2 or spread is None:
+        return "low"
+    if spread < 30:
+        return "high"
+    if spread < 60:
+        return "medium"
+    return "low"
 
 
 def _sector_cfg(sector: str, config: dict) -> dict:
@@ -134,8 +199,20 @@ def multiples_fair_value(
                 ev_fcf_fv = (total_fcf_ev - (net_debt_ps * sh if net_debt_ps else 0)) / sh
                 break
 
-    candidates = [v for v in [pe_fv, ev_ebitda_fv, pb_fv, ev_fcf_fv] if v is not None and v > 0]
-    avg_fv = sum(candidates) / len(candidates) if candidates else None
+    raw = [v for v in [pe_fv, ev_ebitda_fv, pb_fv, ev_fcf_fv] if v is not None and v > 0]
+    # Outlier-filter: bij ≥3 waarden schrap een methode die >5× of <0.2× de mediaan afwijkt
+    # (bv. P/B blaast op bij bedrijven met negatief eigen vermogen en blijft dan als
+    # single-method FV dominant meewegen in het gemiddelde).
+    kept = _filter_outliers(raw, MULTIPLE_OUTLIER_LOW, MULTIPLE_OUTLIER_HIGH)
+
+    # Bij ≥3 methodes: mediaan (robuust tegen resterende uitschieters).
+    # Bij 1-2 methodes: gemiddelde (mediaan is dan niet nuttig, en we willen niet blindelings kiezen).
+    if len(kept) >= 3:
+        avg_fv = statistics.median(kept)
+    elif kept:
+        avg_fv = sum(kept) / len(kept)
+    else:
+        avg_fv = None
 
     return {
         "pe_fv":       pe_fv,
@@ -143,6 +220,8 @@ def multiples_fair_value(
         "pb_fv":       pb_fv,
         "ev_fcf_fv":   ev_fcf_fv,
         "avg_fv":      avg_fv,
+        "n_methods":   len(kept),
+        "n_dropped":   len(raw) - len(kept),
         "multiples_used": {"pe": use_pe, "ev_ebitda": use_eveb, "pb": use_pb, "ev_fcf": use_evfcf},
     }
 
@@ -153,19 +232,28 @@ def multiples_fair_value(
 
 def graham_fair_value(normalized: dict, sector: str, config: dict, scenario: str = "base") -> Optional[float]:
     """
-    Graham IV = Normalized EPS × (8.5 + 2 × g)
-    g comes from sector config (base/min/max based on scenario).
+    Gemoderniseerde Graham IV = EPS × (8.5 + 2g) × (4.4 / Y)
+    waarbij Y = sector required_return (min. 4.4%).
+
+    De klassieke formule is geijkt op AAA-bondyields van 4.4% (1962). In een hogere-rente-
+    omgeving overwaardeert de pure formule; de Y-correctie dempt dat. We scalen alleen naar
+    beneden (cap bij 1.0) zodat Graham nooit wordt opgeblazen in ultra-laag-rente-sectoren.
     """
     eps = normalized.get("normalized_eps")
     if not eps or eps <= 0:
         return None
 
     sc = _sector_cfg(sector, config)
+    val_cfg = config.get("valuation", {})
+
     g_key = {"conservative": "growth_min", "base": "growth_base", "optimistic": "growth_max"}.get(scenario, "growth_base")
     g_pct = sc.get(g_key, sc.get("growth_base", 4))
-    g = _cap_growth(g_pct, config, perpetuity=False) / 100.0
+    g = _cap_growth(g_pct, config, perpetuity=False)   # percentage
 
-    return eps * (8.5 + 2 * g * 100)   # g back to % for the formula (Greenblatt uses g as %)
+    required_return = sc.get("required_return", val_cfg.get("default_required_return", 10))
+    yield_scaler = min(1.0, GRAHAM_REFERENCE_YIELD / max(required_return, GRAHAM_REFERENCE_YIELD))
+
+    return eps * (8.5 + 2 * g) * yield_scaler
 
 
 def graham_fair_value_all_scenarios(normalized: dict, sector: str, config: dict) -> dict:
@@ -201,8 +289,11 @@ def perpetuity_fair_value(normalized: dict, sector: str, config: dict, scenario:
     r_base = sc.get("required_return", val_cfg.get("default_required_return", 10)) / 100.0
     r      = r_base + r_map.get(scenario, 0.0)
 
-    if r <= g:
-        log.warning("r (%.2f) ≤ g (%.2f) for perpetuity — skipping", r, g)
+    # Stability-guard: te kleine r-g → denominator explodeert en FV wordt onzinnig.
+    # Minimum spread van 2% zorgt dat de FV eindige, realistische waarden oplevert.
+    if (r - g) < PERPETUITY_MIN_SPREAD:
+        log.warning("perpetuity skip: r (%.2f%%) − g (%.2f%%) < %.0f%%",
+                    r * 100, g * 100, PERPETUITY_MIN_SPREAD * 100)
         return None
 
     return oe_ps / (r - g)
@@ -226,16 +317,16 @@ def combined_fair_value(
     annual_rows: list[dict],
     sector: str,
     config: dict,
-    eur_rate: float = 1.0,
 ) -> dict:
     """
     Compute all fair value scenarios and combine them.
+    Alle bedragen zijn per aandeel in de native currency van het aandeel —
+    er wordt geen valutaconversie gedaan.
 
     Returns {
-      "multiples_fv_native", "multiples_fv_eur",
-      "graham_fv_native", "perpetuity_fv_native",
-      "combined_fv_native", "combined_fv_eur",
-      "conservative_fv_eur", "base_fv_eur", "optimistic_fv_eur",
+      "multiples_fv", "graham_fv", "perpetuity_fv",
+      "combined_fv", "base_fv" (= combined_fv),
+      "conservative_fv", "optimistic_fv",
       "detail": {...}
     }
     """
@@ -250,50 +341,81 @@ def combined_fair_value(
     graham_scenarios = graham_fair_value_all_scenarios(normalized, sector, config)
     perp_scenarios   = perpetuity_fair_value_all_scenarios(normalized, sector, config)
 
+    def _sanity_filter_methods(mult_fv, g_fv, p_fv):
+        """
+        Cross-method outlier-filter: drop elke methode die >3× of <0.33× afwijkt van
+        de mediaan van de andere twee. Voorkomt dat één wild afwijkende methode het
+        gewogen gemiddelde scheeftrekt (bv. perpetuity bij kleine r-g, Graham bij
+        extreem hoge EPS na uitschieter-jaar).
+        """
+        methods = {"mult": mult_fv, "graham": g_fv, "perp": p_fv}
+        vals = [v for v in methods.values() if v is not None and v > 0]
+        if len(vals) < 3:
+            return mult_fv, g_fv, p_fv, []
+        med = statistics.median(vals)
+        if med <= 0:
+            return mult_fv, g_fv, p_fv, []
+        dropped = []
+        filtered = {}
+        for name, v in methods.items():
+            if v is not None and v > 0 and not (METHOD_OUTLIER_LOW * med <= v <= METHOD_OUTLIER_HIGH * med):
+                dropped.append(name)
+                filtered[name] = None
+            else:
+                filtered[name] = v
+        return filtered["mult"], filtered["graham"], filtered["perp"], dropped
+
     def _combine(mult_fv, g_fv, p_fv):
+        mult_fv, g_fv, p_fv, dropped = _sanity_filter_methods(mult_fv, g_fv, p_fv)
         if mult_fv is None:
-            # Fall back to DCF only
             dcf_inputs = [v for v in [g_fv, p_fv] if v]
-            return (sum(dcf_inputs) / len(dcf_inputs)) if dcf_inputs else None
+            combined = (sum(dcf_inputs) / len(dcf_inputs)) if dcf_inputs else None
+            return combined, dropped
         dcf_inputs = [v for v in [g_fv, p_fv] if v]
         if not dcf_inputs:
-            return mult_fv   # Only multiples available
+            return mult_fv, dropped
         dcf_avg = sum(dcf_inputs) / len(dcf_inputs)
-        return w_mult * mult_fv + w_dcf * dcf_avg
+        return w_mult * mult_fv + w_dcf * dcf_avg, dropped
 
     # Base scenario
-    combined_base = _combine(
+    combined_base, dropped_base = _combine(
         mult_result["avg_fv"],
         graham_scenarios["base"],
         perp_scenarios["base"],
     )
 
-    # Conservative (lowest g, highest r)
-    mult_cons = mult_result["avg_fv"]   # multiples don't have scenarios; use base
-    combined_cons = _combine(mult_cons, graham_scenarios["conservative"], perp_scenarios["conservative"])
+    # Conservative (lowest g, highest r); multiples heeft geen scenario's
+    combined_cons, _ = _combine(
+        mult_result["avg_fv"], graham_scenarios["conservative"], perp_scenarios["conservative"]
+    )
 
     # Optimistic
-    combined_opt = _combine(mult_result["avg_fv"], graham_scenarios["optimistic"], perp_scenarios["optimistic"])
+    combined_opt, _ = _combine(
+        mult_result["avg_fv"], graham_scenarios["optimistic"], perp_scenarios["optimistic"]
+    )
 
-    def to_eur(v):
-        return (v * eur_rate) if v is not None else None
+    # Confidence-score op basis van disagreement tussen methodes (base-scenario)
+    base_methods = [
+        mult_result["avg_fv"],
+        graham_scenarios["base"],
+        perp_scenarios["base"],
+    ]
+    base_clean = [v for v in base_methods if v is not None and v > 0]
+    spread_pct = _spread_pct(base_clean)
+    confidence = _confidence_label(spread_pct, len(base_clean))
 
     return {
-        # Native currency (stock's reporting currency)
-        "multiples_fv_native":   mult_result["avg_fv"],
-        "graham_fv_native":      graham_scenarios["base"],
-        "perpetuity_fv_native":  perp_scenarios["base"],
-        "combined_fv_native":    combined_base,
-        "conservative_fv_native": combined_cons,
-        "optimistic_fv_native":  combined_opt,
-        # EUR equivalents
-        "multiples_fv_eur":      to_eur(mult_result["avg_fv"]),
-        "graham_fv_eur":         to_eur(graham_scenarios["base"]),
-        "perpetuity_fv_eur":     to_eur(perp_scenarios["base"]),
-        "combined_fv_eur":       to_eur(combined_base),
-        "base_fv_eur":           to_eur(combined_base),
-        "conservative_fv_eur":   to_eur(combined_cons),
-        "optimistic_fv_eur":     to_eur(combined_opt),
+        "multiples_fv":      mult_result["avg_fv"],
+        "graham_fv":         graham_scenarios["base"],
+        "perpetuity_fv":     perp_scenarios["base"],
+        "combined_fv":       combined_base,
+        "base_fv":           combined_base,
+        "conservative_fv":   combined_cons,
+        "optimistic_fv":     combined_opt,
+        "fv_confidence":     confidence,
+        "fv_spread_pct":     round(spread_pct, 1) if spread_pct is not None else None,
+        "fv_methods_used":   len(base_clean),
+        "fv_methods_dropped": dropped_base,
         # Detail for debugging
         "detail": {
             "multiples":  mult_result,

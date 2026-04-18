@@ -111,22 +111,21 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS market_data (
                 ticker               TEXT PRIMARY KEY,
                 price                REAL,
-                price_eur            REAL,
                 market_cap           REAL,
-                market_cap_eur       REAL,
                 enterprise_value     REAL,
-                enterprise_value_eur REAL,
                 pe_ttm               REAL,
                 ev_ebitda_ttm        REAL,
                 pb_ratio             REAL,
                 last_updated         TEXT,
                 analyst_target_raw   REAL,
-                analyst_target_eur   REAL,
                 analyst_consensus    TEXT,
                 analyst_n            INTEGER,
                 FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
             )
         """)
+        # Migratie: native-only — drop oude EUR-geconverteerde kolommen
+        for col in ("price_eur", "market_cap_eur", "enterprise_value_eur", "analyst_target_eur"):
+            cur.execute(f"ALTER TABLE market_data DROP COLUMN IF EXISTS {col}")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS historical_multiples (
                 id          SERIAL PRIMARY KEY,
@@ -151,13 +150,16 @@ def init_db() -> None:
                 normalized_ebitda       REAL,
                 normalized_fcf          REAL,
                 normalized_owner_earn   REAL,
-                multiples_fv_eur        REAL,
-                graham_fv_eur           REAL,
-                perpetuity_fv_eur       REAL,
-                combined_fv_eur         REAL,
-                conservative_fv_eur     REAL,
-                base_fv_eur             REAL,
-                optimistic_fv_eur       REAL,
+                multiples_fv             REAL,
+                graham_fv                REAL,
+                perpetuity_fv            REAL,
+                combined_fv              REAL,
+                conservative_fv          REAL,
+                base_fv                  REAL,
+                optimistic_fv            REAL,
+                fv_confidence           TEXT,
+                fv_spread_pct           REAL,
+                fv_methods_used         INTEGER,
                 signal                  TEXT,
                 margin_of_safety        REAL,
                 warnings                TEXT,
@@ -167,6 +169,32 @@ def init_db() -> None:
                 FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
             )
         """)
+        # Fase 4: FV-robustness kolommen toevoegen aan bestaande DB
+        for col, typ in (
+            ("fv_confidence",   "TEXT"),
+            ("fv_spread_pct",   "REAL"),
+            ("fv_methods_used", "INTEGER"),
+        ):
+            cur.execute(f"ALTER TABLE calculated_scores ADD COLUMN IF NOT EXISTS {col} {typ}")
+        # Migratie: native-only — rename oude *_eur kolommen zodat historische
+        # data behouden blijft. PostgreSQL kent geen IF EXISTS bij RENAME COLUMN,
+        # dus check de information_schema en rename alleen wat nog bestaat.
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'calculated_scores'
+        """)
+        existing_cols = {r["column_name"] for r in cur.fetchall()}
+        for old, new in (
+            ("multiples_fv_eur",    "multiples_fv"),
+            ("graham_fv_eur",       "graham_fv"),
+            ("perpetuity_fv_eur",   "perpetuity_fv"),
+            ("combined_fv_eur",     "combined_fv"),
+            ("conservative_fv_eur", "conservative_fv"),
+            ("base_fv_eur",         "base_fv"),
+            ("optimistic_fv_eur",   "optimistic_fv"),
+        ):
+            if old in existing_cols and new not in existing_cols:
+                cur.execute(f"ALTER TABLE calculated_scores RENAME COLUMN {old} TO {new}")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS overrides (
                 id           SERIAL PRIMARY KEY,
@@ -186,6 +214,25 @@ def init_db() -> None:
                 rate_to_eur  REAL,
                 last_updated TEXT
             )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS data_quality (
+                ticker           TEXT PRIMARY KEY,
+                completeness_pct REAL,
+                years_available  INTEGER,
+                latest_fy        INTEGER,
+                freshness_days   INTEGER,
+                fetch_success    INTEGER,
+                consecutive_failures INTEGER DEFAULT 0,
+                data_status      TEXT,
+                issues           TEXT,
+                last_checked     TEXT,
+                FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
+            )
+        """)
+        # Migratie: kolom toevoegen aan bestaande DB (idempotent)
+        cur.execute("""
+            ALTER TABLE data_quality ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER DEFAULT 0
         """)
 
 
@@ -383,34 +430,39 @@ def get_dashboard_data() -> list[dict]:
     Used to prevent the N+1 query problem on the dashboard.
     """
     sql = """
-        SELECT 
+        SELECT
             s.ticker, s.name, s.sector, s.market, s.currency, s.added_date,
-            m.price, m.price_eur, m.market_cap as market_cap_raw, m.market_cap_eur, m.last_updated,
+            m.price, m.market_cap, m.enterprise_value, m.last_updated,
             c.quality_score, c.quality_breakdown, c.piotroski_score, c.piotroski_breakdown,
             c.normalized_eps, c.normalized_ebitda, c.normalized_fcf, c.normalized_owner_earn,
-            c.multiples_fv_eur, c.graham_fv_eur, c.perpetuity_fv_eur, c.combined_fv_eur,
-            c.conservative_fv_eur, c.base_fv_eur, c.optimistic_fv_eur,
+            c.multiples_fv, c.graham_fv, c.perpetuity_fv, c.combined_fv,
+            c.conservative_fv, c.base_fv, c.optimistic_fv,
+            c.fv_confidence, c.fv_spread_pct, c.fv_methods_used,
             c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
-            fy.latest_fy
+            fy.latest_fy,
+            dq.completeness_pct, dq.years_available, dq.freshness_days,
+            dq.fetch_success, dq.consecutive_failures, dq.data_status,
+            dq.issues as data_issues, dq.last_checked as dq_last_checked
         FROM stocks s
         LEFT JOIN market_data m ON s.ticker = m.ticker
         LEFT JOIN calculated_scores c ON s.ticker = c.ticker
         LEFT JOIN (
-            SELECT ticker, MAX(fiscal_year) as latest_fy 
-            FROM financials 
-            WHERE period_type='annual' 
+            SELECT ticker, MAX(fiscal_year) as latest_fy
+            FROM financials
+            WHERE period_type='annual'
             GROUP BY ticker
         ) fy ON s.ticker = fy.ticker
+        LEFT JOIN data_quality dq ON s.ticker = dq.ticker
         WHERE s.active = 1
     """
     with _cursor() as cur:
         cur.execute(sql)
         rows = cur.fetchall()
-        
+
     results = []
     for row in rows:
         r = dict(row)
-        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative"):
+        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative", "data_issues"):
             if r.get(key):
                 try:
                     r[key] = json.loads(r[key])
@@ -473,6 +525,58 @@ def get_exchange_rates() -> dict[str, float]:
         cur.execute("SELECT currency, rate_to_eur FROM exchange_rates")
         rows = cur.fetchall()
     return {r["currency"]: r["rate_to_eur"] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Data quality
+# ---------------------------------------------------------------------------
+
+def upsert_data_quality(ticker: str, **fields) -> None:
+    """Persist a data-quality record. `issues` list/dict is JSON-encoded."""
+    fields["ticker"] = ticker
+    if isinstance(fields.get("issues"), (list, dict)):
+        fields["issues"] = json.dumps(fields["issues"])
+    cols = ", ".join(fields.keys())
+    placeholders = ", ".join(["%s"] * len(fields))
+    updates = ", ".join(f"{k}=excluded.{k}" for k in fields if k != "ticker")
+    sql = f"""
+        INSERT INTO data_quality ({cols}) VALUES ({placeholders})
+        ON CONFLICT(ticker) DO UPDATE SET {updates}
+    """
+    with _cursor() as cur:
+        cur.execute(sql, list(fields.values()))
+
+
+def get_data_quality(ticker: str) -> dict | None:
+    with _cursor() as cur:
+        cur.execute("SELECT * FROM data_quality WHERE ticker=%s", (ticker,))
+        row = cur.fetchone()
+    if not row:
+        return None
+    r = dict(row)
+    if r.get("issues"):
+        try:
+            r["issues"] = json.loads(r["issues"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return r
+
+
+def get_all_data_quality() -> dict[str, dict]:
+    """Return {ticker: data_quality_dict} for all tickers with a record."""
+    with _cursor() as cur:
+        cur.execute("SELECT * FROM data_quality")
+        rows = cur.fetchall()
+    out: dict[str, dict] = {}
+    for row in rows:
+        r = dict(row)
+        if r.get("issues"):
+            try:
+                r["issues"] = json.loads(r["issues"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        out[r["ticker"]] = r
+    return out
 
 
 # ---------------------------------------------------------------------------

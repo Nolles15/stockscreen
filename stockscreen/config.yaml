@@ -1,12 +1,11 @@
 app:
   port: 5001
   name: Stockscreener
-  auto_refresh_on_startup: true
+  auto_refresh_on_startup: false
   new_ticker_days: 7
 
 screening:
   min_quality_score: 7
-  min_market_cap_eur: 200
   required_years: 3
 signals:
   strong_buy_pct: 60

@@ -54,9 +54,18 @@
     <input type="checkbox" id="filter-hidenodata" onchange="renderTable()" class="rounded" />
     <span>Verberg aandelen zonder data</span>
   </label>
+  <label class="flex items-center gap-2 text-slate-400 cursor-pointer" title="Toon alleen tickers met data_status = bad of missing">
+    <input type="checkbox" id="filter-baddataonly" onchange="renderTable()" class="rounded" />
+    <span>Alleen slechte data</span>
+  </label>
   <button onclick="copyTickers()" id="btn-copy-tickers"
     class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm px-3 py-1.5 rounded-md transition">
     Kopieer tikkers
+  </button>
+  <button onclick="openDataQualityPanel()" id="btn-dq"
+    class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm px-3 py-1.5 rounded-md transition"
+    title="Overzicht van alle tickers met data-issues + opruim-actie">
+    Data-kwaliteit
   </button>
 </div>
 
@@ -67,16 +76,16 @@
       <tr>
         <th class="px-3 py-3 text-left sortable" data-col="ticker" title="Aandelenticker zoals gebruikt op de beurs">Ticker</th>
         <th class="px-3 py-3 text-left sortable" data-col="name" title="Volledige bedrijfsnaam">Naam</th>
-        <th class="px-3 py-3 text-right sortable" data-col="price_eur" title="Huidige aandelenkoers omgerekend naar euro's">Prijs</th>
-        <th class="px-3 py-3 text-right sortable" data-col="combined_fv_eur" title="Gecombineerde fair value — gewogen gemiddelde van DCF-scenario's, sectorwaardering en Graham-formule">FV</th>
-        <th class="px-3 py-3 text-right sortable" data-col="margin_of_safety" title="Marge van veiligheid: hoeveel % de koers onder (positief) of boven (negatief) de fair value ligt">Korting %</th>
-        <th class="px-3 py-3 text-right sortable" data-col="normalized_fcf_m_eur" title="Genormaliseerde free cash flow — meerjaarlijks gemiddelde na uitschieters — in miljoenen euro's">FCF</th>
+        <th class="px-3 py-3 text-right sortable" data-col="price" title="Huidige aandelenkoers in de native valuta van het aandeel (geen EUR-conversie)">Prijs</th>
+        <th class="px-3 py-3 text-right sortable" data-col="combined_fv" title="Gecombineerde fair value in de native valuta — gewogen gemiddelde van DCF-scenario's, sectorwaardering en Graham-formule">FV</th>
+        <th class="px-3 py-3 text-right sortable" data-col="margin_of_safety" title="Marge van veiligheid: hoeveel % de koers onder (positief) of boven (negatief) de fair value ligt — valuta-onafhankelijk">Korting %</th>
+        <th class="px-3 py-3 text-right sortable" data-col="normalized_fcf_m" title="Genormaliseerde free cash flow — meerjaarlijks gemiddelde na uitschieters — in miljoenen native valuta">FCF</th>
         <th class="px-3 py-3 text-center sortable" data-col="quality_score" title="Kwaliteitsscore 0–10: meet winstgevendheid (ROE/ROIC), balanssterkte, EPS/FCF-stabiliteit en Piotroski F-Score">Kwaliteit</th>
         <th class="px-3 py-3 text-center sortable" data-col="piotroski_score" title="Piotroski F-Score 0–9: negen boekhoudkundige criteria voor financiële gezondheid. ≥7 = sterk, ≤2 = zwak">Piotroski</th>
         <th class="px-3 py-3 text-center" title="Koopadvies op basis van kwaliteitsscore en prijs ten opzichte van fair value. Hover op het signaal voor de uitleg.">Signaal</th>
         <th class="px-3 py-3 text-left sortable" data-col="sector" title="Bedrijfssector volgens Yahoo Finance. Hover op de sectornaam voor een toelichting.">Sector</th>
         <th class="px-3 py-3 text-center sortable" data-col="market" title="Beursindex of -markt waarop het aandeel noteert">Markt</th>
-        <th class="px-3 py-3 text-right sortable" data-col="market_cap_m_eur" title="Marktkapitalisatie in miljoenen euro's (koers × uitstaande aandelen)">M.Cap</th>
+        <th class="px-3 py-3 text-right sortable" data-col="market_cap_m" title="Marktkapitalisatie in miljoenen native valuta (koers × uitstaande aandelen)">M.Cap</th>
         <th class="px-3 py-3 text-center sortable" data-col="latest_fiscal_year" title="Recentste fiscaal jaar waarvoor jaarcijfers in de database staan. Geel = 1 jaar oud, rood = 2+ jaar oud">FY</th>
         <th class="px-3 py-3 text-center sortable" data-col="last_updated" title="Datum van de laatste koersupdate van Yahoo Finance">Data</th>
         <th class="px-3 py-3 text-center" title="Instellingen per aandeel">⚙</th>
@@ -126,6 +135,32 @@
       class="mt-5 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md text-sm transition">
       Sluiten
     </button>
+  </div>
+</div>
+
+<!-- Data-kwaliteit paneel -->
+<div id="dq-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-3xl shadow-2xl" style="max-height:85vh;overflow-y:auto">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-lg">Data-kwaliteit overzicht</h2>
+      <button onclick="document.getElementById('dq-modal').classList.add('hidden')"
+        class="text-slate-500 hover:text-slate-300 text-xl leading-none">✕</button>
+    </div>
+    <p class="text-slate-400 text-sm mb-4">
+      Tickers waarbij Yahoo Finance geen of onvolledige data levert. Slechte/missing tickers tellen niet mee in de screening.
+    </p>
+    <div id="dq-summary" class="text-xs text-slate-400 mb-3"></div>
+    <div id="dq-content" class="text-sm"></div>
+    <div class="mt-5 flex gap-3">
+      <button onclick="runDqCleanup(true)" id="btn-dq-dryrun"
+        class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-4 py-2 rounded-md transition">
+        Dry-run (toon candidates)
+      </button>
+      <button onclick="runDqCleanup(false)" id="btn-dq-apply"
+        class="bg-red-600 hover:bg-red-500 text-white text-sm px-4 py-2 rounded-md transition">
+        Deactiveer ongeldige tickers
+      </button>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -179,12 +214,15 @@ function renderTable() {
   const showAll      = document.getElementById('filter-showall').checked;
   const hideNoData   = document.getElementById('filter-hidenodata').checked;
 
+  const badDataOnly  = document.getElementById('filter-baddataonly').checked;
+
   let rows = _allRows.filter(r => {
     if (mktFilter && r.market !== mktFilter) return false;
     if (secFilter && r.sector !== secFilter) return false;
     if (sigFilter && r.signal !== sigFilter) return false;
     if (hideNoData && r.signal === 'INSUFFICIENT DATA') return false;
-    if (!showAll && (r.low_quality || r.small_cap)) return false;
+    if (badDataOnly && r.data_status !== 'bad' && r.data_status !== 'missing') return false;
+    if (!showAll && r.low_quality) return false;
     return true;
   });
 
@@ -293,6 +331,39 @@ function signalTooltip(r) {
   return sig;
 }
 
+function confidenceBadge(r) {
+  // Klein stipje naast de FV: hoe groter de disagreement tussen multiples/Graham/perpetuity,
+  // hoe minder betrouwbaar de combined_fv. Geen badge bij 'high' — alleen bij twijfel.
+  const conf = r.fv_confidence;
+  if (!conf || conf === 'high') return '';
+  const spread = r.fv_spread_pct;
+  const n = r.fv_methods_used ?? 0;
+  const spreadTxt = spread != null ? `${spread.toFixed(0)}% spread tussen methodes` : '';
+  const methodsTxt = n <= 1 ? 'Slechts 1 FV-methode beschikbaar' : `${n} methodes gebruikt`;
+  const color = conf === 'low' ? 'text-red-400' : 'text-yellow-400';
+  const title = `FV-confidence: ${conf.toUpperCase()}\n${methodsTxt}${spreadTxt ? '\n' + spreadTxt : ''}\n\nBij lage confidence verschillen de FV-methodes sterk — interpreteer combined_fv voorzichtig.`;
+  return `<span class="ml-1 ${color} cursor-help text-xs" title="${title.replace(/"/g,"'")}">◆</span>`;
+}
+
+function dataQualityBadge(r) {
+  // Kleine gekleurde stip naast de ticker. Geen stip bij status 'ok' — alleen opvallen als er iets is.
+  const status = r.data_status;
+  if (!status || status === 'ok') return '';
+  const issues = (r.data_issues || []).slice(0, 5);
+  const comp = r.data_completeness != null ? r.data_completeness.toFixed(0) + '%' : '—';
+  const fails = r.data_consecutive_failures || 0;
+  const failsLine = fails > 0 ? `\n${fails}× op rij mislukte fetch` : '';
+  const title = `Data: ${status.toUpperCase()} (${comp} compleet)${failsLine}` +
+                (issues.length ? `\n\n• ${issues.join('\n• ')}` : '');
+  const colorMap = {
+    missing: 'text-slate-500',       // grijs — ticker bestaat niet
+    bad:     'text-red-400',          // rood — fundamenteel onbruikbaar
+    warning: 'text-yellow-400',       // geel — iets te melden
+  };
+  const dot = colorMap[status] || 'text-slate-400';
+  return `<span class="ml-1 ${dot} cursor-help" title="${title.replace(/"/g,"'")}">●</span>`;
+}
+
 function rowHtml(r) {
   const mos = r.margin_of_safety;
   const mosClass = mos > 25 ? 'text-green-700 font-semibold' :
@@ -304,15 +375,17 @@ function rowHtml(r) {
     ? `<span title="${(r.warnings||[]).map(w=>w.replace(/"/g,"'")).join('&#10;')}" class="ml-1 text-yellow-400 cursor-help">⚠</span>`
     : '';
 
+  const dqBadge = dataQualityBadge(r);
+
   const stale = dateStaleness(r.last_updated);
   // Highlight row left-border if price is stale (>7 days)
   const rowBorder = stale.css.includes('red') ? 'border-l-2 border-red-600' :
                     stale.css.includes('yellow') ? 'border-l-2 border-yellow-600' : '';
 
-  const fcfStr = r.normalized_fcf_m_eur !== null && r.normalized_fcf_m_eur !== undefined
-    ? fmtBig(r.normalized_fcf_m_eur)
+  const fcfStr = r.normalized_fcf_m !== null && r.normalized_fcf_m !== undefined
+    ? fmtBigMoney(r.normalized_fcf_m, r.currency)
     : '—';
-  const fcfClass = r.normalized_fcf_m_eur < 0 ? 'text-red-400' : 'text-slate-300';
+  const fcfClass = r.normalized_fcf_m < 0 ? 'text-red-400' : 'text-slate-300';
 
   const curYear = new Date().getFullYear();
   const fy = r.latest_fiscal_year;
@@ -341,11 +414,11 @@ function rowHtml(r) {
 
   return `<tr class="hover:bg-slate-800/40 transition ${rowBorder}">
     <td class="px-3 py-2.5 font-mono font-semibold">
-      <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${newBadge}${hrBadge}${warn}
+      <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${dqBadge}${newBadge}${hrBadge}${warn}
     </td>
     <td class="px-3 py-2.5 text-slate-300 max-w-[160px] truncate" title="${r.name||''}">${r.name||'—'}</td>
-    <td class="px-3 py-2.5 text-right">${fmtEur(r.price_eur)}</td>
-    <td class="px-3 py-2.5 text-right font-semibold">${fmtEur(r.combined_fv_eur)}</td>
+    <td class="px-3 py-2.5 text-right">${fmtMoney(r.price, r.currency)}</td>
+    <td class="px-3 py-2.5 text-right font-semibold">${fmtMoney(r.combined_fv, r.currency)}${confidenceBadge(r)}</td>
     <td class="px-3 py-2.5 text-right ${mosClass}">
       ${mos !== null && mos !== undefined ? (mos > 0 ? '+' : '') + fmt(mos,1,'%') : '—'}
     </td>
@@ -364,7 +437,7 @@ function rowHtml(r) {
     <td class="px-3 py-2.5 text-slate-400 text-xs" title="${SECTOR_DESCRIPTIONS[r.sector] || ''}">${r.sector||'—'}</td>
     <td class="px-3 py-2.5 text-center text-xs text-slate-400">${r.market||'—'}</td>
     <td class="px-3 py-2.5 text-right text-xs text-slate-400">
-      ${r.market_cap_m_eur ? fmtBig(r.market_cap_m_eur) : '—'}
+      ${r.market_cap_m ? fmtBigMoney(r.market_cap_m, r.currency) : '—'}
     </td>
     <td class="px-3 py-2.5 text-center">${fyCell}</td>
     <td class="px-3 py-2.5 text-center text-xs ${stale.css}" title="${stale.tooltip}">${stale.label}</td>
@@ -543,6 +616,83 @@ async function checkStartupRefresh() {
     _pollRefresh(job_id);
   } catch (e) {
     // Non-fatal — just skip
+  }
+}
+
+// ---- Data-kwaliteit paneel -------------------------------------------------
+async function openDataQualityPanel() {
+  const modal = document.getElementById('dq-modal');
+  const content = document.getElementById('dq-content');
+  const summary = document.getElementById('dq-summary');
+  content.innerHTML = '<p class="text-slate-500 text-sm">Laden…</p>';
+  summary.textContent = '';
+  modal.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/data-quality');
+    const data = await res.json();
+    const counts = { missing: 0, bad: 0, warning: 0, ok: 0, none: 0 };
+    for (const r of data) counts[r.data_status || 'none']++;
+    summary.textContent =
+      `Totaal: ${data.length} · missing: ${counts.missing} · bad: ${counts.bad} · warning: ${counts.warning} · ok: ${counts.ok} · nog niet gescand: ${counts.none}`;
+
+    const problems = data.filter(r => r.data_status === 'missing' || r.data_status === 'bad' || r.data_status === 'warning');
+    if (!problems.length) {
+      content.innerHTML = '<p class="text-green-400 text-sm">✓ Geen data-issues gevonden.</p>';
+      return;
+    }
+    const rowsHtml = problems.map(r => {
+      const statusClass = {
+        missing: 'bg-slate-700 text-slate-300',
+        bad:     'bg-red-900/40 text-red-300',
+        warning: 'bg-yellow-900/40 text-yellow-300',
+      }[r.data_status] || 'bg-slate-700';
+      const issuesHtml = (r.issues || []).map(i => `<li class="text-xs text-slate-400">${i}</li>`).join('');
+      return `<tr class="border-b border-slate-800/60">
+        <td class="py-2 pr-3 font-mono"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a></td>
+        <td class="py-2 pr-3"><span class="text-xs px-2 py-0.5 rounded ${statusClass}">${(r.data_status || '—').toUpperCase()}</span></td>
+        <td class="py-2 pr-3 text-xs text-slate-400">${r.completeness_pct != null ? r.completeness_pct.toFixed(0) + '%' : '—'}</td>
+        <td class="py-2 pr-3 text-xs text-slate-400">${r.consecutive_failures || 0}×</td>
+        <td class="py-2 pr-3"><ul class="list-disc list-inside">${issuesHtml}</ul></td>
+      </tr>`;
+    }).join('');
+    content.innerHTML = `
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500 uppercase">
+          <tr><th class="py-1 pr-3 text-left">Ticker</th><th class="py-1 pr-3 text-left">Status</th><th class="py-1 pr-3 text-left">Compleet</th><th class="py-1 pr-3 text-left">Fails</th><th class="py-1 pr-3 text-left">Issues</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>`;
+  } catch (e) {
+    content.innerHTML = `<p class="text-red-400 text-sm">Fout bij laden: ${e.message}</p>`;
+  }
+}
+
+async function runDqCleanup(dryRun) {
+  const btn = document.getElementById(dryRun ? 'btn-dq-dryrun' : 'btn-dq-apply');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const res = await fetch('/api/data-quality/cleanup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dry_run: dryRun, min_failures: 3 }),
+    });
+    const data = await res.json();
+    if (dryRun) {
+      alert(`Dry-run: ${data.would_deactivate} ticker(s) zouden worden gedeactiveerd:\n\n${(data.candidates || []).join('\n')}`);
+    } else {
+      alert(`✓ ${data.count} ticker(s) gedeactiveerd:\n\n${(data.deactivated || []).join('\n')}`);
+      // Dashboard herladen
+      await loadDashboard();
+      openDataQualityPanel();
+    }
+  } catch (e) {
+    alert('Fout: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
   }
 }
 

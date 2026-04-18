@@ -1,6 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{{ ticker }} — Wannabe Oracle Stockscreener{% endblock %}
 
+{# Currency-symbol helpers — zelfde tabel als in base.html #}
+{%- set CURRENCY_SYMBOLS = {
+    'EUR':'€', 'USD':'$', 'GBP':'£', 'GBp':'p', 'JPY':'¥', 'CHF':'CHF ',
+    'SEK':'kr ', 'NOK':'kr ', 'DKK':'kr ', 'PLN':'zł ', 'CAD':'C$', 'AUD':'A$',
+    'HKD':'HK$', 'SGD':'S$', 'INR':'₹', 'CNY':'¥', 'KRW':'₩', 'TWD':'NT$',
+    'BRL':'R$', 'MXN':'Mex$', 'ZAR':'R ', 'TRY':'₺', 'ILS':'₪'
+} -%}
+{%- set CCY = (stock.currency if stock else 'EUR') or 'EUR' -%}
+{%- set SYM = CURRENCY_SYMBOLS.get(CCY, CCY + ' ') -%}
+{% macro money(val, decimals=2) -%}
+{%- if val is not none -%}{{ SYM }}{{ ('%.' ~ decimals ~ 'f')|format(val) }}{%- else -%}—{%- endif -%}
+{% endmacro %}
+
 {% block content %}
 <div class="mb-4">
   <a href="/" class="text-slate-400 hover:text-white text-sm">← Terug naar dashboard</a>
@@ -27,7 +40,7 @@
   <div class="text-right">
     {% if market %}
     <div class="text-2xl font-bold">
-      {{ '€%.2f'|format(market.price_eur) if market.price_eur else '—' }}
+      {{ money(market.price) }}
     </div>
     <div class="text-xs mt-0.5
       {% if market.last_updated %}
@@ -93,19 +106,57 @@
   {% macro fv_card(label, val) %}
   <div class="bg-slate-900 rounded-xl p-4 flex flex-col">
     <div class="text-xs text-slate-500 uppercase tracking-wide">{{ label }}</div>
-    <div class="text-lg font-bold mt-1">{{ '€%.2f'|format(val) if val else '—' }}</div>
+    <div class="text-lg font-bold mt-1">{{ money(val) }}</div>
   </div>
   {% endmacro %}
 
-  {{ fv_card('Gecombineerde FV', scores.combined_fv_eur) }}
-  {{ fv_card('Conservatief', scores.conservative_fv_eur) }}
-  {{ fv_card('Base', scores.base_fv_eur) }}
-  {{ fv_card('Optimistisch', scores.optimistic_fv_eur) }}
-  {{ fv_card('Multiples FV', scores.multiples_fv_eur) }}
-  {{ fv_card('Graham FV', scores.graham_fv_eur) }}
-  {{ fv_card('Perpetuity FV', scores.perpetuity_fv_eur) }}
+  {{ fv_card('Gecombineerde FV', scores.combined_fv) }}
+  {{ fv_card('Conservatief', scores.conservative_fv) }}
+  {{ fv_card('Base', scores.base_fv) }}
+  {{ fv_card('Optimistisch', scores.optimistic_fv) }}
+  {{ fv_card('Multiples FV', scores.multiples_fv) }}
+  {{ fv_card('Graham FV', scores.graham_fv) }}
+  {{ fv_card('Perpetuity FV', scores.perpetuity_fv) }}
   {% endif %}
 </div>
+
+<!-- FV confidence -->
+{% if scores and scores.combined_fv and scores.fv_confidence %}
+{% set conf = scores.fv_confidence %}
+{% set n    = scores.fv_methods_used or 0 %}
+{% set spr  = scores.fv_spread_pct %}
+<div class="bg-slate-900 rounded-xl p-3 border border-slate-800 mb-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+  <span class="text-slate-500 uppercase tracking-wide text-xs">FV-betrouwbaarheid</span>
+  <span class="font-semibold
+    {% if conf == 'high' %}text-green-400
+    {% elif conf == 'medium' %}text-yellow-400
+    {% else %}text-red-400{% endif %}"
+    title="High = methodes liggen dicht bij elkaar (spread < 30%). Medium = matige spreiding (< 60%). Low = grote spreiding of slechts 1 methode beschikbaar.">
+    {% if conf == 'high' %}◆ HIGH{% elif conf == 'medium' %}◆ MEDIUM{% else %}◆ LOW{% endif %}
+  </span>
+  {% if spr is not none %}
+  <span class="text-slate-400">
+    Spread tussen methodes:
+    <span class="font-mono font-semibold {% if spr < 30 %}text-green-400{% elif spr < 60 %}text-yellow-400{% else %}text-red-400{% endif %}">
+      {{ '%.0f'|format(spr) }}%
+    </span>
+  </span>
+  {% endif %}
+  <span class="text-slate-400">
+    Methodes gebruikt: <span class="font-semibold text-slate-200">{{ n }}</span>/3
+    <span class="text-slate-600 text-xs ml-1">(multiples / Graham / perpetuity)</span>
+  </span>
+  {% if conf != 'high' %}
+  <p class="basis-full text-xs text-slate-500 mt-1">
+    {% if conf == 'low' %}
+      ⚠ FV-methodes verschillen sterk — interpreteer de gecombineerde FV met voorzichtigheid.
+    {% else %}
+      Matige overeenstemming tussen methodes. Kijk naar individuele FV-kaarten voor context.
+    {% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- Analyst consensus -->
 {% if market and market.analyst_consensus %}
@@ -119,28 +170,28 @@
         {{ market.analyst_consensus | upper | replace('_', ' ') }}
       </span>
     </span>
-    {% if market.analyst_target_eur %}
+    {% if market.analyst_target_raw %}
     <span class="text-slate-300">
       Koersdoel:
-      <span class="font-mono font-semibold ml-1">€{{ '%.2f'|format(market.analyst_target_eur) }}</span>
+      <span class="font-mono font-semibold ml-1">{{ money(market.analyst_target_raw) }}</span>
       {% if market.analyst_n %}
       <span class="text-slate-500 text-xs ml-1">(N={{ market.analyst_n }})</span>
       {% endif %}
     </span>
     {% endif %}
-    {% if market.analyst_target_eur and scores and scores.combined_fv_eur %}
-    {% set div_pct = (market.analyst_target_eur - scores.combined_fv_eur) / scores.combined_fv_eur * 100 %}
+    {% if market.analyst_target_raw and scores and scores.combined_fv %}
+    {% set div_pct = (market.analyst_target_raw - scores.combined_fv) / scores.combined_fv * 100 %}
     <span class="text-slate-400">
       Eigen model:
-      <span class="font-mono font-semibold text-slate-200 ml-1">€{{ '%.2f'|format(scores.combined_fv_eur) }}</span>
+      <span class="font-mono font-semibold text-slate-200 ml-1">{{ money(scores.combined_fv) }}</span>
       <span class="ml-2 {% if div_pct > 10 %}text-green-400{% elif div_pct < -10 %}text-red-400{% else %}text-slate-400{% endif %}"
         title="Positief = consensus ziet meer waarde dan eigen model. Negatief = eigen model conservatiever dan consensus.">
         (consensus {{ '+' if div_pct > 0 else '' }}{{ '%.0f'|format(div_pct) }}%)
       </span>
     </span>
     {% endif %}
-    {% if market.analyst_target_eur and market.price_eur %}
-    {% set upside_pct = (market.analyst_target_eur - market.price_eur) / market.price_eur * 100 %}
+    {% if market.analyst_target_raw and market.price %}
+    {% set upside_pct = (market.analyst_target_raw - market.price) / market.price * 100 %}
     <span class="text-slate-400">
       Upside vs. koers:
       <span class="font-semibold ml-1 {% if upside_pct > 15 %}text-green-400{% elif upside_pct > 0 %}text-yellow-400{% else %}text-red-400{% endif %}">
@@ -622,7 +673,7 @@ async function saveManualPrice() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Onbekende fout');
 
-    status.textContent = `✓ Opgeslagen (€${data.price_eur?.toFixed(2) ?? '?'}) — pagina wordt herladen…`;
+    status.textContent = `✓ Opgeslagen (${data.price?.toFixed(2) ?? '?'} ${data.currency ?? ''}) — pagina wordt herladen…`;
     status.className = 'text-xs text-green-400';
     setTimeout(() => location.reload(), 1200);
   } catch(e) {

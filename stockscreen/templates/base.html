@@ -293,14 +293,29 @@
     if (val === null || val === undefined) return '—';
     return Number(val).toFixed(decimals) + suffix;
   }
-  function fmtEur(val, decimals=2) {
+  // Map valutacode → symbool. Onbekende codes vallen terug op de code zelf (bv. 'PLN ').
+  const CURRENCY_SYMBOLS = {
+    EUR: '€', USD: '$', GBP: '£', GBp: 'p', JPY: '¥', CHF: 'CHF ',
+    SEK: 'kr ', NOK: 'kr ', DKK: 'kr ', PLN: 'zł ', CAD: 'C$', AUD: 'A$',
+    HKD: 'HK$', SGD: 'S$', INR: '₹', CNY: '¥', KRW: '₩', TWD: 'NT$',
+    BRL: 'R$', MXN: 'Mex$', ZAR: 'R ', TRY: '₺', ILS: '₪',
+  };
+  function currencySymbol(ccy) {
+    if (!ccy) return '';
+    return CURRENCY_SYMBOLS[ccy] || (ccy + ' ');
+  }
+  function fmtMoney(val, currency='EUR', decimals=2) {
     if (val === null || val === undefined) return '—';
-    return '€' + Number(val).toFixed(decimals);
+    return currencySymbol(currency) + Number(val).toFixed(decimals);
   }
   function fmtBig(valM) {
     if (valM === null || valM === undefined) return '—';
     if (Math.abs(valM) >= 1000) return (valM / 1000).toFixed(2) + 'B';
     return Math.round(valM) + 'M';
+  }
+  function fmtBigMoney(valM, currency='EUR') {
+    if (valM === null || valM === undefined) return '—';
+    return currencySymbol(currency) + fmtBig(valM);
   }
   </script>
 

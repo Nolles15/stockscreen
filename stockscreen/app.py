@@ -18,7 +18,11 @@ import yaml
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
-from engine.data_fetcher import fetch_and_store, fetch_market_only, refresh_exchange_rates, get_eur_rate
+from engine.data_fetcher import (
+    fetch_and_store,
+    fetch_market_only,
+    fetch_all_tickers,
+)
 from engine.screener import run_ticker, run_all
 
 # ---------------------------------------------------------------------------
@@ -171,20 +175,18 @@ def api_dashboard():
 
     cfg = load_config()
     min_quality = cfg.get("screening", {}).get("min_quality_score", 7)
-    min_cap     = cfg.get("screening", {}).get("min_market_cap_eur", 200)
     new_days    = cfg.get("app", {}).get("new_ticker_days", 7)
     today       = datetime.now(timezone.utc).date()
 
     rows = []
     for r in db.get_dashboard_data():
         t        = r["ticker"]
-        mc_eur_m = (r.get("market_cap_eur") / 1e6) if r.get("market_cap_eur") else None
+        mc_m     = (r.get("market_cap") / 1e6) if r.get("market_cap") else None
         q_score  = r.get("quality_score")
         signal   = r.get("signal")
 
         norm_fcf_raw = r.get("normalized_fcf")
-        eur_rate     = get_eur_rate(r.get("currency") or "EUR")
-        fcf_m_eur    = (norm_fcf_raw * eur_rate / 1e6) if norm_fcf_raw is not None else None
+        fcf_m        = (norm_fcf_raw / 1e6) if norm_fcf_raw is not None else None
 
         added_str = r.get("added_date")
         try:
@@ -192,16 +194,10 @@ def api_dashboard():
         except (ValueError, TypeError):
             days_since_added = None
 
-        # Markeringen voor client-side filtering — server filtert niet meer
+        # Markering voor client-side filtering — server filtert niet meer
         low_quality = (
             q_score is not None
             and q_score < min_quality
-            and signal != "INSUFFICIENT DATA"
-        )
-        small_cap = (
-            min_cap > 0
-            and mc_eur_m is not None
-            and mc_eur_m < min_cap
             and signal != "INSUFFICIENT DATA"
         )
 
@@ -212,15 +208,17 @@ def api_dashboard():
             "market":               r.get("market"),
             "currency":             r.get("currency"),
             "price":                r.get("price"),
-            "price_eur":            r.get("price_eur"),
-            "market_cap_m_eur":     mc_eur_m,
-            "combined_fv_eur":      r.get("combined_fv_eur"),
-            "conservative_fv_eur":  r.get("conservative_fv_eur"),
-            "base_fv_eur":          r.get("base_fv_eur"),
-            "optimistic_fv_eur":    r.get("optimistic_fv_eur"),
-            "normalized_fcf_m_eur": fcf_m_eur,
+            "market_cap_m":         mc_m,
+            "combined_fv":          r.get("combined_fv"),
+            "conservative_fv":      r.get("conservative_fv"),
+            "base_fv":              r.get("base_fv"),
+            "optimistic_fv":        r.get("optimistic_fv"),
+            "fv_confidence":        r.get("fv_confidence"),
+            "fv_spread_pct":        r.get("fv_spread_pct"),
+            "fv_methods_used":      r.get("fv_methods_used"),
+            "normalized_fcf_m":     fcf_m,
             "margin_of_safety":     r.get("margin_of_safety"),
-            "price_vs_fv_pct":      _price_vs_fv(r.get("price_eur"), r.get("combined_fv_eur")),
+            "price_vs_fv_pct":      _price_vs_fv(r.get("price"), r.get("combined_fv")),
             "quality_score":        q_score,
             "piotroski_score":      r.get("piotroski_score"),
             "signal":               signal or "N/A",
@@ -231,9 +229,14 @@ def api_dashboard():
             "hist_relative":        r.get("hist_relative") or {},
             "is_new":               days_since_added is not None and days_since_added <= new_days,
             "days_since_added":     days_since_added,
-            # Markeringen voor client-side filtering
+            # Markering voor client-side filtering
             "low_quality":          low_quality,
-            "small_cap":            small_cap,
+            # Data-kwaliteit (Fase 2)
+            "data_status":          r.get("data_status"),
+            "data_completeness":    r.get("completeness_pct"),
+            "data_issues":          r.get("data_issues") or [],
+            "data_fetch_success":   r.get("fetch_success"),
+            "data_consecutive_failures": r.get("consecutive_failures") or 0,
         })
 
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
@@ -246,9 +249,9 @@ def api_dashboard():
     return jsonify(result)
 
 
-def _price_vs_fv(price_eur, fv_eur):
-    if price_eur and fv_eur and fv_eur > 0:
-        return round(price_eur / fv_eur * 100, 1)
+def _price_vs_fv(price, fv):
+    if price and fv and fv > 0:
+        return round(price / fv * 100, 1)
     return None
 
 
@@ -273,25 +276,25 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
     errors: dict = {}
     _update_job(jid, status="running", total=total)
 
-    _update_job(jid, current="Wisselkoersen ophalen…")
-    try:
-        refresh_exchange_rates()
-    except Exception as e:
-        log.warning("FX refresh failed: %s", e)
+    def _progress(ticker: str, idx: int, tot: int):
+        _update_job(jid, current=f"Fetching {ticker}…", progress=int(idx / tot * 60))
 
-    for idx, ticker in enumerate(tickers):
-        _update_job(jid, current=f"Fetching {ticker}…", progress=int(idx / total * 60))
-        try:
-            warn = fetch_and_store(ticker)
-            if warn:
-                errors[ticker] = warn
-                db.log_activity("fetch", ticker, "warning", {"warnings": warn})
-            else:
-                db.log_activity("fetch", ticker, "ok", {"source": "Yahoo Finance"})
-        except Exception as e:
-            log.exception("Fetch failed for %s", ticker)
-            errors[ticker] = [str(e)]
-            db.log_activity("fetch", ticker, "error", {"error": str(e)})
+    # fetch_all_tickers doet rate-limited parallel fetch met retry in de lower layer;
+    # FX rates worden intern al één keer ververst voordat tickers worden afgewerkt.
+    try:
+        fetch_results = fetch_all_tickers(tickers, progress_cb=_progress)
+    except Exception as e:
+        log.exception("Bulk fetch crashte")
+        _update_job(jid, status="error", current=f"Bulk fetch crashte: {e}")
+        return
+
+    for ticker, warn in fetch_results.items():
+        if warn:
+            errors[ticker] = warn
+            status = "error" if any("crashed" in str(w).lower() for w in warn) else "warning"
+            db.log_activity("fetch", ticker, status, {"warnings": warn})
+        else:
+            db.log_activity("fetch", ticker, "ok", {"source": "Yahoo Finance"})
 
     # Scoreberekening: ververs de net-gefetchte tickers + bijvangen van ontbrekende scores
     scored_set = {r["ticker"] for r in db.get_all_scores()}
@@ -306,7 +309,7 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
             result = run_ticker(ticker, cfg)
             db.log_activity("recalculate", ticker, "ok", {
                 "signal": result.get("signal"),
-                "fv_eur": result.get("combined_fv_eur"),
+                "fv": result.get("combined_fv"),
                 "warnings": result.get("warnings", []),
             })
         except Exception as e:
@@ -335,13 +338,9 @@ def _get_stale_tickers(all_tickers: list[str], max_age_days: int) -> list[str]:
 
 
 def _run_light_job(jid: str, tickers: list[str]) -> None:
-    """Lichte refresh: wisselkoersen + marktdata voor alle tickers bijwerken."""
+    """Lichte refresh: marktdata voor alle tickers bijwerken (native, geen FX)."""
     total = len(tickers)
-    _update_job(jid, status="running", total=total, current="Wisselkoersen ophalen...")
-    try:
-        refresh_exchange_rates()
-    except Exception as e:
-        log.warning("FX refresh mislukt: %s", e)
+    _update_job(jid, status="running", total=total, current="Marktdata ophalen...")
 
     for idx, ticker in enumerate(tickers):
         _update_job(jid, current=f"Marktdata {ticker}...", progress=int((idx + 1) / total * 100))
@@ -355,25 +354,74 @@ def _run_light_job(jid: str, tickers: list[str]) -> None:
     log.info("Light refresh klaar: %d tickers bijgewerkt", total)
 
 
-def _schedule_light(cfg: dict) -> None:
-    """Dagelijkse lichte refresh: alleen marktdata voor alle tickers."""
-    tickers = [s["ticker"] for s in db.get_all_stocks()]
-    if tickers:
-        jid = _new_job()
-        log.info("Geplande lichte refresh: %d tickers", len(tickers))
-        threading.Thread(target=_run_light_job, args=(jid, tickers), daemon=True).start()
-    threading.Timer(24 * 3600, _schedule_light, args=(cfg,)).start()
+def _last_market_update_age_hours() -> float | None:
+    """
+    Leest de nieuwste 'last_updated' uit market_data. Geeft uren sinds die update,
+    of None als er nog geen data is. Bron van waarheid voor de scheduler zodat
+    restarts geen dubbele refresh triggeren.
+    """
+    try:
+        with db._cursor() as cur:
+            cur.execute("SELECT MAX(last_updated) AS latest FROM market_data")
+            row = cur.fetchone()
+    except Exception:
+        return None
+    latest = (row or {}).get("latest") if row else None
+    if not latest:
+        return None
+    try:
+        ts = datetime.fromisoformat(latest.replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+    return (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
 
 
-def _schedule_heavy(cfg: dict) -> None:
-    """Wekelijkse zware refresh: alleen verouderde tickers opnieuw ophalen."""
-    all_tickers = [s["ticker"] for s in db.get_all_stocks()]
-    stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
-    if stale:
-        jid = _new_job()
-        log.info("Geplande zware refresh: %d/%d verouderde tickers", len(stale), len(all_tickers))
-        threading.Thread(target=_run_refresh_job, args=(jid, stale, cfg), daemon=True).start()
-    threading.Timer(7 * 24 * 3600, _schedule_heavy, args=(cfg,)).start()
+# Minimum-intervals tussen automatische refreshes. Fail-safe tegen restart-storms:
+# zelfs als de app elke 10 min crasht en herstart, doen we niet telkens opnieuw werk.
+SCHEDULER_TICK_SECONDS    = 3600     # elk uur bekijken of er werk is
+LIGHT_REFRESH_INTERVAL_H  = 20       # dagelijkse marktdata (rekening houdend met drift)
+HEAVY_REFRESH_INTERVAL_H  = 24       # één keer per etmaal stale-ticker check
+
+
+def _scheduler_loop(cfg: dict) -> None:
+    """
+    Achtergrondloop (daemon thread) die elk uur kijkt of er een scheduled refresh
+    uitgevoerd moet worden. De DB is leidend voor 'wanneer draaide de laatste
+    refresh?' — dus restarts resetten het ritme niet.
+    """
+    log.info("Scheduler-loop gestart (tick=%ds, light=%dh, heavy=%dh)",
+             SCHEDULER_TICK_SECONDS, LIGHT_REFRESH_INTERVAL_H, HEAVY_REFRESH_INTERVAL_H)
+    while True:
+        try:
+            age = _last_market_update_age_hours()
+            all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+
+            if all_tickers and (age is None or age >= HEAVY_REFRESH_INTERVAL_H):
+                stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
+                if stale:
+                    jid = _new_job()
+                    log.info("Scheduler: zware refresh (%d/%d stale tickers)",
+                             len(stale), len(all_tickers))
+                    threading.Thread(target=_run_refresh_job,
+                                     args=(jid, stale, cfg), daemon=True).start()
+                    # Zware refresh werkt ook marktdata bij — geen aparte lichte nodig
+                elif age is None or age >= LIGHT_REFRESH_INTERVAL_H:
+                    jid = _new_job()
+                    log.info("Scheduler: lichte refresh (%d tickers, leeftijd=%.1fu)",
+                             len(all_tickers), age or -1)
+                    threading.Thread(target=_run_light_job,
+                                     args=(jid, all_tickers), daemon=True).start()
+            elif all_tickers and age is not None and age >= LIGHT_REFRESH_INTERVAL_H:
+                jid = _new_job()
+                log.info("Scheduler: lichte refresh (%d tickers, leeftijd=%.1fu)",
+                         len(all_tickers), age)
+                threading.Thread(target=_run_light_job,
+                                 args=(jid, all_tickers), daemon=True).start()
+        except Exception:
+            log.exception("Scheduler-loop tick crashte — ga door")
+        time.sleep(SCHEDULER_TICK_SECONDS)
 
 
 # ---------------------------------------------------------------------------
@@ -467,7 +515,6 @@ def api_add_stock():
     def _fetch_one():
         _update_job(jid, status="running", current=f"Fetching {ticker}…")
         try:
-            refresh_exchange_rates()
             warn = fetch_and_store(ticker)
             result = run_ticker(ticker, cfg)
             status = "warning" if warn else "ok"
@@ -512,20 +559,30 @@ def api_add_stocks_bulk():
     def _fetch_all():
         total = len(added)
         _update_job(jid, status="running", total=total)
-        refresh_exchange_rates()
+
+        def _progress(ticker: str, idx: int, tot: int):
+            _update_job(jid, current=f"Fetching {ticker}…", progress=int(idx / tot * 70))
+
+        try:
+            fetch_results = fetch_all_tickers(added, progress_cb=_progress)
+        except Exception as e:
+            log.exception("Bulk-add fetch crashte")
+            _update_job(jid, status="error", current=f"Bulk fetch crashte: {e}")
+            return
+
         for idx, ticker in enumerate(added):
-            _update_job(jid, current=f"Fetching {ticker}…", progress=int(idx / total * 70))
+            _update_job(jid, current=f"Berekenen {ticker}…", progress=70 + int(idx / total * 28))
             try:
-                warn = fetch_and_store(ticker)
                 result = run_ticker(ticker, cfg)
+                warn = fetch_results.get(ticker, [])
                 status = "warning" if warn else "ok"
                 db.log_activity("fetch", ticker, status, {
                     "source": "Yahoo Finance",
-                    "warnings": warn or [],
+                    "warnings": warn,
                     "signal": result.get("signal"),
                 })
             except Exception as e:
-                log.exception("Bulk fetch failed for %s", ticker)
+                log.exception("Bulk calc failed for %s", ticker)
                 db.log_activity("fetch", ticker, "error", {"error": str(e)})
         _update_job(jid, status="done", progress=100, current=f"{len(added)} tickers toegevoegd")
 
@@ -599,24 +656,20 @@ def api_set_manual_price(ticker):
         return jsonify({"error": "Ticker niet gevonden"}), 404
 
     currency = stock.get("currency") or "EUR"
-    eur_rate = get_eur_rate(currency)
-    price_eur = price_float * eur_rate
 
     db.upsert_market_data(t,
         price=price_float,
-        price_eur=price_eur,
         last_updated=datetime.now(timezone.utc).isoformat(),
     )
     db.log_activity("manual_price", t, "ok", {
         "price": price_float,
         "currency": currency,
-        "price_eur": price_eur,
         "note": note,
     })
     # Recalculate signal with new price
     cfg = load_config()
     run_ticker(t, cfg)
-    return jsonify({"ok": True, "price_eur": price_eur})
+    return jsonify({"ok": True, "price": price_float, "currency": currency})
 
 
 @app.route("/api/overrides/<ticker>", methods=["DELETE"])
@@ -654,6 +707,73 @@ def api_save_settings():
 
     save_config(cfg)
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# API — Data quality
+# ---------------------------------------------------------------------------
+
+@app.route("/api/data-quality")
+def api_data_quality():
+    """Return alle data_quality records als lijst, inclusief tickers zonder record."""
+    dq_map = db.get_all_data_quality()
+    stocks = db.get_all_stocks()
+    out = []
+    for s in stocks:
+        t = s["ticker"]
+        dq = dq_map.get(t, {})
+        out.append({
+            "ticker":                 t,
+            "name":                   s.get("name"),
+            "data_status":            dq.get("data_status"),
+            "completeness_pct":       dq.get("completeness_pct"),
+            "years_available":        dq.get("years_available"),
+            "latest_fy":              dq.get("latest_fy"),
+            "freshness_days":         dq.get("freshness_days"),
+            "fetch_success":          dq.get("fetch_success"),
+            "consecutive_failures":   dq.get("consecutive_failures") or 0,
+            "issues":                 dq.get("issues") or [],
+            "last_checked":           dq.get("last_checked"),
+        })
+    # Sorteer: slechtste status eerst zodat problemen bovenaan staan
+    order = {"missing": 0, "bad": 1, "warning": 2, "ok": 3, None: 4}
+    out.sort(key=lambda r: (order.get(r.get("data_status"), 4), -(r.get("consecutive_failures") or 0)))
+    return jsonify(out)
+
+
+@app.route("/api/data-quality/cleanup", methods=["POST"])
+def api_data_quality_cleanup():
+    """
+    Deactiveer (active=0) alle tickers die consistent falen op Yahoo Finance.
+    Default drempel: consecutive_failures >= 3 OF data_status = 'missing'.
+    Body kan {"min_failures": N, "dry_run": true} bevatten.
+    Geeft lijst van betrokken tickers terug.
+    """
+    data = request.get_json(silent=True) or {}
+    min_failures = int(data.get("min_failures", 3))
+    dry_run = bool(data.get("dry_run", False))
+
+    dq_map = db.get_all_data_quality()
+    targets = [
+        t for t, dq in dq_map.items()
+        if (dq.get("data_status") == "missing"
+            or (dq.get("consecutive_failures") or 0) >= min_failures)
+    ]
+
+    # Alleen active tickers — anders dubbel werk
+    active_tickers = {s["ticker"] for s in db.get_all_stocks()}
+    targets = [t for t in targets if t in active_tickers]
+
+    if dry_run:
+        return jsonify({"candidates": targets, "would_deactivate": len(targets)})
+
+    for t in targets:
+        db.upsert_stock(t, active=0)
+        db.log_activity("remove", t, "ok", {"reason": "data_quality cleanup", "auto": True})
+
+    # Cache legen zodat dashboard direct verandert
+    _dashboard_cache["data"] = None
+    return jsonify({"deactivated": targets, "count": len(targets)})
 
 
 # ---------------------------------------------------------------------------
@@ -715,32 +835,35 @@ def _on_startup() -> None:
 
     cfg = load_config()
 
-    # Seed watchlist
-    for ticker in cfg.get("watchlist", []):
-        if not db.get_stock(ticker):
+    # Seed watchlist alleen bij een lege DB (eerste start); daarna is de DB leidend
+    if not db.get_all_stocks():
+        for ticker in cfg.get("watchlist", []):
             db.upsert_stock(ticker, active=1, added_date=datetime.now(timezone.utc).date().isoformat())
-            log.info("Watchlist ticker toegevoegd: %s", ticker)
+        log.info("Lege DB geseed met %d watchlist-tickers uit config.yaml", len(cfg.get("watchlist", [])))
 
-    all_tickers = [s["ticker"] for s in db.get_all_stocks()]
-    if all_tickers:
-        stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
-        if stale:
-            # Zware refresh voor verouderde tickers (update ook marktdata → geen aparte lichte nodig)
-            heavy_jid = _new_job()
-            _startup_job_id = heavy_jid
-            threading.Thread(target=_run_refresh_job, args=(heavy_jid, stale, cfg), daemon=True).start()
-            log.info("Startup zware refresh gestart (%d/%d verouderde tickers)", len(stale), len(all_tickers))
-        else:
-            # Alles is vers: alleen marktdata even bijwerken
-            light_jid = _new_job()
-            _startup_job_id = light_jid
-            threading.Thread(target=_run_light_job, args=(light_jid, all_tickers), daemon=True).start()
-            log.info("Startup lichte refresh gestart (%d tickers, alles vers)", len(all_tickers))
+    # Automatische refresh bij opstart is standaard UIT (config-flag stuurt dit).
+    # Bij true wordt direct een refresh gestart; de scheduler hieronder verzorgt
+    # daarna de periodieke dagelijkse/stale refreshes op achtergrond.
+    auto_refresh = cfg.get("app", {}).get("auto_refresh_on_startup", False)
+    if auto_refresh:
+        all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+        if all_tickers:
+            stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
+            if stale:
+                heavy_jid = _new_job()
+                _startup_job_id = heavy_jid
+                threading.Thread(target=_run_refresh_job, args=(heavy_jid, stale, cfg), daemon=True).start()
+                log.info("Startup zware refresh gestart (%d/%d verouderde tickers)", len(stale), len(all_tickers))
+            else:
+                light_jid = _new_job()
+                _startup_job_id = light_jid
+                threading.Thread(target=_run_light_job, args=(light_jid, all_tickers), daemon=True).start()
+                log.info("Startup lichte refresh gestart (%d tickers, alles vers)", len(all_tickers))
+    else:
+        log.info("Auto-refresh bij opstart staat uit (config.app.auto_refresh_on_startup=false)")
 
-    # Schedulers: licht dagelijks, zwaar wekelijks
-    threading.Timer(24 * 3600, _schedule_light, args=(cfg,)).start()
-    threading.Timer(7 * 24 * 3600, _schedule_heavy, args=(cfg,)).start()
-    log.info("Schedulers actief: licht elke 24u, zwaar elke 7d")
+    # Periodieke scheduler: daemon-thread, stuurt zichzelf via DB-state (restart-safe)
+    threading.Thread(target=_scheduler_loop, args=(cfg,), daemon=True).start()
 
 
 # Wordt aangeroepen bij module-import (Gunicorn) én bij python app.py

@@ -20,7 +20,6 @@ from . import db
 from .normalizer import normalize_all, historical_median_multiple
 from .quality_score import quality_score as calc_quality
 from .valuation import combined_fair_value
-from .data_fetcher import get_eur_rate
 
 log = logging.getLogger(__name__)
 
@@ -30,13 +29,14 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def determine_signal(
-    price_eur: float,
-    combined_fv_eur: float,
+    price: float,
+    combined_fv: float,
     quality: float,
     config: dict,
 ) -> dict:
     """
     Returns {"signal": str, "margin_of_safety": float, "price_vs_fv_pct": float}
+    Price en combined_fv in dezelfde native currency.
     """
     sig_cfg  = config.get("signals", {})
     strong_buy_pct     = sig_cfg.get("strong_buy_pct", 60) / 100.0
@@ -47,7 +47,7 @@ def determine_signal(
     sell_q_floor       = sig_cfg.get("sell_quality_floor", 6)
     min_quality        = config.get("screening", {}).get("min_quality_score", 7)
 
-    price_vs_fv = price_eur / combined_fv_eur     # < 1 = undervalued
+    price_vs_fv = price / combined_fv             # < 1 = undervalued
     mos = (1 - price_vs_fv) * 100                 # positive = discount, negative = premium
 
     # Compounders (quality ≥ 9) krijgen hogere SELL-drempel: ze mogen meer
@@ -175,11 +175,6 @@ def run_ticker(ticker: str, config: dict) -> dict:
 
     sector   = stock_info.get("sector") or "Default"
     currency = stock_info.get("currency") or "EUR"
-    # Gebruik financial_currency voor de EUR-rate bij de valuatie:
-    # ADR-tickers handelen in USD maar rapporteren cijfers in JPY/INR/etc.
-    # De EUR-conversie moet op de rapportagevaluta gebaseerd zijn.
-    financial_currency = stock_info.get("financial_currency") or currency
-    eur_rate = get_eur_rate(financial_currency)
 
     # Load overrides early so we can synthesize rows for manually-entered years
     overrides = db.get_overrides(ticker)
@@ -245,6 +240,26 @@ def run_ticker(ticker: str, config: dict) -> dict:
         )
         return {"ticker": ticker, "signal": "INSUFFICIENT DATA", "warnings": warnings}
 
+    # Data-kwaliteit gate: als de evaluator 'bad' of 'missing' zegt, berekenen
+    # we géén FV/signaal — garbage in, garbage out.
+    dq = db.get_data_quality(ticker) or {}
+    dq_status = dq.get("data_status")
+    if dq_status in ("bad", "missing"):
+        for issue in (dq.get("issues") or [])[:3]:
+            warnings.append(f"[data] {issue}")
+        db.upsert_scores(
+            ticker,
+            signal="INSUFFICIENT DATA",
+            warnings=warnings,
+            last_calculated=datetime.utcnow().isoformat(),
+        )
+        return {
+            "ticker": ticker,
+            "signal": "INSUFFICIENT DATA",
+            "warnings": warnings,
+            "data_status": dq_status,
+        }
+
     # Waarschuw als er overrides zijn voor een jaar waarvoor Yahoo Finance nu ook data heeft
     annual_years = {row.get("fiscal_year") for row in annual_rows if row.get("fiscal_year") not in override_only_years}
     override_years_with_data = {ov_yr for (_, ov_yr) in overrides if ov_yr in annual_years}
@@ -285,32 +300,41 @@ def run_ticker(ticker: str, config: dict) -> dict:
 
     # Valuation
     fv_result = combined_fair_value(
-        normalized, hist_mult, calc_rows, sector, config, eur_rate
+        normalized, hist_mult, calc_rows, sector, config
     )
 
-    # Signals
-    price_eur    = (market_data or {}).get("price_eur")
-    combined_fv  = fv_result.get("combined_fv_eur")
+    # Signals (alles in native currency van het aandeel)
+    price        = (market_data or {}).get("price")
+    combined_fv  = fv_result.get("combined_fv")
     signal_data  = {}
 
-    if price_eur and combined_fv and combined_fv > 0:
-        signal_data = determine_signal(price_eur, combined_fv, q_total, config)
+    if price and combined_fv and combined_fv > 0:
+        signal_data = determine_signal(price, combined_fv, q_total, config)
     else:
         signal_data = {
             "signal":           "N/A",
             "margin_of_safety": None,
             "price_vs_fv_pct":  None,
         }
-        if not price_eur:
+        if not price:
             warnings.append("Current price unavailable — signal cannot be calculated.")
         if not combined_fv:
             warnings.append("Fair value could not be calculated — check financial data.")
 
-    # Market cap filter
-    min_cap = config.get("screening", {}).get("min_market_cap_eur", 200)
-    mc_eur = (market_data or {}).get("market_cap_eur")
-    if min_cap > 0 and mc_eur is not None and mc_eur / 1e6 < min_cap:
-        warnings.append(f"Market cap (€{mc_eur/1e6:.0f}M) is below the €{min_cap}M threshold.")
+    # FV-confidence waarschuwing: grote disagreement tussen methodes = minder betrouwbare FV
+    fv_conf = fv_result.get("fv_confidence")
+    fv_spread = fv_result.get("fv_spread_pct")
+    if combined_fv and fv_conf == "low" and fv_spread is not None:
+        warnings.append(
+            f"FV-confidence LAAG: methodes (multiples/Graham/perpetuity) verschillen {fv_spread:.0f}% — "
+            f"interpreteer combined_fv met voorzichtigheid."
+        )
+    if combined_fv and (fv_result.get("fv_methods_dropped") or []):
+        dropped = ", ".join(fv_result["fv_methods_dropped"])
+        warnings.append(f"FV-sanity filter heeft methode(s) verworpen: {dropped} (te sterk afwijkend).")
+
+    # Market cap (native, puur informatief — geen filter meer want currencies zijn mixed)
+    mc_native = (market_data or {}).get("market_cap")
 
     result = {
         "ticker":           ticker,
@@ -318,19 +342,22 @@ def run_ticker(ticker: str, config: dict) -> dict:
         "sector":           sector,
         "market":           stock_info.get("market"),
         "currency":         currency,
-        # Market data
-        "price":            (market_data or {}).get("price"),
-        "price_eur":        price_eur,
-        "market_cap_eur":   mc_eur,
-        "market_cap_m_eur": (mc_eur / 1e6) if mc_eur else None,
-        # Fair values
-        "combined_fv_eur":      combined_fv,
-        "conservative_fv_eur":  fv_result.get("conservative_fv_eur"),
-        "base_fv_eur":          fv_result.get("base_fv_eur"),
-        "optimistic_fv_eur":    fv_result.get("optimistic_fv_eur"),
-        "multiples_fv_eur":     fv_result.get("multiples_fv_eur"),
-        "graham_fv_eur":        fv_result.get("graham_fv_eur"),
-        "perpetuity_fv_eur":    fv_result.get("perpetuity_fv_eur"),
+        # Market data (native currency)
+        "price":            price,
+        "market_cap":       mc_native,
+        "market_cap_m":     (mc_native / 1e6) if mc_native else None,
+        # Fair values (native currency)
+        "combined_fv":      combined_fv,
+        "conservative_fv":  fv_result.get("conservative_fv"),
+        "base_fv":          fv_result.get("base_fv"),
+        "optimistic_fv":    fv_result.get("optimistic_fv"),
+        "multiples_fv":     fv_result.get("multiples_fv"),
+        "graham_fv":        fv_result.get("graham_fv"),
+        "perpetuity_fv":    fv_result.get("perpetuity_fv"),
+        # FV robustness (Fase 4)
+        "fv_confidence":    fv_result.get("fv_confidence"),
+        "fv_spread_pct":    fv_result.get("fv_spread_pct"),
+        "fv_methods_used":  fv_result.get("fv_methods_used"),
         # Quality
         "quality_score":    q_total,
         "quality_breakdown": q_result.get("breakdown"),
@@ -363,13 +390,16 @@ def run_ticker(ticker: str, config: dict) -> dict:
         normalized_ebitda=result["normalized_ebitda"],
         normalized_fcf=result["normalized_fcf"],
         normalized_owner_earn=result["normalized_owner_earn"],
-        multiples_fv_eur=result["multiples_fv_eur"],
-        graham_fv_eur=result["graham_fv_eur"],
-        perpetuity_fv_eur=result["perpetuity_fv_eur"],
-        combined_fv_eur=combined_fv,
-        conservative_fv_eur=result["conservative_fv_eur"],
-        base_fv_eur=result["base_fv_eur"],
-        optimistic_fv_eur=result["optimistic_fv_eur"],
+        multiples_fv=result["multiples_fv"],
+        graham_fv=result["graham_fv"],
+        perpetuity_fv=result["perpetuity_fv"],
+        combined_fv=combined_fv,
+        conservative_fv=result["conservative_fv"],
+        base_fv=result["base_fv"],
+        optimistic_fv=result["optimistic_fv"],
+        fv_confidence=result["fv_confidence"],
+        fv_spread_pct=result["fv_spread_pct"],
+        fv_methods_used=result["fv_methods_used"],
         signal=result["signal"],
         margin_of_safety=result.get("margin_of_safety"),
         warnings=warnings,

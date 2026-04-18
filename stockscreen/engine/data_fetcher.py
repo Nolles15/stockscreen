@@ -1,58 +1,80 @@
 """
-Data fetcher — wraps yfinance and currency conversion.
+Data fetcher — wraps yfinance.
 
 Responsibilities:
   • Fetch raw financial statements (income, balance sheet, cash flow)
   • Fetch current market data (price, market cap, EV, trailing ratios)
   • Fetch historical per-year multiples for the last 5 years
-  • Fetch EUR exchange rates via Yahoo Finance currency pairs
   • Apply manual overrides from the DB before returning data
   • Return structured dicts ready for the engine pipeline
+
+Alle bedragen blijven in de native currency van het aandeel — er vindt geen
+valutaconversie plaats. Vergelijking tussen aandelen gebeurt via relatieve
+maatstaven (margin of safety, P/E) die valuta-onafhankelijk zijn.
 """
 
 import logging
+import time
 from datetime import datetime, date
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from . import db
+from . import db, data_quality
 
 log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Retry helper — yfinance is flaky onder load (rate limits, timeouts, 5xx)
+# ---------------------------------------------------------------------------
+
+def _yf_retry(
+    fn: Callable,
+    *args,
+    attempts: int = 3,
+    initial_delay: float = 2.0,
+    backoff: float = 2.0,
+    label: str = "yfinance",
+    **kwargs,
+):
+    """
+    Voer een yfinance-oproep uit met exponential backoff.
+    Rate-limit fouten (HTTP 429 / 'Too Many Requests') krijgen een langere wachttijd
+    omdat Yahoo pas na minimaal een paar seconden weer responseert.
+    Gooit bij falen de laatste exception opnieuw.
+    """
+    last_err: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            last_err = e
+            if attempt >= attempts - 1:
+                break
+            msg = str(e).lower()
+            is_rate_limit = any(s in msg for s in ("429", "too many", "rate limit", "ratelimit"))
+            delay = initial_delay * (backoff ** attempt)
+            if is_rate_limit:
+                delay *= 3.0
+            log.warning("%s mislukt (poging %d/%d): %s — retry over %.1fs",
+                        label, attempt + 1, attempts, e, delay)
+            time.sleep(delay)
+    assert last_err is not None
+    raise last_err
 
 # Map market suffix → native currency
 MARKET_CURRENCIES = {
     ".WA": "PLN",   # Warsaw
     ".ST": "SEK",   # Stockholm
-    ".BR": "EUR",   # Brussels (already EUR)
+    ".BR": "EUR",   # Brussels
     ".AS": "EUR",   # Amsterdam
     ".OL": "NOK",   # Oslo
     ".DE": "EUR",   # Frankfurt
     ".FI": "EUR",   # Helsinki
     ".L":  "GBP",   # London
-}
-
-# Yahoo Finance tickers for EUR FX rates
-FX_TICKERS = {
-    "USD": "EURUSD=X",
-    "PLN": "EURPLN=X",
-    "SEK": "EURSEK=X",
-    "NOK": "EURNOK=X",
-    "GBP": "EURGBP=X",
-    "CHF": "EURCHF=X",
-    "DKK": "EURDKK=X",
-    # Extra valuta's voor ADR-financiële statements
-    "JPY": "EURJPY=X",
-    "INR": "EURINR=X",
-    "CAD": "EURCAD=X",
-    "AUD": "EURAUD=X",
-    "HKD": "EURHKD=X",
-    "CNY": "EURCNY=X",
-    "KRW": "EURKRW=X",
-    "TWD": "EURTWD=X",
-    "BRL": "EURBRL=X",
 }
 
 
@@ -101,50 +123,6 @@ def infer_currency(ticker: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Exchange rates
-# ---------------------------------------------------------------------------
-
-def refresh_exchange_rates() -> dict[str, float]:
-    """Fetch latest EUR rates from Yahoo Finance and cache in DB."""
-    rates = {"EUR": 1.0}
-    for ccy, yf_ticker in FX_TICKERS.items():
-        try:
-            info = yf.Ticker(yf_ticker).info
-            rate = _safe_get(info, "regularMarketPrice", "previousClose", "ask")
-            if rate and rate > 0:
-                # Yahoo gives EUR/USD etc. — we want units of foreign per 1 EUR
-                # EURUSD=X means 1 EUR = X USD, so to convert USD→EUR: divide by X
-                # We store rate_to_eur = how many EUR per 1 unit of foreign currency
-                rates[ccy] = 1.0 / rate
-                db.upsert_exchange_rate(ccy, 1.0 / rate)
-        except Exception as e:
-            log.warning("FX fetch failed for %s: %s", ccy, e)
-    return rates
-
-
-def get_eur_rate(currency: str) -> float:
-    """Return how many EUR 1 unit of `currency` equals. Cached in DB."""
-    if currency == "EUR":
-        return 1.0
-    cached = db.get_exchange_rates()
-    if currency in cached:
-        return cached[currency]
-    # Try live fetch
-    yf_ticker = FX_TICKERS.get(currency)
-    if yf_ticker:
-        try:
-            info = yf.Ticker(yf_ticker).info
-            rate = _safe_get(info, "regularMarketPrice", "previousClose")
-            if rate and rate > 0:
-                eur_rate = 1.0 / rate
-                db.upsert_exchange_rate(currency, eur_rate)
-                return eur_rate
-        except Exception:
-            pass
-    return 1.0  # fallback: assume EUR
-
-
-# ---------------------------------------------------------------------------
 # Core fetch
 # ---------------------------------------------------------------------------
 
@@ -164,13 +142,13 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
 
     try:
         t = yf.Ticker(ticker)
-        info = t.info or {}
+        info = _yf_retry(lambda: t.info or {}, label=f"info {ticker}")
     except Exception as e:
-        warnings.append(f"Could not connect to Yahoo Finance: {e}")
+        warnings.append(f"Yahoo Finance niet bereikbaar na retries: {e}")
         return result
 
     if not info:
-        warnings.append("No data returned from Yahoo Finance — ticker may be invalid.")
+        warnings.append("Geen data terug van Yahoo Finance — ticker mogelijk ongeldig.")
         return result
 
     # ---- Meta ---------------------------------------------------------------
@@ -191,23 +169,17 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
     price_raw = _safe_get(info, "currentPrice", "regularMarketPrice", "previousClose")
     market_cap_raw = _safe_get(info, "marketCap")
     ev_raw = _safe_get(info, "enterpriseValue")
-    eur_rate = get_eur_rate(currency)
 
     analyst_target_raw = _safe_get(info, "targetMeanPrice")
     result["market"] = {
         "price":                price_raw,
-        "price_eur":            (price_raw * eur_rate) if price_raw else None,
         "market_cap":           market_cap_raw,
-        "market_cap_eur":       (market_cap_raw * eur_rate) if market_cap_raw else None,
         "enterprise_value":     ev_raw,
-        "enterprise_value_eur": (ev_raw * eur_rate) if ev_raw else None,
         "pe_ttm":               _safe_get(info, "trailingPE"),
         "ev_ebitda_ttm":        _safe_get(info, "enterpriseToEbitda"),
         "pb_ratio":             _safe_get(info, "priceToBook"),
         "last_updated":         datetime.utcnow().isoformat(),
-        # Analyst consensus
         "analyst_target_raw":   analyst_target_raw,
-        "analyst_target_eur":   (analyst_target_raw * eur_rate) if analyst_target_raw else None,
         "analyst_consensus":    info.get("recommendationKey"),
         "analyst_n":            info.get("numberOfAnalystOpinions"),
     }
@@ -217,11 +189,11 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
 
     # ---- Annual financial statements ----------------------------------------
     try:
-        inc = t.income_stmt        # columns = dates newest-first
-        bal = t.balance_sheet
-        cf  = t.cashflow
+        inc = _yf_retry(lambda: t.income_stmt, label=f"inc {ticker}")
+        bal = _yf_retry(lambda: t.balance_sheet, label=f"bal {ticker}")
+        cf  = _yf_retry(lambda: t.cashflow, label=f"cf {ticker}")
     except Exception as e:
-        warnings.append(f"Financial statements unavailable: {e}")
+        warnings.append(f"Jaarrekening onbereikbaar na retries: {e}")
         return result
 
     years_found = 0
@@ -346,11 +318,11 @@ def _fetch_ttm_row(t: "yf.Ticker", info: dict) -> dict | None:
     Geeft None terug als er minder dan 4 kwartalen beschikbaar zijn.
     """
     try:
-        q_inc = t.quarterly_income_stmt
-        q_bal = t.quarterly_balance_sheet
-        q_cf  = t.quarterly_cashflow
+        q_inc = _yf_retry(lambda: t.quarterly_income_stmt, label="q_inc")
+        q_bal = _yf_retry(lambda: t.quarterly_balance_sheet, label="q_bal")
+        q_cf  = _yf_retry(lambda: t.quarterly_cashflow, label="q_cf")
     except Exception as e:
-        log.warning("Quarterly statements unavailable: %s", e)
+        log.warning("Kwartaalcijfers onbereikbaar na retries: %s", e)
         return None
 
     if q_inc is None or q_inc.empty or len(q_inc.columns) < 4:
@@ -526,15 +498,12 @@ def fetch_and_store(ticker: str) -> list[str]:
 
     for row in data.get("annual", []):
         yr = row["fiscal_year"]
-        # Apply overrides
         applied = dict(row)
-        for field, value in {
-            k: v for (f, y), v in overrides.items()
-            if (k := f) and (y == yr or y is None)
-        }.items():
-            if field in applied:
-                applied[field] = value
-                log.debug("Override applied: %s %s %s = %s", ticker, yr, field, value)
+        # overrides: {(field_name, fiscal_year): {"value": v, "note": n}}
+        for (field, ov_yr), entry in overrides.items():
+            if (ov_yr == yr or ov_yr is None) and field in applied:
+                applied[field] = entry["value"]
+                log.debug("Override toegepast: %s FY%s %s = %s", ticker, yr, field, entry["value"])
         applied["fetched_date"] = today
         db.upsert_financials(ticker, "annual", yr, **{k: v for k, v in applied.items() if k != "fiscal_year"})
 
@@ -553,6 +522,33 @@ def fetch_and_store(ticker: str) -> list[str]:
     # Compute and store historical per-year multiples
     _store_historical_multiples(ticker, data)
 
+    # Evalueer data-kwaliteit (draait ook bij gefaalde fetch zodat we altijd
+    # een record hebben — zie data_quality.evaluate voor de missing-path).
+    try:
+        prev_dq = db.get_data_quality(ticker) or {}
+        prev_fails = prev_dq.get("consecutive_failures") or 0
+
+        annual_persisted = db.get_financials(ticker, "annual")
+        market_persisted = db.get_market_data(ticker)
+        stock_persisted  = db.get_stock(ticker)
+
+        fetch_succeeded = bool(data.get("meta")) and bool(
+            data.get("annual") or data.get("market", {}).get("price")
+        )
+
+        dq = data_quality.evaluate(
+            ticker,
+            annual_persisted,
+            market_persisted,
+            stock_persisted,
+            fetch_success=fetch_succeeded,
+            prev_consecutive_failures=prev_fails,
+            fetched_date=today,
+        )
+        db.upsert_data_quality(ticker, **dq)
+    except Exception:
+        log.exception("Data-quality evaluatie mislukt voor %s", ticker)
+
     return warnings
 
 
@@ -568,7 +564,8 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
     # and use historical stock price / historical EPS for prior years.
     try:
         t = yf.Ticker(ticker)
-        hist_price = t.history(period="5y", interval="1mo")
+        hist_price = _yf_retry(lambda: t.history(period="5y", interval="1mo"),
+                                label=f"history {ticker}")
     except Exception:
         return
 
@@ -628,80 +625,77 @@ def fetch_market_only(ticker: str) -> None:
     Veel sneller dan fetch_and_store — geschikt voor dagelijks draaien.
     """
     try:
-        info = yf.Ticker(ticker).info or {}
+        info = _yf_retry(lambda: yf.Ticker(ticker).info or {}, label=f"light {ticker}")
     except Exception as e:
-        log.warning("Light fetch mislukt voor %s: %s", ticker, e)
+        log.warning("Light fetch definitief mislukt voor %s: %s", ticker, e)
         return
 
     if not info:
         return
 
-    currency = info.get("currency") or infer_currency(ticker)
-    eur_rate = get_eur_rate(currency)
-
     price_raw = _safe_get(info, "currentPrice", "regularMarketPrice", "previousClose")
     if not price_raw:
         return
 
-    market_cap_raw      = _safe_get(info, "marketCap")
-    ev_raw              = _safe_get(info, "enterpriseValue")
-    analyst_target_raw  = _safe_get(info, "targetMeanPrice")
-
     db.upsert_market_data(ticker,
         price                = price_raw,
-        price_eur            = price_raw * eur_rate,
-        market_cap           = market_cap_raw,
-        market_cap_eur       = (market_cap_raw * eur_rate) if market_cap_raw else None,
-        enterprise_value     = ev_raw,
-        enterprise_value_eur = (ev_raw * eur_rate) if ev_raw else None,
+        market_cap           = _safe_get(info, "marketCap"),
+        enterprise_value     = _safe_get(info, "enterpriseValue"),
         pe_ttm               = _safe_get(info, "trailingPE"),
         ev_ebitda_ttm        = _safe_get(info, "enterpriseToEbitda"),
         pb_ratio             = _safe_get(info, "priceToBook"),
         last_updated         = datetime.utcnow().isoformat(),
-        analyst_target_raw   = analyst_target_raw,
-        analyst_target_eur   = (analyst_target_raw * eur_rate) if analyst_target_raw else None,
+        analyst_target_raw   = _safe_get(info, "targetMeanPrice"),
         analyst_consensus    = info.get("recommendationKey"),
         analyst_n            = info.get("numberOfAnalystOpinions"),
     )
     log.debug("Light refresh OK: %s @ %s", ticker, price_raw)
 
 
-def fetch_all_tickers(tickers: list[str], progress_cb=None) -> dict[str, list[str]]:
+def fetch_all_tickers(
+    tickers: list[str],
+    progress_cb=None,
+    max_workers: int = 3,
+    jitter_seconds: float = 0.8,
+) -> dict[str, list[str]]:
     """
-    Fetch all tickers concurrently (max 5 workers to avoid yfinance rate limits).
-    Updates progress via callback(ticker, idx, total).
+    Fetch all tickers concurrent met rate-limiting:
+      • max_workers threads parallel (default 3 — conservatief voor Yahoo)
+      • Per worker een willekeurige sleep tussen tickers (jitter_seconds)
+      • Retry-logic zit in de onderliggende yfinance-calls via _yf_retry
+
     Returns {ticker: [warnings]}.
     """
     import concurrent.futures
-
-    # Refresh FX rates once before processing
-    refresh_exchange_rates()
-
-    results = {}
-    total = len(tickers)
-    
-    # We use a Lock to safely increment idx and call progress_cb from multiple threads
+    import random
     from threading import Lock
+
+    results: dict[str, list[str]] = {}
+    total = len(tickers)
     idx_lock = Lock()
     current_idx = 0
 
     def _fetch_worker(ticker: str):
         nonlocal current_idx
+        # Willekeurige jitter om burst-rate te dempen (alle workers kloppen niet
+        # tegelijk op Yahoo aan). Alleen relevant bij bulk-refresh.
+        if jitter_seconds > 0:
+            time.sleep(random.uniform(0, jitter_seconds))
+
         try:
             warnings = fetch_and_store(ticker)
         except Exception as e:
-            log.exception("Unexpected error fetching %s", ticker)
+            log.exception("Onverwachte fout bij fetchen %s", ticker)
             warnings = [str(e)]
-            
+
         with idx_lock:
             current_idx += 1
             if progress_cb:
                 progress_cb(ticker, current_idx - 1, total)
-                
+
         return ticker, warnings
 
-    # Max 5 workers to avoid Yahoo Finance "Too Many Requests" rate limits
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_ticker = {executor.submit(_fetch_worker, t): t for t in tickers}
         for future in concurrent.futures.as_completed(future_to_ticker):
             t = future_to_ticker[future]
@@ -709,7 +703,7 @@ def fetch_all_tickers(tickers: list[str], progress_cb=None) -> dict[str, list[st
                 t_res, warnings_res = future.result()
                 results[t_res] = warnings_res
             except Exception as e:
-                log.exception("Worker failed for %s", t)
-                results[t] = [f"Worker failed: {e}"]
+                log.exception("Worker crashed voor %s", t)
+                results[t] = [f"Worker crashed: {e}"]
 
     return results
