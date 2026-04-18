@@ -23,7 +23,7 @@ from engine.data_fetcher import (
     fetch_market_only,
     fetch_all_tickers,
 )
-from engine.screener import run_ticker, run_all
+from engine.screener import run_ticker, run_all, determine_signal
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -183,7 +183,15 @@ def api_dashboard():
         t        = r["ticker"]
         mc_m     = (r.get("market_cap") / 1e6) if r.get("market_cap") else None
         q_score  = r.get("quality_score")
-        signal   = r.get("signal")
+        price    = r.get("price")
+        fv       = r.get("combined_fv")
+
+        # Signal + mos live herberekenen zodat verse market_data direct
+        # goed matcht tegen de laatste FV/quality-snapshot (staleness-fix).
+        if price and fv and fv > 0 and q_score is not None:
+            signal = determine_signal(price, fv, q_score, cfg).get("signal")
+        else:
+            signal = r.get("signal") or "N/A"
 
         norm_fcf_raw = r.get("normalized_fcf")
         fcf_m        = (norm_fcf_raw / 1e6) if norm_fcf_raw is not None else None
@@ -217,7 +225,7 @@ def api_dashboard():
             "fv_spread_pct":        r.get("fv_spread_pct"),
             "fv_methods_used":      r.get("fv_methods_used"),
             "normalized_fcf_m":     fcf_m,
-            "margin_of_safety":     r.get("margin_of_safety"),
+            "margin_of_safety":     _margin_of_safety(r.get("price"), r.get("combined_fv")),
             "price_vs_fv_pct":      _price_vs_fv(r.get("price"), r.get("combined_fv")),
             "quality_score":        q_score,
             "piotroski_score":      r.get("piotroski_score"),
@@ -252,6 +260,14 @@ def api_dashboard():
 def _price_vs_fv(price, fv):
     if price and fv and fv > 0:
         return round(price / fv * 100, 1)
+    return None
+
+
+def _margin_of_safety(price, fv):
+    """Mos = (1 - price/fv) * 100. Live berekend zodat verse market_data
+    niet tegen oude calc-snapshots kan wrijven (staleness-bug)."""
+    if price and fv and fv > 0:
+        return round((1 - price / fv) * 100, 1)
     return None
 
 
