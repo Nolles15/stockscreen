@@ -1,0 +1,73 @@
+name: Daily refresh
+
+# Roterende refresh: elke nacht worden de ~90 oudste tickers ververst.
+# Met 621 tickers betekent dit dat alles binnen ~7 dagen vers is.
+#
+# Benodigde secrets in GitHub (Settings → Secrets and variables → Actions):
+#   CRON_TOKEN — identiek aan fly secret CRON_TOKEN
+#   APP_URL    — https://stockscreen-janco.fly.dev
+#
+# Handmatige run: Actions-tab → "Daily refresh" → "Run workflow"
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # elke dag 03:00 UTC (≈ 04:00/05:00 Amsterdam)
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Aantal tickers in deze batch"
+        required: false
+        default: "90"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Trigger batch refresh
+        id: trigger
+        env:
+          APP_URL:    ${{ secrets.APP_URL }}
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+          LIMIT:      ${{ github.event.inputs.limit || '90' }}
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sS -X POST \
+            -H "X-Cron-Token: ${CRON_TOKEN}" \
+            "${APP_URL}/api/cron/refresh-batch?limit=${LIMIT}")
+          echo "Response: ${RESP}"
+          JOB_ID=$(echo "${RESP}" | jq -r '.job_id // empty')
+          N=$(echo "${RESP}" | jq -r '.n_tickers // 0')
+          if [ -z "${JOB_ID}" ] || [ "${JOB_ID}" = "null" ]; then
+            echo "::error::Geen job_id teruggekregen — endpoint gaf: ${RESP}"
+            exit 1
+          fi
+          echo "Batch gestart: job=${JOB_ID}, n=${N}"
+          echo "job_id=${JOB_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Wait for completion
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          JOB_ID:  ${{ steps.trigger.outputs.job_id }}
+        run: |
+          set -euo pipefail
+          # Max 40 minuten pollen (80 × 30s). 90 tickers duren typisch ~15-25 min.
+          for i in $(seq 1 80); do
+            sleep 30
+            RESP=$(curl -sS "${APP_URL}/api/refresh/status?job_id=${JOB_ID}" || echo '{}')
+            STATUS=$(echo "${RESP}" | jq -r '.status // "unknown"')
+            PROGRESS=$(echo "${RESP}" | jq -r '.progress // 0')
+            CURRENT=$(echo "${RESP}" | jq -r '.current // ""')
+            printf "[%3ds] status=%s progress=%s%%  %s\n" "$((i*30))" "${STATUS}" "${PROGRESS}" "${CURRENT}"
+            if [ "${STATUS}" = "done" ]; then
+              ERR_COUNT=$(echo "${RESP}" | jq -r '.errors | length')
+              echo "✓ Klaar — ${ERR_COUNT} ticker-fouten (niet-fataal)"
+              exit 0
+            fi
+            if [ "${STATUS}" = "error" ]; then
+              echo "::error::Job faalde: ${CURRENT}"
+              exit 1
+            fi
+          done
+          echo "::error::Timeout na 40 min — job nog bezig. Check Fly logs."
+          exit 1

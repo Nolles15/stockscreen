@@ -467,6 +467,58 @@ def api_startup_job():
 
 
 # ---------------------------------------------------------------------------
+# API — Cron batch refresh (externe scheduler, bv. GitHub Actions)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/cron/refresh-batch", methods=["POST"])
+def api_cron_refresh_batch():
+    """Refresh de N oudste tickers. Aangeroepen door externe cron.
+
+    Auth: header X-Cron-Token moet matchen met env var CRON_TOKEN.
+    Param: ?limit=N (default 90) — aantal tickers deze batch.
+
+    Spawnt een background job en retourneert het job_id. De cron-runner
+    moet /api/refresh/status pollen om te zien wanneer de batch klaar is.
+    """
+    expected = os.environ.get("CRON_TOKEN")
+    provided = request.headers.get("X-Cron-Token", "")
+    if not expected:
+        return jsonify({"error": "CRON_TOKEN niet geconfigureerd op de server"}), 503
+    if provided != expected:
+        return jsonify({"error": "unauthorized"}), 401
+
+    try:
+        limit = max(1, min(500, int(request.args.get("limit", "90"))))
+    except ValueError:
+        limit = 90
+
+    all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+    if not all_tickers:
+        return jsonify({"job_id": None, "n_tickers": 0, "message": "Geen tickers in DB"})
+
+    fetched = db.get_latest_fetched_dates()
+    # Oudste eerst; nooit-gefetchte tickers krijgen voorrang (prefix "0")
+    ordered = sorted(all_tickers, key=lambda t: fetched.get(t) or "0000-00-00")
+    batch = ordered[:limit]
+
+    cfg = load_config()
+    jid = _new_job()
+    threading.Thread(target=_run_refresh_job, args=(jid, batch, cfg), daemon=True).start()
+
+    oldest_date = fetched.get(batch[0]) or "never"
+    log.info("Cron refresh-batch gestart: job=%s, n=%d, oudste=%s (%s)",
+             jid, len(batch), batch[0], oldest_date)
+    return jsonify({
+        "job_id": jid,
+        "n_tickers": len(batch),
+        "total_tickers": len(all_tickers),
+        "oldest_ticker": batch[0],
+        "oldest_date": oldest_date,
+        "poll_url": f"/api/refresh/status?job_id={jid}",
+    })
+
+
+# ---------------------------------------------------------------------------
 # API — Recalculate (no re-fetch)
 # ---------------------------------------------------------------------------
 
@@ -840,6 +892,14 @@ def _on_startup() -> None:
         for ticker in cfg.get("watchlist", []):
             db.upsert_stock(ticker, active=1, added_date=datetime.now(timezone.utc).date().isoformat())
         log.info("Lege DB geseed met %d watchlist-tickers uit config.yaml", len(cfg.get("watchlist", [])))
+
+    # Externe cron (bv. GitHub Actions) is leidend zodra CRON_TOKEN gezet is:
+    # we slaan dan startup-refresh én in-process scheduler over om dubbelwerk
+    # en rate-limit clashes te voorkomen.
+    external_cron = bool(os.environ.get("CRON_TOKEN"))
+    if external_cron:
+        log.info("Externe cron actief (CRON_TOKEN gezet) — in-process scheduler uit")
+        return
 
     # Automatische refresh bij opstart is standaard UIT (config-flag stuurt dit).
     # Bij true wordt direct een refresh gestart; de scheduler hieronder verzorgt
