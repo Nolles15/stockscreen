@@ -188,8 +188,17 @@ def api_dashboard():
 
         # Signal + mos live herberekenen zodat verse market_data direct
         # goed matcht tegen de laatste FV/quality-snapshot (staleness-fix).
-        if price and fv and fv > 0 and q_score is not None:
+        # FV-plausibiliteitsgate: factor-10+ afwijking tussen FV en price =
+        # schaal/eenheid/data-bug → INSUFFICIENT DATA ipv misleidend signal.
+        fv_price_ratio = (fv / price) if (price and fv and fv > 0) else None
+        fv_ratio_oob = (
+            fv_price_ratio is not None
+            and (fv_price_ratio < 0.1 or fv_price_ratio > 10.0)
+        )
+        if price and fv and fv > 0 and q_score is not None and not fv_ratio_oob:
             signal = determine_signal(price, fv, q_score, cfg).get("signal")
+        elif fv_ratio_oob:
+            signal = "INSUFFICIENT DATA"
         else:
             signal = r.get("signal") or "N/A"
 
@@ -245,6 +254,9 @@ def api_dashboard():
             "data_issues":          r.get("data_issues") or [],
             "data_fetch_success":   r.get("fetch_success"),
             "data_consecutive_failures": r.get("consecutive_failures") or 0,
+            # FV-diagnose (Fase 1): ratio buiten [0.1, 10] = schaal-bug signaal
+            "fv_price_ratio":       round(fv_price_ratio, 3) if fv_price_ratio is not None else None,
+            "fv_ratio_oob":         fv_ratio_oob,
         })
 
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)

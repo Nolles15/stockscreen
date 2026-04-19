@@ -78,6 +78,70 @@ MARKET_CURRENCIES = {
 }
 
 
+# Money-velden die mee-schalen bij FX-conversie. Alles in "financial currency" bij
+# dual-currency tickers (bv. .OL aandeel met USD-rapportage) wordt hiermee omgezet
+# naar trading currency zodat per-share-metrics consistent zijn met de koers.
+_MONEY_FIELDS_PER_ROW = (
+    "revenue", "ebit", "ebitda", "net_income", "eps_diluted",
+    "operating_cf", "capex", "fcf",
+    "total_assets", "total_equity", "total_debt",
+    "current_assets", "current_liabilities", "net_ppe",
+    "book_value_ps", "gross_profit", "interest_expense",
+    "net_cash", "inventory",
+)
+
+
+# FX-cache per proces (yfinance {FROM}{TO}=X tickers zijn rate-limited).
+_FX_CACHE: dict[tuple[str, str], float | None] = {}
+
+
+def _fx_rate(from_ccy: str, to_ccy: str) -> float | None:
+    """
+    Haal FX-koers op via yfinance `{FROM}{TO}=X`. In-memory cached per proces.
+    Geeft None terug als yfinance geen koers levert — caller moet beslissen of
+    data onveranderd blijft + waarschuwing, of niet opgeslagen wordt.
+    """
+    if not from_ccy or not to_ccy:
+        return None
+    # Normaliseer pence-varianten (hoort eigenlijk nooit tot hier te komen)
+    if from_ccy in ("GBp", "GBX"):
+        from_ccy = "GBP"
+    if to_ccy in ("GBp", "GBX"):
+        to_ccy = "GBP"
+    if from_ccy == to_ccy:
+        return 1.0
+    key = (from_ccy, to_ccy)
+    if key in _FX_CACHE:
+        return _FX_CACHE[key]
+    pair = f"{from_ccy}{to_ccy}=X"
+    rate: float | None = None
+    try:
+        info = _yf_retry(lambda: yf.Ticker(pair).info or {}, label=f"fx {pair}", attempts=2)
+        rate = _safe_get(info, "regularMarketPrice", "previousClose")
+    except Exception as e:
+        log.warning("FX %s→%s fetch faalde: %s", from_ccy, to_ccy, e)
+    if rate is None:
+        # Fallback: probeer de omgekeerde koers en inverteer
+        inv_pair = f"{to_ccy}{from_ccy}=X"
+        try:
+            info_inv = _yf_retry(lambda: yf.Ticker(inv_pair).info or {}, label=f"fx {inv_pair}", attempts=2)
+            inv_rate = _safe_get(info_inv, "regularMarketPrice", "previousClose")
+            if inv_rate and inv_rate > 0:
+                rate = 1.0 / inv_rate
+        except Exception:
+            pass
+    _FX_CACHE[key] = rate
+    return rate
+
+
+def _apply_fx_to_row(row: dict, fx: float) -> None:
+    """Vermenigvuldig alle money-velden in `row` met `fx`. In-place mutatie."""
+    for f in _MONEY_FIELDS_PER_ROW:
+        v = row.get(f)
+        if v is not None:
+            row[f] = v * fx
+
+
 def _safe_get(obj, *keys, default=None):
     """Safely walk a dict/object by multiple key options."""
     for key in keys:
@@ -169,8 +233,24 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
     price_raw = _safe_get(info, "currentPrice", "regularMarketPrice", "previousClose")
     market_cap_raw = _safe_get(info, "marketCap")
     ev_raw = _safe_get(info, "enterpriseValue")
-
     analyst_target_raw = _safe_get(info, "targetMeanPrice")
+
+    # GBp/GBX (pence) is een Yahoo-quirk voor .L tickers: prijs wordt in pence
+    # gegeven terwijl marketCap en financials in pounds (GBP) staan. Zonder
+    # conversie is price 100× te hoog tov fair value → misleidende SELL signals
+    # op elke UK-ticker. Normaliseer alles naar GBP.
+    if currency in ("GBp", "GBX"):
+        if price_raw is not None:
+            price_raw = price_raw / 100.0
+        if analyst_target_raw is not None:
+            analyst_target_raw = analyst_target_raw / 100.0
+        # market_cap en enterprise_value blijven ongewijzigd — Yahoo levert die al in GBP
+        currency = "GBP"
+        result["meta"]["currency"] = "GBP"
+        # Vlag voor _store_historical_multiples: historische prijzen uit yf.history()
+        # komen óók in pence — die moeten ook door 100.
+        result["meta"]["_price_pence_scale"] = True
+
     result["market"] = {
         "price":                price_raw,
         "market_cap":           market_cap_raw,
@@ -234,14 +314,24 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
 
             # Shares: bij A/B-aandelenstructuren (bijv. BRK-B) geeft de balans soms
             # het A-equivalent aantal terug, terwijl de koers die van het B-aandeel is.
-            # info["sharesOutstanding"] geeft altijd het aantal in de handelsklasse.
+            # Ook bij Nordic tickers blijkt de balance-sheet-waarde regelmatig ~10×
+            # af te wijken van info.sharesOutstanding — en dan is info correct
+            # (factor drukt FV per aandeel 10× omlaag → misleidende STRONG BUY).
+            # Drempel factor-2: bij divergentie wint info.sharesOutstanding.
             bal_shares  = _df_value(bal, [
                 "Ordinary Shares Number", "Share Issued", "Common Stock Shares Outstanding"
             ], bal_idx)
             info_shares = _safe_get(info, "sharesOutstanding")
             if bal_shares and info_shares:
                 ratio = max(bal_shares, info_shares) / min(bal_shares, info_shares)
-                shares = info_shares if ratio > 5 else bal_shares
+                if ratio > 2:
+                    log.warning(
+                        "%s FY%s shares-mismatch: balance=%s vs info=%s (factor %.2fx) — info gekozen",
+                        ticker, yr, bal_shares, info_shares, ratio
+                    )
+                    shares = info_shares
+                else:
+                    shares = bal_shares
             else:
                 shares = bal_shares or info_shares
 
@@ -302,6 +392,28 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
         )
     if years_found == 0:
         warnings.append("No annual financial data found — manual entry required for valuation.")
+
+    # Valuta-consistentie: als financiële cijfers in andere ccy staan dan de
+    # trading currency (bv. AUTO.OL rapporteert in USD maar handelt in NOK),
+    # converteer alle money-velden naar trading ccy zodat per-share metrics
+    # consistent zijn met de koers. Shares blijven een telling (geen conversie).
+    if financial_currency and currency and financial_currency != currency:
+        fx = _fx_rate(financial_currency, currency)
+        if fx and fx > 0:
+            for row in result["annual"]:
+                _apply_fx_to_row(row, fx)
+            result["meta"]["fx_rate_applied"] = round(fx, 6)
+            result["meta"]["fx_from"] = financial_currency
+            result["meta"]["fx_to"] = currency
+            log.info("FX %s→%s × %.4f toegepast op %s", financial_currency, currency, fx, ticker)
+            warnings.append(
+                f"Financials geconverteerd van {financial_currency} naar {currency} (×{fx:.4f})."
+            )
+        else:
+            warnings.append(
+                f"FX-koers {financial_currency}→{currency} niet beschikbaar — "
+                f"financials niet geconverteerd; FV mogelijk onbetrouwbaar."
+            )
 
     return result
 
@@ -386,9 +498,14 @@ def _fetch_ttm_row(t: "yf.Ticker", info: dict) -> dict | None:
     net_ppe        = q_last(q_bal, ["Net PPE", "Net Property Plant And Equipment", "NetPPE"])
     inventory      = q_last(q_bal, ["Inventory", "Inventories"])
     cash           = q_last(q_bal, ["Cash And Cash Equivalents", "Cash", "CashAndCashEquivalents"])
-    shares         = q_last(q_bal, ["Ordinary Shares Number", "Share Issued",
-                                    "Common Stock Shares Outstanding"]) \
-                     or _safe_get(info, "sharesOutstanding")
+    bal_shares_ttm  = q_last(q_bal, ["Ordinary Shares Number", "Share Issued",
+                                      "Common Stock Shares Outstanding"])
+    info_shares_ttm = _safe_get(info, "sharesOutstanding")
+    if bal_shares_ttm and info_shares_ttm:
+        _r = max(bal_shares_ttm, info_shares_ttm) / min(bal_shares_ttm, info_shares_ttm)
+        shares = info_shares_ttm if _r > 2 else bal_shares_ttm
+    else:
+        shares = bal_shares_ttm or info_shares_ttm
 
     net_cash = None
     if total_debt is not None and cash is not None:
@@ -513,6 +630,11 @@ def fetch_and_store(ticker: str) -> list[str]:
         t_obj = yf.Ticker(ticker)
         ttm_row = _fetch_ttm_row(t_obj, data.get("meta", {}))
         if ttm_row:
+            # Pas dezelfde FX-conversie toe die op annual rows is toegepast,
+            # zodat de "year 0" TTM-rij consistent in trading currency staat.
+            fx_applied = meta.get("fx_rate_applied") if meta else None
+            if fx_applied:
+                _apply_fx_to_row(ttm_row, fx_applied)
             ttm_stored = dict(ttm_row)
             ttm_stored["fetched_date"] = today
             db.upsert_financials(ticker, "ttm", 0, **{k: v for k, v in ttm_stored.items() if k != "fiscal_year"})
@@ -555,6 +677,7 @@ def fetch_and_store(ticker: str) -> list[str]:
 def _store_historical_multiples(ticker: str, data: dict) -> None:
     """Calculate and store price/earnings multiples per historical year."""
     mkt = data.get("market", {})
+    meta = data.get("meta", {}) or {}
     price = mkt.get("price")
     if not price:
         return
@@ -568,6 +691,11 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
                                 label=f"history {ticker}")
     except Exception:
         return
+
+    # GBp-tickers: historische prijzen uit yf.history() komen in pence; annual
+    # cijfers staan al in GBP → price moet ook naar GBP om multiples kloppend
+    # te maken.
+    pence_scale = bool(meta.get("_price_pence_scale"))
 
     for row in data.get("annual", []):
         yr = row["fiscal_year"]
@@ -583,6 +711,8 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
         yr_price = _historical_year_end_price(hist_price, yr)
         if yr_price is None:
             continue
+        if pence_scale:
+            yr_price = yr_price / 100.0
 
         shares = row.get("shares_outstanding")
         ev = None

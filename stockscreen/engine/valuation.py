@@ -177,36 +177,63 @@ def multiples_fair_value(
     use_pb    = _blend(hist_pb,    sc.get("pb"),         2.5)
     use_evfcf = _blend(hist_evfcf, sc.get("ev_fcf"),   16.0)
 
-    # Fair values (per share)
-    pe_fv: Optional[float] = (eps * use_pe) if eps else None
+    # Fair values (per share) — expliciete pre-filter op inputs: een methode
+    # moet positieve input (eps/bvps/ebitda/fcf) hebben anders slaat 'm nergens
+    # op. Transparantie: elke drop komt met reden in drop_reasons.
+    drop_reasons: list[str] = []
+
+    if eps is not None and eps > 0:
+        pe_fv: Optional[float] = eps * use_pe
+    else:
+        pe_fv = None
+        if eps is None:
+            drop_reasons.append("pe: normalized_eps ontbreekt")
+        else:
+            drop_reasons.append(f"pe: eps≤0 ({eps:.2f})")
 
     ev_ebitda_fv: Optional[float] = None
-    if ebitda is not None and net_debt_ps is not None and shares and shares > 0:
-        # EV = EBITDA × multiple; Equity value = EV - Net Debt; divide by shares → per share
+    if ebitda is None or ebitda <= 0:
+        drop_reasons.append(
+            "ev_ebitda: ebitda ontbreekt" if ebitda is None else f"ev_ebitda: ebitda≤0 ({ebitda:.0f})"
+        )
+    elif net_debt_ps is None or not (shares and shares > 0):
+        drop_reasons.append("ev_ebitda: net_debt of shares ontbreekt")
+    else:
         total_ebitda_ev = ebitda * use_eveb
         equity_val = total_ebitda_ev - (net_debt_ps * shares)
         ev_ebitda_fv = equity_val / shares
 
-    pb_fv: Optional[float] = (bvps * use_pb) if bvps else None
+    if bvps is not None and bvps > 0:
+        pb_fv: Optional[float] = bvps * use_pb
+    else:
+        pb_fv = None
+        if bvps is None:
+            drop_reasons.append("pb: book_value_per_share ontbreekt")
+        else:
+            drop_reasons.append(f"pb: bvps≤0 ({bvps:.2f} — negatief eigen vermogen)")
 
     ev_fcf_fv: Optional[float] = None
-    if fcf_ps is not None and norm_fcf is not None:
-        # EV/FCF × total FCF = EV; Equity = EV - Net Debt
+    if norm_fcf is None or norm_fcf <= 0:
+        drop_reasons.append(
+            "ev_fcf: normalized_fcf ontbreekt" if norm_fcf is None else f"ev_fcf: norm_fcf≤0 ({norm_fcf:.0f})"
+        )
+    else:
         for r in annual_rows:
             sh = r.get("shares_outstanding")
             if sh and sh > 0:
                 total_fcf_ev = norm_fcf * use_evfcf
                 ev_fcf_fv = (total_fcf_ev - (net_debt_ps * sh if net_debt_ps else 0)) / sh
                 break
+        if ev_fcf_fv is None:
+            drop_reasons.append("ev_fcf: geen rij met shares_outstanding")
 
+    # Combineer alleen de valide methodes (>0) en dan pas outlier-filter.
+    # Bij ≤2 methodes slaat outlier-filter zichzelf over → geen cascade-risico.
     raw = [v for v in [pe_fv, ev_ebitda_fv, pb_fv, ev_fcf_fv] if v is not None and v > 0]
-    # Outlier-filter: bij ≥3 waarden schrap een methode die >5× of <0.2× de mediaan afwijkt
-    # (bv. P/B blaast op bij bedrijven met negatief eigen vermogen en blijft dan als
-    # single-method FV dominant meewegen in het gemiddelde).
     kept = _filter_outliers(raw, MULTIPLE_OUTLIER_LOW, MULTIPLE_OUTLIER_HIGH)
+    if len(raw) > len(kept):
+        drop_reasons.append(f"outlier-filter binnen multiples: {len(raw) - len(kept)} methode(s) verworpen")
 
-    # Bij ≥3 methodes: mediaan (robuust tegen resterende uitschieters).
-    # Bij 1-2 methodes: gemiddelde (mediaan is dan niet nuttig, en we willen niet blindelings kiezen).
     if len(kept) >= 3:
         avg_fv = statistics.median(kept)
     elif kept:
@@ -222,6 +249,7 @@ def multiples_fair_value(
         "avg_fv":      avg_fv,
         "n_methods":   len(kept),
         "n_dropped":   len(raw) - len(kept),
+        "drop_reasons": drop_reasons,
         "multiples_used": {"pe": use_pe, "ev_ebitda": use_eveb, "pb": use_pb, "ev_fcf": use_evfcf},
     }
 
@@ -404,6 +432,28 @@ def combined_fair_value(
     spread_pct = _spread_pct(base_clean)
     confidence = _confidence_label(spread_pct, len(base_clean))
 
+    # Minimum 2 valide top-level methodes vereist. Eén enkele methode levert geen
+    # cross-validatie en is daardoor te gevoelig voor een enkele schaal/data-bug.
+    # Met <2 methodes geven we expliciet None terug → FV-gate in screener klasseert
+    # dit als INSUFFICIENT DATA in plaats van een misleidende waarde.
+    insufficient_methods = len(base_clean) < 2
+    if insufficient_methods:
+        combined_base = None
+        combined_cons = None
+        combined_opt = None
+
+    # Verzamel alle drop-redenen (zowel per-multiples pre-filter als cross-method
+    # outliers) zodat dashboard en /api/fv-diagnostics inzichtelijk tonen waarom
+    # een FV onbetrouwbaar is.
+    drop_reasons_all: list[str] = []
+    drop_reasons_all.extend(mult_result.get("drop_reasons", []))
+    for name in dropped_base:
+        drop_reasons_all.append(f"cross-method outlier: {name} (>3× of <0.33× van mediaan)")
+    if insufficient_methods:
+        drop_reasons_all.append(
+            f"onvoldoende valide FV-methodes ({len(base_clean)} < 2) — combined_fv niet berekend"
+        )
+
     return {
         "multiples_fv":      mult_result["avg_fv"],
         "graham_fv":         graham_scenarios["base"],
@@ -415,7 +465,7 @@ def combined_fair_value(
         "fv_confidence":     confidence,
         "fv_spread_pct":     round(spread_pct, 1) if spread_pct is not None else None,
         "fv_methods_used":   len(base_clean),
-        "fv_methods_dropped": dropped_base,
+        "fv_methods_dropped": drop_reasons_all,
         # Detail for debugging
         "detail": {
             "multiples":  mult_result,

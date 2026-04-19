@@ -310,16 +310,50 @@ def run_ticker(ticker: str, config: dict) -> dict:
 
     if price and combined_fv and combined_fv > 0:
         signal_data = determine_signal(price, combined_fv, q_total, config)
+
+        # FV-plausibiliteitsgate: een combined_fv die meer dan 10× afwijkt van
+        # de prijs duidt vrijwel altijd op een schaal/eenheid/data-bug
+        # (GBp vs GBP, financials in vreemde currency, fout aantal shares).
+        # In plaats van een misleidend STRONG BUY / SELL signaal te tonen,
+        # markeren we het expliciet als INSUFFICIENT DATA zodat de gebruiker
+        # ziet dat er iets scheef zit in de pipeline.
+        fv_price_ratio = combined_fv / price
+        if fv_price_ratio < 0.1 or fv_price_ratio > 10.0:
+            warnings.append(
+                f"FV-plausibiliteit: combined_fv={combined_fv:.2f} vs price={price:.2f} — "
+                f"factor {fv_price_ratio:.2f}x buiten range [0.1, 10]. Vermoedelijke "
+                f"schaal/eenheid/data-bug; signaal opgeschort tot diagnose."
+            )
+            signal_data = {
+                "signal":           "INSUFFICIENT DATA",
+                "margin_of_safety": signal_data.get("margin_of_safety"),
+                "price_vs_fv_pct":  signal_data.get("price_vs_fv_pct"),
+            }
     else:
-        signal_data = {
-            "signal":           "N/A",
-            "margin_of_safety": None,
-            "price_vs_fv_pct":  None,
-        }
-        if not price:
-            warnings.append("Current price unavailable — signal cannot be calculated.")
-        if not combined_fv:
-            warnings.append("Fair value could not be calculated — check financial data.")
+        # combined_fv=None met <2 valide methodes → expliciet INSUFFICIENT DATA
+        # zodat dashboard het consistent toont met de FV-plausibiliteitsgate.
+        # Overige gevallen (geen price, geen FV wegens andere reden) blijven N/A.
+        methods_used = fv_result.get("fv_methods_used") or 0
+        if price and not combined_fv and methods_used < 2:
+            signal_data = {
+                "signal":           "INSUFFICIENT DATA",
+                "margin_of_safety": None,
+                "price_vs_fv_pct":  None,
+            }
+            warnings.append(
+                f"Onvoldoende valide FV-methodes ({methods_used}/3) — "
+                f"combined_fv niet berekend; zie fv_methods_dropped voor redenen."
+            )
+        else:
+            signal_data = {
+                "signal":           "N/A",
+                "margin_of_safety": None,
+                "price_vs_fv_pct":  None,
+            }
+            if not price:
+                warnings.append("Current price unavailable — signal cannot be calculated.")
+            if not combined_fv:
+                warnings.append("Fair value could not be calculated — check financial data.")
 
     # FV-confidence waarschuwing: grote disagreement tussen methodes = minder betrouwbare FV
     fv_conf = fv_result.get("fv_confidence")
@@ -370,6 +404,9 @@ def run_ticker(ticker: str, config: dict) -> dict:
         "normalized_owner_earn": normalized.get("normalized_owner_earnings"),
         # Signal
         **signal_data,
+        # Debug/diagnose (Fase 1 — plausibiliteitsgate)
+        "fv_price_ratio":  round(combined_fv / price, 3) if (combined_fv and price) else None,
+        "fv_methods_dropped": fv_result.get("fv_methods_dropped") or [],
         # Extra indicators
         "hist_relative":   hist_relative,
         "accruals_ratio":  accruals_ratio,

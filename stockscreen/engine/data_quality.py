@@ -140,20 +140,45 @@ def evaluate(
         if rev is not None and rev <= 0:
             issues.append(f"Omzet FY{latest_row.get('fiscal_year')} = {rev:.0f} (≤0) — fundamenteel onbetrouwbaar.")
 
-        # Market-cap vs shares * price consistentie-check (> 20% afwijking verdacht)
+        # Market-cap vs shares * price consistentie-check
+        # Factor-2+ afwijking duidt bijna altijd op een schaal-bug (shares uit balance
+        # sheet vs info.sharesOutstanding, pence/pound, etc.) → escalate naar bad.
         shares = latest_row.get("shares_outstanding")
         price = mkt.get("price")
         mc = mkt.get("market_cap")
+        severe_unit_mismatch = False
         if shares and price and mc and shares > 0 and mc > 0:
             implied_mc = shares * price
             # Voor ADRs met andere financial_currency slaat deze check niet aan
             # omdat shares/mc in verschillende valuta's zitten. Skip dan.
             if not (fin_ccy and trd_ccy and fin_ccy != trd_ccy):
                 ratio = max(implied_mc, mc) / min(implied_mc, mc)
-                if ratio > 1.2:
+                if ratio > 2.0:
+                    severe_unit_mismatch = True
+                    issues.append(
+                        f"Market cap SEVERE mismatch: shares×price ≈ {implied_mc/1e6:.0f}M, "
+                        f"Yahoo = {mc/1e6:.0f}M (factor {ratio:.2f}x) — "
+                        f"vermoedelijke shares/pence/FX schaal-bug."
+                    )
+                elif ratio > 1.2:
                     issues.append(
                         f"Market cap inconsistent: shares×price ≈ {implied_mc/1e6:.0f}M, "
                         f"Yahoo = {mc/1e6:.0f}M (verschil {(ratio-1)*100:.0f}%)."
+                    )
+
+        # EV consistentie: enterprise_value ≈ market_cap + net_debt
+        ev = mkt.get("enterprise_value")
+        total_debt = latest_row.get("total_debt")
+        total_cash = latest_row.get("total_cash")
+        if ev and mc and ev > 0 and mc > 0 and total_debt is not None:
+            net_debt = (total_debt or 0) - (total_cash or 0)
+            implied_ev = mc + net_debt
+            if implied_ev > 0:
+                ev_ratio = max(implied_ev, ev) / min(implied_ev, ev)
+                if ev_ratio > 1.5:
+                    issues.append(
+                        f"EV inconsistent: mcap+net_debt ≈ {implied_ev/1e6:.0f}M, "
+                        f"Yahoo EV = {ev/1e6:.0f}M (factor {ev_ratio:.2f}x)."
                     )
 
     # 4. Freshness
@@ -173,6 +198,7 @@ def evaluate(
         or not mkt.get("price")
         or (latest_row and latest_row.get("total_equity") is not None and latest_row["total_equity"] <= 0)
         or (latest_row and latest_row.get("revenue") is not None and latest_row["revenue"] <= 0)
+        or severe_unit_mismatch
     )
     if has_blocker or completeness_pct < _MIN_COMPLETENESS_WARNING:
         status = "bad"
