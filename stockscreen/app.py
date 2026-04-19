@@ -653,6 +653,9 @@ def api_cron_refresh_one(ticker):
             "error": str(e), "elapsed_s": round(time.time() - t0, 1),
         }), 200
 
+    # Self-heal: na N opeenvolgende fetch-failures auto-suspenden
+    auto_suspended = _maybe_auto_suspend(t)
+
     return jsonify({
         "ticker":      t,
         "ok":          True,
@@ -661,8 +664,36 @@ def api_cron_refresh_one(ticker):
         "price":       calc_result.get("price"),
         "quality":     calc_result.get("quality_score"),
         "warnings":    fetch_warnings + (calc_result.get("warnings") or []),
+        "auto_suspended": auto_suspended,
         "elapsed_s":   round(time.time() - t0, 1),
     })
+
+
+AUTO_SUSPEND_THRESHOLD = int(os.environ.get("AUTO_SUSPEND_AFTER_FAILS", "7"))
+
+
+def _maybe_auto_suspend(ticker: str) -> bool:
+    """
+    Zet active=0 + auto_suspended_at=now als consecutive_failures >= drempel.
+    Returns True als suspension gebeurd is.
+    """
+    dq = db.get_data_quality(ticker) or {}
+    fails = dq.get("consecutive_failures") or 0
+    if fails < AUTO_SUSPEND_THRESHOLD:
+        return False
+    stock = db.get_stock(ticker)
+    if not stock or stock.get("active") == 0:
+        return False  # al gedeactiveerd
+    reason = f"auto-suspend na {fails} opeenvolgende fetch-failures"
+    db.upsert_stock(
+        ticker,
+        active=0,
+        auto_suspended_at=datetime.utcnow().isoformat(),
+        auto_suspend_reason=reason,
+    )
+    db.log_activity("remove", ticker, "ok", {"reason": reason, "auto": True, "fails": fails})
+    log.info("Auto-suspended %s na %d fails", ticker, fails)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -959,6 +990,40 @@ def api_bulk_activate():
         "rejected": rejected,
         "count": len(activated),
     })
+
+
+@app.route("/api/stocks/suspended", methods=["GET"])
+def api_suspended_stocks():
+    """Lijst alle tickers die auto-suspended zijn (active=0 + auto_suspended_at not null)."""
+    with db._cursor() as cur:
+        cur.execute("""
+            SELECT s.ticker, s.name, s.auto_suspended_at, s.auto_suspend_reason,
+                   dq.consecutive_failures, dq.data_status, dq.last_checked
+            FROM stocks s
+            LEFT JOIN data_quality dq ON dq.ticker = s.ticker
+            WHERE s.active = 0 AND s.auto_suspended_at IS NOT NULL
+            ORDER BY s.auto_suspended_at DESC
+        """)
+        rows = cur.fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/stocks/unsuspend/<ticker>", methods=["POST"])
+def api_unsuspend_stock(ticker):
+    """Heractiveer een auto-suspended ticker + reset consecutive_failures."""
+    t = ticker.upper()
+    stock = db.get_stock(t)
+    if not stock:
+        return jsonify({"error": f"{t} niet in DB"}), 404
+    db.upsert_stock(t, active=1, auto_suspended_at=None, auto_suspend_reason=None)
+    # Reset failure counter — anders suspend hij meteen weer bij volgende cron
+    with db._cursor() as cur:
+        cur.execute(
+            "UPDATE data_quality SET consecutive_failures = 0 WHERE ticker = %s",
+            (t,),
+        )
+    db.log_activity("add", t, "ok", {"reason": "unsuspend", "manual": True})
+    return jsonify({"ticker": t, "unsuspended": True})
 
 
 @app.route("/api/stocks/remap", methods=["POST"])

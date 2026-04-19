@@ -50,6 +50,34 @@
   </table>
 </div>
 
+<!-- Auto-suspended sectie -->
+<div class="mt-8">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <h2 class="text-lg font-bold">Auto-suspended</h2>
+      <p class="text-slate-400 text-xs mt-0.5">
+        Tickers die automatisch zijn gedeactiveerd na meerdere opeenvolgende fetch-failures. Herstel = active=1 + reset failure-counter.
+      </p>
+    </div>
+    <span id="suspend-count" class="text-sm text-slate-400">0</span>
+  </div>
+  <div class="overflow-x-auto rounded-xl border border-slate-800">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
+        <tr>
+          <th class="px-3 py-3 text-left">Ticker</th>
+          <th class="px-3 py-3 text-left">Naam</th>
+          <th class="px-3 py-3 text-left">Gesuspend op</th>
+          <th class="px-3 py-3 text-left">Reden</th>
+          <th class="px-3 py-3 text-right">Fails</th>
+          <th class="px-3 py-3 text-left">Acties</th>
+        </tr>
+      </thead>
+      <tbody id="suspend-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- Remap modal -->
 <div id="remap-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
   <div class="bg-slate-900 rounded-xl p-6 w-96 border border-slate-800">
@@ -103,11 +131,44 @@ let selected = new Set();
 let remapSrc = null;
 
 async function loadTriage() {
-  const res = await fetch('/api/dashboard');
-  const rows = await res.json();
+  const [dashRes, suspRes] = await Promise.all([
+    fetch('/api/dashboard'),
+    fetch('/api/stocks/suspended'),
+  ]);
+  const rows = await dashRes.json();
+  const susp = await suspRes.json();
   allRows = rows.filter(r => r.signal === 'INSUFFICIENT DATA');
   renderCounts();
   renderTable();
+  renderSuspended(susp);
+}
+
+function renderSuspended(rows) {
+  const tbody = document.getElementById('suspend-tbody');
+  document.getElementById('suspend-count').textContent = `${rows.length} tickers`;
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">Niets auto-suspended — mooi!</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr class="border-t border-slate-800">
+      <td class="px-3 py-2 font-mono font-semibold">${r.ticker}</td>
+      <td class="px-3 py-2">${escapeHtml(r.name || '—')}</td>
+      <td class="px-3 py-2 text-slate-500 text-xs">${(r.auto_suspended_at || '').slice(0, 10)}</td>
+      <td class="px-3 py-2 text-slate-500 text-xs">${escapeHtml(r.auto_suspend_reason || '—')}</td>
+      <td class="px-3 py-2 text-right">${r.consecutive_failures || 0}</td>
+      <td class="px-3 py-2">
+        <button class="action-btn" onclick="unsuspend('${r.ticker}')">Herstel</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function unsuspend(ticker) {
+  if (!confirm(`Herstel ${ticker}? (active=1, failure-counter reset)`)) return;
+  const res = await fetch(`/api/stocks/unsuspend/${encodeURIComponent(ticker)}`, { method: 'POST' });
+  if (res.ok) loadTriage();
+  else alert('Fout bij herstellen');
 }
 
 function categorize(r) {

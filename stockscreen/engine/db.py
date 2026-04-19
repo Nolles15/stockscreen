@@ -68,10 +68,18 @@ def init_db() -> None:
                 active             INTEGER DEFAULT 1,
                 added_date         TEXT,
                 notes              TEXT,
-                description        TEXT
+                description        TEXT,
+                auto_suspended_at  TEXT,
+                auto_suspend_reason TEXT
             )
         """)
-        # Migratie: kolom toevoegen aan bestaande DB (PostgreSQL)
+        # Migratie: kolommen toevoegen aan bestaande DB (PostgreSQL)
+        cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS auto_suspended_at TEXT
+        """)
+        cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS auto_suspend_reason TEXT
+        """)
         cur.execute("""
             ALTER TABLE stocks ADD COLUMN IF NOT EXISTS financial_currency TEXT
         """)
