@@ -1211,6 +1211,11 @@ def activity_log_page():
     return render_template("log.html")
 
 
+@app.route("/triage")
+def triage_page():
+    return render_template("triage.html")
+
+
 # ---------------------------------------------------------------------------
 # API — Stock detail
 # ---------------------------------------------------------------------------

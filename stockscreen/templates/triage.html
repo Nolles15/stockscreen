@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Triage — Stockscreener{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+  <div>
+    <h1 class="text-2xl font-bold">Triage</h1>
+    <p class="text-slate-400 text-sm mt-0.5">
+      Tickers zonder bruikbaar signaal — deactiveer, remap of refresh.
+    </p>
+  </div>
+  <div class="flex items-center gap-3 text-sm text-slate-400">
+    <span id="count-total">0 tickers</span>
+  </div>
+</div>
+
+<!-- Filter-chips -->
+<div class="flex flex-wrap gap-2 mb-4 text-sm">
+  <button data-filter="all" class="triage-chip active">Alle <span class="count"></span></button>
+  <button data-filter="missing" class="triage-chip">Missing <span class="count"></span></button>
+  <button data-filter="bad" class="triage-chip">Bad (DQ) <span class="count"></span></button>
+  <button data-filter="ok_oob" class="triage-chip">FV buiten bereik <span class="count"></span></button>
+  <button data-filter="ok_fewm" class="triage-chip">Te weinig methodes <span class="count"></span></button>
+  <button data-filter="fail_high" class="triage-chip">Vaak gefaald (≥3×) <span class="count"></span></button>
+</div>
+
+<!-- Batch action bar -->
+<div id="batch-bar" class="hidden mb-3 p-3 rounded-xl border border-slate-800 bg-slate-900 flex items-center gap-3 text-sm">
+  <span id="batch-count" class="font-semibold"></span>
+  <button onclick="batchRefresh()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md">↻ Refresh</button>
+  <button onclick="batchDeactivate()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md">🗑 Deactiveer</button>
+  <button onclick="clearSelection()" class="text-slate-400 hover:text-slate-100 ml-auto">Deselecteer</button>
+</div>
+
+<!-- Table -->
+<div class="overflow-x-auto rounded-xl border border-slate-800">
+  <table class="w-full text-sm" id="triage-table">
+    <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-3 py-3 w-8"><input type="checkbox" id="chk-all" onclick="toggleAll(this)"></th>
+        <th class="px-3 py-3 text-left sortable" data-col="ticker">Ticker</th>
+        <th class="px-3 py-3 text-left sortable" data-col="name">Naam</th>
+        <th class="px-3 py-3 text-left sortable" data-col="data_status">Status</th>
+        <th class="px-3 py-3 text-left" data-col="issues">Reden</th>
+        <th class="px-3 py-3 text-right sortable" data-col="fails">Fails</th>
+        <th class="px-3 py-3 text-left">Acties</th>
+      </tr>
+    </thead>
+    <tbody id="triage-tbody"></tbody>
+  </table>
+</div>
+
+<!-- Remap modal -->
+<div id="remap-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-slate-900 rounded-xl p-6 w-96 border border-slate-800">
+    <h3 class="text-lg font-bold mb-3">Remap ticker</h3>
+    <p class="text-slate-400 text-sm mb-3">
+      Deactiveer <span id="remap-from" class="font-mono font-semibold text-slate-100"></span> en voeg de primary toe.
+    </p>
+    <input id="remap-to" type="text" placeholder="Primary ticker (bijv. EXO.MI)"
+      class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm mb-4">
+    <div class="flex justify-end gap-2">
+      <button onclick="closeRemap()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-md text-sm">Annuleer</button>
+      <button onclick="confirmRemap()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md text-sm">Remap</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.triage-chip {
+  padding: 6px 14px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-2); font-weight: 600; transition: all 0.15s;
+  cursor: pointer;
+}
+.triage-chip:hover { border-color: var(--text-3); }
+.triage-chip.active { background: var(--text-1); color: #fff; border-color: var(--text-1); }
+.triage-chip .count { opacity: 0.6; margin-left: 4px; font-size: 11px; }
+.status-badge {
+  padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px; letter-spacing: 0.3px;
+}
+.status-badge.missing { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+.status-badge.bad     { background: #FFFBEB; color: #854D0E; border: 1px solid #FDE68A; }
+.status-badge.ok      { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
+.status-badge.null    { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+
+.action-btn {
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border);
+  cursor: pointer; transition: background 0.1s;
+}
+.action-btn:hover { background: #D5D5D3; }
+.action-btn.danger { color: #991B1B; }
+.action-btn.danger:hover { background: #FEF2F2; border-color: #FECACA; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allRows = [];
+let currentFilter = "all";
+let selected = new Set();
+let remapSrc = null;
+
+async function loadTriage() {
+  const res = await fetch('/api/dashboard');
+  const rows = await res.json();
+  allRows = rows.filter(r => r.signal === 'INSUFFICIENT DATA');
+  renderCounts();
+  renderTable();
+}
+
+function categorize(r) {
+  const ds = r.data_status;
+  if (ds === 'missing') return 'missing';
+  if (ds === 'bad') return 'bad';
+  if (ds === 'ok' && r.fv_ratio_oob) return 'ok_oob';
+  if (ds === 'ok') return 'ok_fewm';
+  return 'other';
+}
+
+function renderCounts() {
+  const counts = { all: allRows.length, missing: 0, bad: 0, ok_oob: 0, ok_fewm: 0, fail_high: 0 };
+  for (const r of allRows) {
+    const c = categorize(r);
+    if (counts[c] !== undefined) counts[c]++;
+    if ((r.data_consecutive_failures || 0) >= 3) counts.fail_high++;
+  }
+  document.querySelectorAll('.triage-chip').forEach(btn => {
+    const f = btn.dataset.filter;
+    btn.querySelector('.count').textContent = counts[f] ?? '';
+  });
+  document.getElementById('count-total').textContent = `${allRows.length} tickers`;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('triage-tbody');
+  let rows = allRows.slice();
+  if (currentFilter === 'fail_high') {
+    rows = rows.filter(r => (r.data_consecutive_failures || 0) >= 3);
+  } else if (currentFilter !== 'all') {
+    rows = rows.filter(r => categorize(r) === currentFilter);
+  }
+  rows.sort((a, b) => a.ticker.localeCompare(b.ticker));
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-400">Geen tickers in deze categorie</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const ds = r.data_status || 'null';
+    const issues = (r.data_issues || []).join(', ') || '-';
+    const fails = r.data_consecutive_failures || 0;
+    const isSelected = selected.has(r.ticker);
+    return `
+      <tr class="border-t border-slate-800" data-ticker="${r.ticker}">
+        <td class="px-3 py-2"><input type="checkbox" class="row-chk" ${isSelected ? 'checked' : ''} onchange="toggleRow('${r.ticker}', this.checked)"></td>
+        <td class="px-3 py-2 font-mono font-semibold">
+          <a href="/stock/${encodeURIComponent(r.ticker)}" class="hover:underline">${r.ticker}</a>
+        </td>
+        <td class="px-3 py-2">${escapeHtml(r.name || '—')}</td>
+        <td class="px-3 py-2"><span class="status-badge ${ds}">${ds}</span></td>
+        <td class="px-3 py-2 text-slate-500 text-xs" title="${escapeHtml(issues)}">${escapeHtml(truncate(issues, 60))}</td>
+        <td class="px-3 py-2 text-right">${fails}</td>
+        <td class="px-3 py-2">
+          <div class="flex gap-1">
+            <button class="action-btn" onclick="refreshOne('${r.ticker}')" title="Force-refresh">↻</button>
+            <button class="action-btn" onclick="openRemap('${r.ticker}')" title="Remap naar primary">↔</button>
+            <a class="action-btn" href="/api/fv-diagnostics/${encodeURIComponent(r.ticker)}" target="_blank" title="FV-diagnostics JSON">🔍</a>
+            <button class="action-btn danger" onclick="deactivateOne('${r.ticker}')" title="Deactiveer">🗑</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  const bar = document.getElementById('batch-bar');
+  const count = selected.size;
+  if (count > 0) {
+    bar.classList.remove('hidden');
+    document.getElementById('batch-count').textContent = `${count} geselecteerd`;
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.row-chk').forEach(c => {
+    c.checked = cb.checked;
+    const t = c.closest('tr').dataset.ticker;
+    if (cb.checked) selected.add(t); else selected.delete(t);
+  });
+  updateBatchBar();
+}
+
+function toggleRow(ticker, checked) {
+  if (checked) selected.add(ticker); else selected.delete(ticker);
+  updateBatchBar();
+}
+
+function clearSelection() {
+  selected.clear();
+  document.querySelectorAll('.row-chk, #chk-all').forEach(c => c.checked = false);
+  updateBatchBar();
+}
+
+async function batchDeactivate() {
+  const tickers = [...selected];
+  if (!tickers.length) return;
+  if (!confirm(`Deactiveer ${tickers.length} tickers?`)) return;
+  const reason = prompt('Reden (voor logging):', 'batch-triage') || 'batch-triage';
+  const res = await fetch('/api/stocks/bulk-deactivate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers, reason }),
+  });
+  const data = await res.json();
+  alert(`Gedeactiveerd: ${data.count}\nRejected: ${(data.rejected || []).length}`);
+  clearSelection();
+  loadTriage();
+}
+
+async function batchRefresh() {
+  const tickers = [...selected];
+  if (!tickers.length) return;
+  const res = await fetch('/api/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers }),
+  });
+  const data = await res.json();
+  alert(`Refresh-job gestart: ${data.job_id}\nMonitor op dashboard.`);
+  clearSelection();
+}
+
+async function refreshOne(ticker) {
+  await batchRefreshSingle([ticker]);
+}
+
+async function batchRefreshSingle(tickers) {
+  const res = await fetch('/api/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers }),
+  });
+  const data = await res.json();
+  alert(`Refresh gestart voor ${tickers.length} ticker(s). Job ${data.job_id}. Herlaad deze pagina over 30s.`);
+}
+
+async function deactivateOne(ticker) {
+  if (!confirm(`Deactiveer ${ticker}?`)) return;
+  const res = await fetch('/api/stocks/bulk-deactivate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers: [ticker], reason: 'triage-ui-single' }),
+  });
+  if (res.ok) loadTriage();
+}
+
+function openRemap(ticker) {
+  remapSrc = ticker;
+  document.getElementById('remap-from').textContent = ticker;
+  document.getElementById('remap-to').value = '';
+  document.getElementById('remap-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('remap-to').focus(), 50);
+}
+function closeRemap() {
+  remapSrc = null;
+  document.getElementById('remap-modal').classList.add('hidden');
+}
+async function confirmRemap() {
+  const to = document.getElementById('remap-to').value.trim().toUpperCase();
+  if (!to) return;
+  const res = await fetch('/api/stocks/remap', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: remapSrc, to }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(`Fout: ${data.error}`); return; }
+  alert(`${data.from} → ${data.to} ${data.fetch_started ? '(fetch gestart)' : ''}`);
+  closeRemap();
+  loadTriage();
+}
+
+function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+document.querySelectorAll('.triage-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.triage-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    clearSelection();
+    renderTable();
+  });
+});
+
+loadTriage();
+</script>
+{% endblock %}
