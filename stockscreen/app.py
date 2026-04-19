@@ -224,11 +224,16 @@ def api_dashboard():
             days_since_added = None
 
         # Markering voor client-side filtering — server filtert niet meer
-        low_quality = (
-            q_score is not None
-            and q_score < min_quality
-            and signal != "INSUFFICIENT DATA"
-        )
+        low_quality = q_score is not None and q_score < min_quality
+
+        # Bij INSUFFICIENT DATA is de combined_fv per definitie onbetrouwbaar
+        # (schaal-bug, sanity-gate-hit, <2 methodes). De korting/mos die we
+        # eruit zouden rekenen is misleidend — en sorteert de rijen naar de
+        # top omdat de factor-21×-FV als '94% korting' verschijnt. Daarom:
+        # geen mos/price_vs_fv tonen voor INSUFFICIENT DATA.
+        is_insufficient = signal == "INSUFFICIENT DATA"
+        mos_val = None if is_insufficient else _margin_of_safety(price, fv)
+        pvf_val = None if is_insufficient else _price_vs_fv(price, fv)
 
         rows.append({
             "ticker":               t,
@@ -246,8 +251,8 @@ def api_dashboard():
             "fv_spread_pct":        r.get("fv_spread_pct"),
             "fv_methods_used":      r.get("fv_methods_used"),
             "normalized_fcf_m":     fcf_m,
-            "margin_of_safety":     _margin_of_safety(r.get("price"), r.get("combined_fv")),
-            "price_vs_fv_pct":      _price_vs_fv(r.get("price"), r.get("combined_fv")),
+            "margin_of_safety":     mos_val,
+            "price_vs_fv_pct":      pvf_val,
             "quality_score":        q_score,
             "piotroski_score":      r.get("piotroski_score"),
             "signal":               signal or "N/A",
