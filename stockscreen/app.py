@@ -83,10 +83,6 @@ _jobs: dict[str, dict] = {}   # job_id → {status, progress, current, errors}
 _jobs_lock = threading.Lock()
 _startup_job_id: str | None = None   # job_id of the auto-refresh triggered at startup
 
-# Dashboard-cache: wordt gevuld door api_dashboard(), geleegd na elke refresh/recalculate.
-_dashboard_cache: dict = {"data": None, "expires": 0.0}
-_DASHBOARD_CACHE_TTL = 90  # seconden
-
 STALE_HEAVY_DAYS = 6   # dagen zonder zware refresh → opnieuw ophalen bij next run
 
 
@@ -189,11 +185,6 @@ def settings():
 @app.route("/api/dashboard")
 def api_dashboard():
     """Return alle aandelen met scores en marktdata. Filtering gebeurt client-side."""
-    # Geef gecachede response terug als die nog vers is (max 90s)
-    now = time.time()
-    if _dashboard_cache["data"] is not None and now < _dashboard_cache["expires"]:
-        return jsonify(_dashboard_cache["data"])
-
     cfg = load_config()
     min_quality = cfg.get("screening", {}).get("min_quality_score", 7)
     new_days    = cfg.get("app", {}).get("new_ticker_days", 7)
@@ -281,13 +272,7 @@ def api_dashboard():
         })
 
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
-    result = _sanitize(rows)
-
-    # Sla op in cache
-    _dashboard_cache["data"] = result
-    _dashboard_cache["expires"] = now + _DASHBOARD_CACHE_TTL
-
-    return jsonify(result)
+    return jsonify(_sanitize(rows))
 
 
 def _price_vs_fv(price, fv):
@@ -369,9 +354,6 @@ def _run_refresh_job(jid: str, tickers: list, cfg: dict) -> None:
     _update_job(jid, status="done", progress=100, current="Klaar", errors=errors)
     log.info("Refresh job %s complete. Fetched: %d, Calculated: %d, Errors: %d",
              jid, len(tickers), total_calc, len(errors))
-
-    # Dashboard-cache legen zodat verse scores direct zichtbaar zijn
-    _dashboard_cache["data"] = None
 
 
 # ---------------------------------------------------------------------------
@@ -665,9 +647,6 @@ def api_cron_refresh_one(ticker):
             "error": str(e), "elapsed_s": round(time.time() - t0, 1),
         }), 200
 
-    # Cache legen zodat het dashboard direct de nieuwe waardes ziet
-    _dashboard_cache["data"] = None
-
     return jsonify({
         "ticker":      t,
         "ok":          True,
@@ -699,8 +678,94 @@ def api_recalculate():
         except Exception as e:
             results.append({"ticker": ticker, "ok": False, "error": str(e)})
 
-    _dashboard_cache["data"] = None  # cache legen na herberekening
     return jsonify(results)
+
+
+@app.route("/api/fv-diagnostics/<ticker>")
+def api_fv_diagnostics(ticker: str):
+    """
+    Diagnose per ticker: alle inputs + outputs van de FV-pipeline.
+    Bedoeld om snel te zien waarom een combined_fv er raar uitziet
+    (schaal-bug, FX-mismatch, negatieve inputs, gedropte methodes).
+    """
+    t, err = _validate_ticker(ticker)
+    if err:
+        return jsonify({"error": err}), 400
+
+    stock_info = db.get_stock(t)
+    if not stock_info:
+        return jsonify({"error": f"{t} niet in database"}), 404
+
+    cfg = load_config()
+    try:
+        calc = run_ticker(t, cfg)
+    except Exception as e:
+        log.exception("fv-diagnostics calc failed %s", t)
+        return jsonify({"error": f"berekening faalde: {e}"}), 500
+
+    market_data = db.get_market_data(t) or {}
+    dq          = db.get_data_quality(t) or {}
+    annual_rows = db.get_financials(t, "annual")
+    latest_fy   = annual_rows[0] if annual_rows else {}
+
+    price        = market_data.get("price")
+    market_cap   = market_data.get("market_cap")
+    shares       = latest_fy.get("shares_outstanding")
+    implied_mc   = (shares * price) if (shares and price) else None
+    mc_consistency = None
+    if market_cap and implied_mc and market_cap > 0:
+        mc_consistency = round(abs(market_cap - implied_mc) / market_cap, 3)
+
+    combined_fv = calc.get("combined_fv")
+    fv_price_ratio = (combined_fv / price) if (price and combined_fv and combined_fv > 0) else None
+
+    per_method = {
+        "multiples_fv":  calc.get("multiples_fv"),
+        "graham_fv":     calc.get("graham_fv"),
+        "perpetuity_fv": calc.get("perpetuity_fv"),
+    }
+
+    return jsonify(_sanitize({
+        "ticker":            t,
+        "name":              stock_info.get("name"),
+        "sector":            stock_info.get("sector"),
+        "market":            stock_info.get("market"),
+        "currency":          stock_info.get("currency"),
+        "financial_currency": stock_info.get("financial_currency"),
+        "quote_type":        stock_info.get("quote_type"),
+        "price":             price,
+        "market_cap":        market_cap,
+        "shares_outstanding": shares,
+        "implied_market_cap": implied_mc,
+        "mc_consistency_ratio": mc_consistency,
+        "normalized": {
+            "eps":           calc.get("normalized_eps"),
+            "ebitda":        calc.get("normalized_ebitda"),
+            "fcf":           calc.get("normalized_fcf"),
+            "owner_earnings": calc.get("normalized_owner_earn"),
+        },
+        "fair_values": {
+            "per_method":    per_method,
+            "conservative": calc.get("conservative_fv"),
+            "base":         calc.get("base_fv"),
+            "optimistic":   calc.get("optimistic_fv"),
+            "combined":     combined_fv,
+        },
+        "fv_price_ratio":    round(fv_price_ratio, 3) if fv_price_ratio else None,
+        "fv_ratio_oob":      bool(fv_price_ratio and (fv_price_ratio < 0.1 or fv_price_ratio > 10.0)),
+        "fv_confidence":     calc.get("fv_confidence"),
+        "fv_spread_pct":     calc.get("fv_spread_pct"),
+        "fv_methods_used":   calc.get("fv_methods_used"),
+        "fv_methods_dropped": calc.get("fv_methods_dropped") or [],
+        "quality_score":     calc.get("quality_score"),
+        "signal":            calc.get("signal"),
+        "margin_of_safety":  calc.get("margin_of_safety"),
+        "data_status":       dq.get("data_status"),
+        "data_completeness": dq.get("completeness_pct"),
+        "data_issues":       dq.get("issues") or [],
+        "warnings":          calc.get("warnings") or [],
+        "latest_fiscal_year": latest_fy.get("fiscal_year"),
+    }))
 
 
 # ---------------------------------------------------------------------------
@@ -992,8 +1057,6 @@ def api_data_quality_cleanup():
         db.upsert_stock(t, active=0)
         db.log_activity("remove", t, "ok", {"reason": "data_quality cleanup", "auto": True})
 
-    # Cache legen zodat dashboard direct verandert
-    _dashboard_cache["data"] = None
     return jsonify({"deactivated": targets, "count": len(targets)})
 
 
