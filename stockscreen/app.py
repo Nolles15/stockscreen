@@ -19,6 +19,7 @@ import yaml
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
+from engine import remap_rules
 from engine.data_fetcher import (
     fetch_and_store,
     fetch_market_only,
@@ -793,6 +794,18 @@ def api_add_stock():
     if db.get_stock(ticker):
         return jsonify({"error": f"{ticker} staat al in de watchlist"}), 409
 
+    remap = remap_rules.lookup(ticker)
+    force = bool(data.get("force"))
+    if remap and not force:
+        primary, reason = remap
+        return jsonify({
+            "warning": "secondary_listing",
+            "ticker": ticker,
+            "suggested_primary": primary,
+            "reason": reason,
+            "hint": "POST opnieuw met \"force\": true om toch toe te voegen, of gebruik de suggested_primary.",
+        }), 409
+
     db.upsert_stock(ticker, active=1, added_date=datetime.utcnow().date().isoformat())
     db.log_activity("add", ticker, "ok", {"source": "manual"})
 
@@ -887,6 +900,123 @@ def api_delete_stock(ticker):
     db.log_activity("remove", t, "ok")
     db.delete_stock(t)
     return jsonify({"deleted": t})
+
+
+@app.route("/api/stocks/bulk-deactivate", methods=["POST"])
+def api_bulk_deactivate():
+    """Body: {"tickers": [...], "reason": "..."}. Zet active=0 voor alle meegegeven tickers."""
+    data = request.get_json() or {}
+    raw = data.get("tickers") or []
+    reason = data.get("reason") or "bulk-deactivate"
+    if not isinstance(raw, list):
+        return jsonify({"error": "tickers moet een array zijn"}), 400
+
+    deactivated, skipped, rejected = [], [], []
+    for raw_t in raw:
+        t, err = _validate_ticker(raw_t)
+        if err:
+            rejected.append({"ticker": raw_t, "reason": err})
+            continue
+        if not db.get_stock(t):
+            skipped.append(t)
+            continue
+        db.upsert_stock(t, active=0)
+        db.log_activity("remove", t, "ok", {"reason": reason, "bulk": True})
+        deactivated.append(t)
+
+    return jsonify({
+        "deactivated": deactivated,
+        "skipped": skipped,
+        "rejected": rejected,
+        "count": len(deactivated),
+    })
+
+
+@app.route("/api/stocks/bulk-activate", methods=["POST"])
+def api_bulk_activate():
+    """Body: {"tickers": [...]}. Heractiveer (active=1) bestaande tickers."""
+    data = request.get_json() or {}
+    raw = data.get("tickers") or []
+    if not isinstance(raw, list):
+        return jsonify({"error": "tickers moet een array zijn"}), 400
+
+    activated, skipped, rejected = [], [], []
+    for raw_t in raw:
+        t, err = _validate_ticker(raw_t)
+        if err:
+            rejected.append({"ticker": raw_t, "reason": err})
+            continue
+        if not db.get_stock(t):
+            skipped.append(t)
+            continue
+        db.upsert_stock(t, active=1)
+        db.log_activity("add", t, "ok", {"reason": "bulk-activate", "bulk": True})
+        activated.append(t)
+
+    return jsonify({
+        "activated": activated,
+        "skipped": skipped,
+        "rejected": rejected,
+        "count": len(activated),
+    })
+
+
+@app.route("/api/stocks/remap", methods=["POST"])
+def api_remap_stock():
+    """
+    Body: {"from": "EXOR.AS", "to": "EXO.MI"}.
+    Atomair: deactiveer `from`, voeg `to` toe (of heractiveer), start fetch voor `to`.
+    """
+    data = request.get_json() or {}
+    raw_from = data.get("from") or ""
+    raw_to = data.get("to") or ""
+    src, err1 = _validate_ticker(raw_from)
+    dst, err2 = _validate_ticker(raw_to)
+    if err1 or err2:
+        return jsonify({"error": err1 or err2}), 400
+    if src == dst:
+        return jsonify({"error": "from en to zijn identiek"}), 400
+
+    if not db.get_stock(src):
+        return jsonify({"error": f"{src} niet in watchlist"}), 404
+
+    # Bron deactiveren
+    db.upsert_stock(src, active=0)
+    db.log_activity("remove", src, "ok", {"reason": "remap", "remap_to": dst})
+
+    # Doel toevoegen of heractiveren
+    existing_dst = db.get_stock(dst)
+    if existing_dst:
+        db.upsert_stock(dst, active=1)
+        db.log_activity("add", dst, "ok", {"reason": "remap", "remap_from": src})
+        fetch_started = False
+    else:
+        db.upsert_stock(dst, active=1, added_date=datetime.utcnow().date().isoformat())
+        db.log_activity("add", dst, "ok", {"reason": "remap", "remap_from": src})
+        # Fetch new ticker in background zoals api_add_stock doet
+        cfg = load_config()
+
+        def _fetch_remap():
+            try:
+                warn = fetch_and_store(dst)
+                result = run_ticker(dst, cfg)
+                status = "warning" if warn else "ok"
+                db.log_activity("fetch", dst, status, {
+                    "source": "Yahoo Finance (remap)",
+                    "warnings": warn or [],
+                    "signal": result.get("signal"),
+                })
+            except Exception as e:
+                db.log_activity("fetch", dst, "error", {"error": str(e)})
+
+        threading.Thread(target=_fetch_remap, daemon=True).start()
+        fetch_started = True
+
+    return jsonify({
+        "from": src,
+        "to": dst,
+        "fetch_started": fetch_started,
+    })
 
 
 # ---------------------------------------------------------------------------
