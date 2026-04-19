@@ -227,6 +227,9 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
         "financial_currency": financial_currency,
         "market":            _detect_market(ticker),
         "description":       info.get("longBusinessSummary"),
+        # quoteType laat de screener ETFs/funds/indices etc. vroeg afvangen —
+        # voor die instrumenten werkt de fundamentele FV-pipeline niet.
+        "quote_type":        info.get("quoteType") or info.get("typeDisp"),
     }
 
     # ---- Current market data ------------------------------------------------
@@ -601,6 +604,7 @@ def fetch_and_store(ticker: str) -> list[str]:
             currency=meta.get("currency"),
             financial_currency=meta.get("financial_currency"),
             description=meta.get("description"),
+            quote_type=meta.get("quote_type"),
             active=1,
         )
 

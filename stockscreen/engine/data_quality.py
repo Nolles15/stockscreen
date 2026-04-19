@@ -47,6 +47,21 @@ _MIN_COMPLETENESS_OK      = 80.0   # >= 80% + geen blockers → ok
 _MIN_COMPLETENESS_WARNING = 50.0   # 50-80% → warning
 _STALE_DAYS = 120                  # > 120 dagen zonder verse data → warning
 
+# Instrumenten waarvoor de fundamentele FV-pipeline niet werkt (geen
+# inkomstenstroom / eigen vermogen per aandeel). Deze worden als 'missing'
+# gemarkeerd zodat de screener ze overslaat — alleen common stock is zinvol.
+_NON_EQUITY_QUOTE_TYPES = {"ETF", "MUTUALFUND", "INDEX", "CURRENCY", "CRYPTOCURRENCY", "FUTURE", "OPTION"}
+
+# Structurele winstgevendheid — aanhoudend verlies of negatieve FCF
+# ondermijnt alle cashflow-gebaseerde methodes (Graham, perpetuity, EV/FCF).
+_LOSS_STREAK_YEARS = 3             # >=N aaneengesloten jaren negative net_income → bad
+_NEG_FCF_STREAK_YEARS = 3          # >=N aaneengesloten jaren negative FCF → bad
+
+# Stock-split detectie: EPS YoY ratio > N (of < 1/N) zonder daadwerkelijke
+# winstexplosie duidt vrijwel altijd op een split die Yahoo nog niet heeft
+# doorgevoerd. Normaliseerde input wordt dan onbetrouwbaar.
+_SPLIT_EPS_RATIO = 3.0
+
 
 def evaluate(
     ticker: str,
@@ -74,6 +89,24 @@ def evaluate(
             "consecutive_failures": prev_consecutive_failures + 1,
             "data_status":      "missing",
             "issues":           ["Yahoo Finance gaf geen data terug — ticker lijkt ongeldig of onbereikbaar."],
+            "last_checked":     datetime.utcnow().isoformat(),
+        }
+
+    # 1c. Non-equity instrument (ETF / fund / index / FX) — FV-pipeline werkt
+    # hier niet op, dus direct als 'missing' classificeren. De screener slaat
+    # zulke tickers dan automatisch over ipv SELL-signalen op een ETF te tonen.
+    stk = stock_info or {}
+    quote_type = (stk.get("quote_type") or "").upper()
+    if quote_type in _NON_EQUITY_QUOTE_TYPES:
+        return {
+            "completeness_pct": 0.0,
+            "years_available":  len(annual_rows or []),
+            "latest_fy":        None,
+            "freshness_days":   None,
+            "fetch_success":    1 if fetch_success else 0,
+            "consecutive_failures": 0,
+            "data_status":      "missing",
+            "issues":           [f"Instrument-type '{quote_type}' niet ondersteund door fundamentele screener — deactiveer of filter handmatig."],
             "last_checked":     datetime.utcnow().isoformat(),
         }
 
@@ -132,6 +165,7 @@ def evaluate(
 
     # Negatief/nul eigen vermogen = insolvent of rare boekhouding
     latest_row = recent_rows[0] if recent_rows else None
+    severe_unit_mismatch = False
     if latest_row:
         te = latest_row.get("total_equity")
         if te is not None and te <= 0:
@@ -146,7 +180,6 @@ def evaluate(
         shares = latest_row.get("shares_outstanding")
         price = mkt.get("price")
         mc = mkt.get("market_cap")
-        severe_unit_mismatch = False
         if shares and price and mc and shares > 0 and mc > 0:
             implied_mc = shares * price
             # Voor ADRs met andere financial_currency slaat deze check niet aan
@@ -181,6 +214,65 @@ def evaluate(
                         f"Yahoo EV = {ev/1e6:.0f}M (factor {ev_ratio:.2f}x)."
                     )
 
+    # 3b. Structurele winstgevendheid — streaks van verlies of negatieve FCF
+    # maken de cashflow-methodes onbetrouwbaar ongeacht completeness.
+    loss_streak = 0
+    neg_fcf_streak = 0
+    for row in recent_rows:
+        ni = row.get("net_income")
+        if ni is not None and ni < 0:
+            loss_streak += 1
+        else:
+            break
+    # Tel losjes over alle beschikbare jaren (niet alleen recent_rows=3 voor streak-lengte)
+    full_rows = sorted(
+        [r for r in annual_rows if r.get("fiscal_year")],
+        key=lambda r: r.get("fiscal_year") or 0,
+        reverse=True,
+    )
+    loss_streak_full = 0
+    for row in full_rows:
+        ni = row.get("net_income")
+        if ni is not None and ni < 0:
+            loss_streak_full += 1
+        else:
+            break
+    neg_fcf_streak_full = 0
+    for row in full_rows:
+        fcf = row.get("fcf")
+        if fcf is not None and fcf < 0:
+            neg_fcf_streak_full += 1
+        else:
+            break
+
+    structural_loss = loss_streak_full >= _LOSS_STREAK_YEARS
+    structural_neg_fcf = neg_fcf_streak_full >= _NEG_FCF_STREAK_YEARS
+    if structural_loss:
+        issues.append(
+            f"Structureel verlies: {loss_streak_full} aaneengesloten jaren negative net_income — "
+            f"EPS-gebaseerde FV (Graham, P/E) niet bruikbaar."
+        )
+    if structural_neg_fcf:
+        issues.append(
+            f"Structureel negatieve FCF: {neg_fcf_streak_full} aaneengesloten jaren — "
+            f"perpetuity en EV/FCF niet bruikbaar."
+        )
+
+    # 3c. Stock-split detectie via EPS YoY ratio
+    split_suspected = False
+    for i in range(len(full_rows) - 1):
+        eps_now = full_rows[i].get("eps_diluted")
+        eps_prev = full_rows[i + 1].get("eps_diluted")
+        if eps_now and eps_prev and eps_now > 0 and eps_prev > 0:
+            ratio = eps_now / eps_prev
+            if ratio >= _SPLIT_EPS_RATIO or ratio <= (1.0 / _SPLIT_EPS_RATIO):
+                split_suspected = True
+                issues.append(
+                    f"Verdachte EPS-sprong FY{full_rows[i].get('fiscal_year')}→FY{full_rows[i+1].get('fiscal_year')}: "
+                    f"{eps_prev:.2f} → {eps_now:.2f} (ratio {ratio:.1f}x) — mogelijk stock-split die niet verwerkt is."
+                )
+                break
+
     # 4. Freshness
     freshness_days: int | None = None
     if fetched_date:
@@ -199,6 +291,9 @@ def evaluate(
         or (latest_row and latest_row.get("total_equity") is not None and latest_row["total_equity"] <= 0)
         or (latest_row and latest_row.get("revenue") is not None and latest_row["revenue"] <= 0)
         or severe_unit_mismatch
+        or structural_loss
+        or structural_neg_fcf
+        or split_suspected
     )
     if has_blocker or completeness_pct < _MIN_COMPLETENESS_WARNING:
         status = "bad"

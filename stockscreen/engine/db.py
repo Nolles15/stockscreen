@@ -76,6 +76,9 @@ def init_db() -> None:
             ALTER TABLE stocks ADD COLUMN IF NOT EXISTS financial_currency TEXT
         """)
         cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS quote_type TEXT
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS financials (
                 id                  SERIAL PRIMARY KEY,
                 ticker              TEXT NOT NULL,

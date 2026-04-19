@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
 import uuid
@@ -39,6 +40,26 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "stockscreen-local-dev-only")
 
 CONFIG_PATH = "config.yaml"
+
+# Ticker format-validatie: optionele exchange-suffix na een punt (bv. ASML.AS,
+# BRK-B, ADYEN.AS, BABA). Voorkomt dat malformed tickers als "NASDAQ:ICLR" of
+# "foo bar" in de DB belanden en 50× faal-fetches forceren in de cron.
+_VALID_TICKER_RE = re.compile(r"^[A-Z0-9]{1,6}(-[A-Z0-9]{1,3})?(\.[A-Z]{1,4})?$")
+
+
+def _validate_ticker(raw: str) -> tuple[str | None, str | None]:
+    """Returns (normalized_ticker, error_message). One of the two is None."""
+    if not raw:
+        return None, "ticker is leeg"
+    t = raw.strip().upper()
+    if len(t) > 12:
+        return None, f"ticker te lang ({len(t)} chars, max 12)"
+    if not _VALID_TICKER_RE.match(t):
+        return None, (
+            f"'{t}' voldoet niet aan ticker-format — verwacht: SYMBOOL "
+            f"eventueel met -class en .EXCH suffix (bv. BRK-B, ASML.AS, SAND.ST)."
+        )
+    return t, None
 
 # Tabellen aanmaken bij elke startup (CREATE TABLE IF NOT EXISTS — veilig idempotent)
 db.init_db()
@@ -693,10 +714,14 @@ def api_stocks():
 
 @app.route("/api/stocks", methods=["POST"])
 def api_add_stock():
-    data = request.get_json()
-    ticker = (data.get("ticker") or "").strip().upper()
-    if not ticker:
-        return jsonify({"error": "ticker required"}), 400
+    data = request.get_json() or {}
+    ticker, err = _validate_ticker(data.get("ticker") or "")
+    if err:
+        log.warning("api_add_stock afgewezen: %s", err)
+        return jsonify({"error": err}), 400
+
+    if db.get_stock(ticker):
+        return jsonify({"error": f"{ticker} staat al in de watchlist"}), 409
 
     db.upsert_stock(ticker, active=1, added_date=datetime.utcnow().date().isoformat())
     db.log_activity("add", ticker, "ok", {"source": "manual"})
@@ -728,13 +753,16 @@ def api_add_stock():
 @app.route("/api/stocks/bulk", methods=["POST"])
 def api_add_stocks_bulk():
     """Add multiple tickers at once. Body: {tickers: ["AAPL", "ASML.AS", ...]}"""
-    data = request.get_json()
+    data = request.get_json() or {}
     raw = data.get("tickers") or []
     added = []
     skipped = []
-    for ticker in raw:
-        ticker = ticker.strip().upper()
-        if not ticker:
+    rejected = []
+    for raw_ticker in raw:
+        ticker, err = _validate_ticker(raw_ticker)
+        if err:
+            rejected.append({"ticker": raw_ticker, "reason": err})
+            log.warning("bulk-add afgewezen: %r → %s", raw_ticker, err)
             continue
         if db.get_stock(ticker):
             skipped.append(ticker)
@@ -744,7 +772,7 @@ def api_add_stocks_bulk():
             added.append(ticker)
 
     if not added:
-        return jsonify({"added": [], "skipped": skipped, "job_id": None})
+        return jsonify({"added": [], "skipped": skipped, "rejected": rejected, "job_id": None})
 
     cfg = load_config()
     jid = _new_job()
@@ -780,7 +808,7 @@ def api_add_stocks_bulk():
         _update_job(jid, status="done", progress=100, current=f"{len(added)} tickers toegevoegd")
 
     threading.Thread(target=_fetch_all, daemon=True).start()
-    return jsonify({"added": added, "skipped": skipped, "job_id": jid}), 201
+    return jsonify({"added": added, "skipped": skipped, "rejected": rejected, "job_id": jid}), 201
 
 
 @app.route("/api/stocks/<ticker>", methods=["DELETE"])
