@@ -610,8 +610,13 @@ def api_cron_next_batch():
     if not all_tickers:
         return jsonify({"tickers": [], "total": 0})
 
+    # Sorteer op laatste POGING, niet op laatste geslaagde fetch. Tickers waar
+    # Yahoo niets voor teruggeeft krijgen namelijk nooit een financials-rij; op
+    # fetched_date sorteren zette die permanent vooraan, waardoor ze elke nacht
+    # de hele batch opslokten en echte tickers nooit meer aan de beurt kwamen.
+    attempts = db.get_last_attempt_dates()
     fetched = db.get_latest_fetched_dates()
-    ordered = sorted(all_tickers, key=lambda t: fetched.get(t) or "0000-00-00")
+    ordered = sorted(all_tickers, key=lambda t: attempts.get(t) or "0000-00-00")
     batch = ordered[:limit]
 
     return jsonify({
@@ -619,6 +624,7 @@ def api_cron_next_batch():
         "count": len(batch),
         "total": len(all_tickers),
         "oldest_date": fetched.get(batch[0]) or "never",
+        "oldest_attempt": attempts.get(batch[0]) or "never",
     })
 
 

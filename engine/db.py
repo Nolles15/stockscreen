@@ -436,6 +436,23 @@ def get_latest_fetched_dates() -> dict[str, str]:
     return {r["ticker"]: r["fd"] for r in rows if r["fd"]}
 
 
+def get_last_attempt_dates() -> dict[str, str]:
+    """
+    Return {ticker: last_checked} — het moment van de laatste fetch-POGING.
+
+    Anders dan get_latest_fetched_dates() (dat alleen tickers kent die ook
+    daadwerkelijk jaarcijfers opleverden) wordt last_checked bij elke poging
+    geschreven, ook als Yahoo niets teruggaf. Dat maakt het de juiste sleutel
+    om een refresh-rotatie op te ordenen: een ticker die structureel niets
+    oplevert zakt na zijn beurt naar achteren in plaats van elke nacht opnieuw
+    vooraan te staan.
+    """
+    with _cursor() as cur:
+        cur.execute("SELECT ticker, last_checked FROM data_quality")
+        rows = cur.fetchall()
+    return {r["ticker"]: r["last_checked"] for r in rows if r["last_checked"]}
+
+
 def get_dashboard_data() -> list[dict]:
     """
     Fetch all active stocks with their market data, calculated scores, 
