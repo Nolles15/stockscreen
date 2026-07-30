@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+.env.*
+
+# Lokale database (productie draait op Neon PostgreSQL)
+data/
+
+# Windows launchers (lokaal)
+*.bat
+*.vbs
+
+# Lokale werkbestanden van scripts
+scripts/_*.json
+scripts/*.txt
+scripts/*.sh
+*.log
+
+# Editor
+.vscode/
+*.swp

@@ -1,0 +1,13 @@
+# Houd de build-context klein: venv (honderden MB) hoort niet in het image —
+# dependencies worden in de Dockerfile uit requirements.txt geinstalleerd.
+venv/
+__pycache__/
+*.py[cod]
+.git/
+.github/
+data/
+docs/
+scripts/
+*.bat
+*.vbs
+*.log
