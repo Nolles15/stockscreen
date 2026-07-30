@@ -185,6 +185,8 @@ def init_db() -> None:
             ("fv_confidence",   "TEXT"),
             ("fv_spread_pct",   "REAL"),
             ("fv_methods_used", "INTEGER"),
+            ("fv_methods_dropped", "TEXT"),   # JSON: redenen per weggevallen methode
+            ("revenue_cagr",    "REAL"),      # 3-jaars omzet-CAGR (voor groei-markering)
         ):
             cur.execute(f"ALTER TABLE calculated_scores ADD COLUMN IF NOT EXISTS {col} {typ}")
         # Migratie: native-only — rename oude *_eur kolommen zodat historische
@@ -449,6 +451,7 @@ def get_dashboard_data() -> list[dict]:
             c.multiples_fv, c.graham_fv, c.perpetuity_fv, c.combined_fv,
             c.conservative_fv, c.base_fv, c.optimistic_fv,
             c.fv_confidence, c.fv_spread_pct, c.fv_methods_used,
+            c.fv_methods_dropped, c.revenue_cagr,
             c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
             fy.latest_fy,
             dq.completeness_pct, dq.years_available, dq.freshness_days,
@@ -473,7 +476,7 @@ def get_dashboard_data() -> list[dict]:
     results = []
     for row in rows:
         r = dict(row)
-        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative", "data_issues"):
+        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative", "data_issues", "fv_methods_dropped"):
             if r.get(key):
                 try:
                     r[key] = json.loads(r[key])

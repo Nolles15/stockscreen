@@ -44,6 +44,10 @@
     <option value="">Alle signalen</option>
     <option>STRONG BUY</option><option>BUY</option>
     <option>HOLD</option><option>SELL</option>
+    <option value="reason:geen_data">— Geen data</option>
+    <option value="reason:databug">— Databug</option>
+    <option value="reason:geen_fv">— Geen FV (verlies)</option>
+    <option value="reason:growth">— 🌱 Kansen (verlies + groei)</option>
   </select>
 
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
@@ -219,7 +223,15 @@ function renderTable() {
   let rows = _allRows.filter(r => {
     if (mktFilter && r.market !== mktFilter) return false;
     if (secFilter && r.sector !== secFilter) return false;
-    if (sigFilter && r.signal !== sigFilter) return false;
+    if (sigFilter) {
+      if (sigFilter === 'reason:growth') {
+        if (!r.is_growth_lossmaker) return false;
+      } else if (sigFilter.startsWith('reason:')) {
+        if (r.reason_code !== sigFilter.slice(7)) return false;
+      } else if (r.signal !== sigFilter) {
+        return false;
+      }
+    }
     if (hideNoData && r.signal === 'INSUFFICIENT DATA') return false;
     if (badDataOnly && r.data_status !== 'bad' && r.data_status !== 'missing') return false;
     if (!showAll && r.low_quality) return false;
@@ -303,11 +315,44 @@ const SECTOR_DESCRIPTIONS = {
   'Communication Services': 'Telecom, media en internetplatforms.',
 };
 
+function reasonTooltip(r) {
+  // Heldere uitleg WAAROM er geen signaal is, per reden-bucket.
+  const code = r.reason_code;
+  const cagrTxt = r.revenue_cagr != null
+    ? `\nOmzet ${r.revenue_cagr >= 0 ? '+' : ''}${(r.revenue_cagr * 100).toFixed(0)}%/jr (3-jaars).`
+    : '';
+  if (code === 'geen_data') {
+    const issues = (r.data_issues || []).slice(0, 4).map(x => '• ' + x).join('\n');
+    return 'GEEN DATA — de bron leverde geen bruikbare cijfers.\n'
+      + 'Dit is een databron-probleem, geen oordeel over het bedrijf.'
+      + (issues ? '\n\n' + issues : '');
+  }
+  if (code === 'databug') {
+    const issues = (r.warnings || []).slice(0, 4).map(x => '• ' + x).join('\n');
+    return 'DATABUG — de cijfers kloppen niet qua schaal/eenheid (bv. FV wijkt 10×+ van de koers, '
+      + 'verkeerde currency of dual-listing).\nMoet gefixt worden — nog geen betrouwbaar signaal.'
+      + (issues ? '\n\n' + issues : '');
+  }
+  if (code === 'geen_fv') {
+    const dropped = (r.fv_methods_dropped || []).slice(0, 4).map(x => '• ' + x).join('\n');
+    const growth = r.is_growth_lossmaker
+      ? `\n\n🌱 Let op: sterke omzetgroei (${(r.revenue_cagr * 100).toFixed(0)}%/jr) — verlieslatend maar groeiend; mogelijke kans.`
+      : cagrTxt;
+    return 'GEEN FV (VERLIES) — de data is er wél, maar het bedrijf draait verlies; '
+      + 'daardoor vallen de waarderingsmethodes weg en is er < 2 over voor een betrouwbare fair value.\n'
+      + 'Dit zegt niets over de kwaliteit van het bedrijf.'
+      + (dropped ? '\n\nWeggevallen methodes:\n' + dropped : '')
+      + growth;
+  }
+  return 'Onvoldoende data voor signaalberekening.';
+}
+
 function signalTooltip(r) {
   const q   = r.quality_score;
   const mos = r.margin_of_safety;
   const sig = r.signal;
 
+  if (r.reason_code) return reasonTooltip(r);
   if (!sig || sig === 'N/A' || sig === 'INSUFFICIENT DATA' || sig === 'ERROR')
     return 'Onvoldoende data voor signaalberekening.';
 
@@ -369,7 +414,15 @@ function rowHtml(r) {
   const mosClass = mos > 25 ? 'text-green-700 font-semibold' :
                    mos > 0  ? 'text-green-600' :
                    mos < -15 ? 'text-red-700' : 'text-slate-500';
-  const sigClass = 'signal-' + (r.signal || 'N/A').replace(/ /g, '\\ ');
+  // Reden-label vervangt het generieke "INSUFFICIENT DATA": eigen kleur per reden.
+  const hasReason = !!r.reason_code;
+  const sigText  = hasReason ? r.reason_label : (r.signal || 'N/A');
+  const sigClass = hasReason
+    ? ('signal-reason-' + r.reason_code)
+    : ('signal-' + (r.signal || 'N/A').replace(/ /g, '\\ '));
+  const growthMark = r.is_growth_lossmaker
+    ? ` <span class="cursor-help" title="Verlieslatend maar sterke omzetgroei (+${((r.revenue_cagr||0)*100).toFixed(0)}%/jr) — mogelijke kans">🌱</span>`
+    : '';
 
   const warn = (r.warnings || []).length > 0
     ? `<span title="${(r.warnings||[]).map(w=>w.replace(/"/g,"'")).join('&#10;')}" class="ml-1 text-yellow-400 cursor-help">⚠</span>`
@@ -432,7 +485,7 @@ function rowHtml(r) {
       ${r.piotroski_score !== null && r.piotroski_score !== undefined ? r.piotroski_score + '/9' : '—'}
     </td>
     <td class="px-3 py-2.5 text-center">
-      <span class="px-2 py-0.5 rounded text-xs font-bold ${sigClass}" title="${signalTooltip(r).replace(/"/g,"'")}">${r.signal||'N/A'}</span>
+      <span class="px-2 py-0.5 rounded text-xs font-bold ${sigClass}" title="${signalTooltip(r).replace(/"/g,"'")}">${sigText}</span>${growthMark}
     </td>
     <td class="px-3 py-2.5 text-slate-400 text-xs" title="${SECTOR_DESCRIPTIONS[r.sector] || ''}">${r.sector||'—'}</td>
     <td class="px-3 py-2.5 text-center text-xs text-slate-400">${r.market||'—'}</td>

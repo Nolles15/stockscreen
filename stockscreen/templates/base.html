@@ -116,6 +116,21 @@
       padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
     }
 
+    /* reden-labels: waarom geen signaal (Plan 2) — 3 onderscheidende kleuren
+       i.p.v. één generiek-rood INSUFFICIENT DATA */
+    .signal-reason-geen_data {            /* grijs — data ontbreekt/onbruikbaar */
+      background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
+    }
+    .signal-reason-databug {              /* paars — schaal/eenheid-bug */
+      background: #F5F3FF; color: #6D28D9; border: 1px solid #DDD6FE;
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
+    }
+    .signal-reason-geen_fv {              /* oranje — verlieslatend, geen FV */
+      background: #FFF7ED; color: #C2410C; border: 1px solid #FED7AA;
+      padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 11px;
+    }
+
     /* sort indicators */
     .sort-asc::after  { content: ' ↑'; color: var(--text-1); }
     .sort-desc::after { content: ' ↓'; color: var(--text-1); }
@@ -210,10 +225,8 @@
         </div>
       </a>
 
-      <!-- Tool-tabs (links naar de drie tools) -->
+      <!-- Tool-tabs -->
       <div class="nav-tabs">
-        <a class="nav-tab" href="https://nolles15.github.io/fundamenteleanalyses/" target="_blank" rel="noopener">Analyses</a>
-        <a class="nav-tab" href="https://nolles15.github.io/fundamenteleanalyses/portefeuille.html" target="_blank" rel="noopener">Portefeuille</a>
         <a class="nav-tab active" href="/">Screener</a>
       </div>
 

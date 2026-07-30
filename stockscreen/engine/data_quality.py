@@ -57,10 +57,27 @@ _NON_EQUITY_QUOTE_TYPES = {"ETF", "MUTUALFUND", "INDEX", "CURRENCY", "CRYPTOCURR
 _LOSS_STREAK_YEARS = 3             # >=N aaneengesloten jaren negative net_income → bad
 _NEG_FCF_STREAK_YEARS = 3          # >=N aaneengesloten jaren negative FCF → bad
 
-# Stock-split detectie: EPS YoY ratio > N (of < 1/N) zonder daadwerkelijke
-# winstexplosie duidt vrijwel altijd op een split die Yahoo nog niet heeft
-# doorgevoerd. Normaliseerde input wordt dan onbetrouwbaar.
+# Stock-split detectie: een niet-verwerkte split deelt EPS mechanisch door een
+# heel split-getal (2:1, 3:1, 10:1, ...). De oude check (elke YoY-ratio ≥3×)
+# vuurde echter massaal vals op kleine EPS-bases, herstel-uit-verlies en
+# cyclische winstswings (zie docs/DIAGNOSE_INSUFFICIENT_DATA.md). Daarom nu:
+#   1. absolute EPS-floor — negeer ratio's waarbij de kleinste EPS minuscuul is
+#   2. clean-factor — alleen flaggen als de ratio dicht bij een écht split-getal ligt
+# Bovendien is split_suspected géén harde blocker meer (alleen een waarschuwing);
+# de downstream FV-plausibiliteitsgate in screener.py vangt absurde FV's alsnog.
 _SPLIT_EPS_RATIO = 3.0
+_SPLIT_EPS_MIN_ABS = 0.30          # kleinste EPS in het paar moet ≥ dit (native ccy)
+_SPLIT_CLEAN_FACTORS = (2.0, 3.0, 4.0, 5.0, 10.0)
+_SPLIT_FACTOR_TOL = 0.06           # ratio moet binnen 6% van een split-getal liggen
+
+
+def _clean_split_factor(ratio: float) -> float | None:
+    """Geef het split-getal terug als `ratio` (of 1/ratio) er dicht bij ligt, anders None."""
+    for f in _SPLIT_CLEAN_FACTORS:
+        for cand in (f, 1.0 / f):
+            if abs(ratio - cand) / cand <= _SPLIT_FACTOR_TOL:
+                return f
+    return None
 
 
 def evaluate(
@@ -258,18 +275,26 @@ def evaluate(
             f"perpetuity en EV/FCF niet bruikbaar."
         )
 
-    # 3c. Stock-split detectie via EPS YoY ratio
+    # 3c. Stock-split detectie via EPS YoY ratio (alleen waarschuwing, geen blocker)
     split_suspected = False
     for i in range(len(full_rows) - 1):
         eps_now = full_rows[i].get("eps_diluted")
         eps_prev = full_rows[i + 1].get("eps_diluted")
         if eps_now and eps_prev and eps_now > 0 and eps_prev > 0:
             ratio = eps_now / eps_prev
-            if ratio >= _SPLIT_EPS_RATIO or ratio <= (1.0 / _SPLIT_EPS_RATIO):
+            # Filter 1: kleinste EPS moet boven de floor — kleine bases blazen
+            # de ratio kunstmatig op (bv. 0.05 → 0.22 = 4.4x is gewoon groei).
+            if min(eps_now, eps_prev) < _SPLIT_EPS_MIN_ABS:
+                continue
+            # Filter 2: ratio moet dicht bij een écht split-getal liggen. Cyclische
+            # of herstel-swings (5.9x, 13x, 7.7x) zijn geen mechanische splits.
+            factor = _clean_split_factor(ratio)
+            if factor is not None:
                 split_suspected = True
                 issues.append(
                     f"Verdachte EPS-sprong FY{full_rows[i].get('fiscal_year')}→FY{full_rows[i+1].get('fiscal_year')}: "
-                    f"{eps_prev:.2f} → {eps_now:.2f} (ratio {ratio:.1f}x) — mogelijk stock-split die niet verwerkt is."
+                    f"{eps_prev:.2f} → {eps_now:.2f} (ratio {ratio:.1f}x ≈ {factor:.0f}:1) — mogelijk niet-verwerkte split; "
+                    f"controleer normalisatie (waarschuwing, niet blokkerend)."
                 )
                 break
 
@@ -285,15 +310,32 @@ def evaluate(
             pass
 
     # 5. Afgeleide status
+    #
+    # Harde blockers = data is écht onbruikbaar (geen jaren, geen koers, omzet ≤0,
+    # schaal-bug). De zachte heuristieken (structureel verlies/FCF, split, negatief
+    # eigen vermogen) zijn GÉÉN harde blocker meer: ze laten vaak nog bruikbare
+    # multiples-methodes (P/B, EV/EBITDA) toe. De screener heeft een downstream
+    # vangnet (FV-plausibiliteitsgate + min. 2 valide methodes) dat de echt
+    # onwaardeerbare gevallen alsnog op INSUFFICIENT DATA zet. Zie
+    # docs/DIAGNOSE_INSUFFICIENT_DATA.md (Route A).
+    #
+    # Negatief eigen vermogen blokkeert alleen bij een verlieslatend bedrijf:
+    # winstgevende bedrijven met negatief EV door aandeleninkoop (bv. HP, Edenred)
+    # zijn gewoon waardeerbaar op EPS/EV-multiples.
+    ni_latest = latest_row.get("net_income") if latest_row else None
+    profitable = ni_latest is not None and ni_latest > 0
+    insolvent_equity = (
+        latest_row is not None
+        and latest_row.get("total_equity") is not None
+        and latest_row["total_equity"] <= 0
+        and not profitable
+    )
     has_blocker = (
         years_available == 0
         or not mkt.get("price")
-        or (latest_row and latest_row.get("total_equity") is not None and latest_row["total_equity"] <= 0)
+        or insolvent_equity
         or (latest_row and latest_row.get("revenue") is not None and latest_row["revenue"] <= 0)
         or severe_unit_mismatch
-        or structural_loss
-        or structural_neg_fcf
-        or split_suspected
     )
     if has_blocker or completeness_pct < _MIN_COMPLETENESS_WARNING:
         status = "bad"
@@ -322,4 +364,161 @@ def evaluate(
         "data_status":      status,
         "issues":           issues,
         "last_checked":     datetime.utcnow().isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Diagnostiek — issue-strings classificeren in één primaire blocker-categorie.
+#
+# Read-only hulpmiddel voor /api/gaps-report en scripts/gaps_analyze.py. Raakt
+# de drempels of de gate in evaluate() NIET aan; het categoriseert alleen de al
+# opgeslagen `issues`-strings zodat 500 tickers in ~10 telbare buckets vallen.
+#
+# De fingerprints hieronder zijn substrings van de teksten die evaluate() zelf
+# genereert (zie hierboven) — blijven dus in sync zolang die teksten kloppen.
+# ---------------------------------------------------------------------------
+
+# Blokkerende categorieën, op volgorde van "harde, echte datafout" → "zachte
+# heuristiek". De primaire blocker is de eerste match in deze volgorde, zodat de
+# heuristiek-buckets (split / structureel) precies de tickers bevatten waarvan
+# dát het énige obstakel is — de zuiverste rescue-kandidaten.
+_BLOCKER_FINGERPRINTS: tuple[tuple[str, str], ...] = (
+    ("non_equity",           "niet ondersteund door fundamentele screener"),
+    ("no_data",              "gaf geen data terug"),
+    ("no_years",             "Geen jaarcijfers gevonden"),
+    ("no_price",             "Geen koers beschikbaar"),
+    ("negative_equity",      "Eigen vermogen"),
+    ("negative_revenue",     "Omzet FY"),
+    ("unit_mismatch_severe", "Market cap SEVERE mismatch"),
+    ("structural_neg_fcf",   "Structureel negatieve FCF"),
+    ("structural_loss",      "Structureel verlies"),
+    ("split_suspected",      "Verdachte EPS-sprong"),
+)
+
+# Niet-blokkerende signalen — wel diagnostisch nuttig, maar leiden op zichzelf
+# niet tot status 'bad'. Bv. ADR/dual-currency wijst op een notatie/databron-fix.
+_INFO_FINGERPRINTS: tuple[tuple[str, str], ...] = (
+    ("ev_inconsistent",      "EV inconsistent"),
+    ("unit_mismatch_light",  "Market cap inconsistent"),
+    ("adr_dual_currency",    "ADR/dual-currency"),
+    ("no_market_cap",        "Market cap ontbreekt"),
+    ("few_years",            "jaar historie"),
+    ("stale",                "dagen oud"),
+    ("fetch_failed",         "Laatste fetch faalde"),
+)
+
+
+def classify_blockers(issues: list[str] | None, data_status: str | None) -> dict:
+    """
+    Leid uit de opgeslagen `issues` + `data_status` één primaire blocker-categorie
+    af, plus alle matchende blocker/info-categorieën en de bewijstekst.
+
+    Pure functie — geen DB, geen drempels. Return:
+      {
+        "primary_blocker": str,        # bv. "split_suspected", "ok", "low_completeness"
+        "blockers":  [str, ...],       # alle blokkerende categorieën die matchen
+        "info_flags": [str, ...],      # niet-blokkerende signalen
+        "evidence":  str | None,       # issue-tekst die de primaire blocker triggerde
+      }
+    """
+    issues = issues or []
+
+    matched: list[tuple[str, str]] = []   # (categorie, bewijstekst) in prioriteitsvolgorde
+    for cat, fp in _BLOCKER_FINGERPRINTS:
+        hit = next((s for s in issues if fp in s), None)
+        if hit:
+            matched.append((cat, hit))
+    info = [cat for cat, fp in _INFO_FINGERPRINTS if any(fp in s for s in issues)]
+
+    # Alleen tickers die écht geblokkeerd zijn (bad/missing) krijgen een blocker-
+    # bucket. Een 'ok'/'warning'-ticker kan na Route A nog wel een (niet-
+    # blokkerende) heuristiek-waarschuwing dragen — die hoort bij info_flags, niet
+    # bij blockers, zodat geredde tickers niet in een blocker-bucket blijven hangen.
+    is_blocked = data_status in ("bad", "missing")
+
+    if is_blocked and matched:
+        blockers = [c for c, _ in matched]
+        primary, evidence = matched[0]
+    elif is_blocked:
+        # 'bad'/'missing' zonder herkenbare blocker-issue = completeness < 50%.
+        blockers, primary, evidence = [], "low_completeness", None
+    else:
+        # Niet geblokkeerd: matched-categorieën zijn niet-blokkerende waarschuwingen.
+        blockers = []
+        info = [c for c, _ in matched] + info
+        primary, evidence = (data_status or "unknown"), None
+
+    return {
+        "primary_blocker": primary,
+        "blockers": blockers,
+        "info_flags": info,
+        "evidence": evidence,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Reden-categorisatie voor het dashboard — vertaalt het ene "INSUFFICIENT DATA"
+# label naar drie heldere buckets zodat zichtbaar is WAAROM er geen signaal is.
+# Pure functie; geen gate-/drempelwijziging.
+#
+#   geen_data  — bron leverde niets / niet-equity / geen koers / te leeg → Route B (databron)
+#   databug    — schaal/eenheid/dual-listing-mismatch of FV 10x+ van koers → fixen
+#   geen_fv    — data compleet & solvabel maar verlieslatend → <2 methodes; of insolvent
+# ---------------------------------------------------------------------------
+
+_REASON_LABELS = {
+    "geen_data": "GEEN DATA",
+    "databug":   "DATABUG",
+    "geen_fv":   "GEEN FV (VERLIES)",
+}
+_REASON_COLORS = {
+    "geen_data": "slate",
+    "databug":   "purple",
+    "geen_fv":   "amber",
+}
+
+# primary_blocker (uit classify_blockers) → reden-bucket
+_BLOCKER_TO_REASON = {
+    "no_data":              "geen_data",
+    "non_equity":           "geen_data",
+    "no_years":             "geen_data",
+    "no_price":             "geen_data",
+    "low_completeness":     "geen_data",
+    "unit_mismatch_severe": "databug",
+    "negative_revenue":     "databug",
+    "negative_equity":      "geen_fv",   # insolvent = verlies-gedreven
+}
+
+
+def classify_signal_reason(
+    signal: str | None,
+    data_status: str | None,
+    issues: list[str] | None,
+    fv_ratio_oob: bool = False,
+    fv_methods_used: int | None = None,
+) -> dict:
+    """
+    Bepaal WAAROM een ticker geen bruikbaar signaal heeft. Voor normale signalen
+    (BUY/HOLD/SELL/…) is reason_code None. Pure functie.
+
+    Return: {"reason_code": str|None, "reason_label": str|None, "reason_color": str|None}
+    """
+    none = {"reason_code": None, "reason_label": None, "reason_color": None}
+    if signal != "INSUFFICIENT DATA":
+        return none
+
+    if fv_ratio_oob:
+        code = "databug"
+    elif data_status in ("bad", "missing"):
+        primary = classify_blockers(issues, data_status)["primary_blocker"]
+        code = _BLOCKER_TO_REASON.get(primary, "geen_data")
+    else:
+        # Data passeert de gate, maar het screener-vangnet sloeg toe (<2 valide
+        # methodes door verlies). Data is er; het bedrijf is (nog) niet te waarderen.
+        code = "geen_fv"
+
+    return {
+        "reason_code":  code,
+        "reason_label": _REASON_LABELS[code],
+        "reason_color": _REASON_COLORS[code],
     }

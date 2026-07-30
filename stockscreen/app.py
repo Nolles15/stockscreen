@@ -19,6 +19,7 @@ import yaml
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
+from engine import data_quality
 from engine import remap_rules
 from engine.data_fetcher import (
     fetch_and_store,
@@ -236,6 +237,21 @@ def api_dashboard():
         mos_val = None if is_insufficient else _margin_of_safety(price, fv)
         pvf_val = None if is_insufficient else _price_vs_fv(price, fv)
 
+        # Reden WAAROM er geen signaal is: 3 heldere buckets i.p.v. één rood label.
+        reason = data_quality.classify_signal_reason(
+            signal, r.get("data_status"), r.get("data_issues") or [],
+            fv_ratio_oob, r.get("fv_methods_used"),
+        )
+        # Verlieslatend-maar-groeiend markeren zodat kansen opvallen i.p.v. wegvallen.
+        # data_status ok/warning sluit insolvente (negatief EV) gevallen uit.
+        rev_cagr = r.get("revenue_cagr")
+        growth_thr = cfg.get("screening", {}).get("growth_lossmaker_cagr", 0.15)
+        is_growth_lossmaker = (
+            reason["reason_code"] == "geen_fv"
+            and r.get("data_status") not in ("bad", "missing")
+            and rev_cagr is not None and rev_cagr >= growth_thr
+        )
+
         rows.append({
             "ticker":               t,
             "name":                 r.get("name") or t,
@@ -275,6 +291,13 @@ def api_dashboard():
             # FV-diagnose (Fase 1): ratio buiten [0.1, 10] = schaal-bug signaal
             "fv_price_ratio":       round(fv_price_ratio, 3) if fv_price_ratio is not None else None,
             "fv_ratio_oob":         fv_ratio_oob,
+            # Reden-weergave (Plan 2): waarom geen signaal + groei-markering
+            "reason_code":          reason["reason_code"],
+            "reason_label":         reason["reason_label"],
+            "reason_color":         reason["reason_color"],
+            "fv_methods_dropped":   r.get("fv_methods_dropped") or [],
+            "revenue_cagr":         rev_cagr,
+            "is_growth_lossmaker":  is_growth_lossmaker,
         })
 
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
@@ -1225,6 +1248,129 @@ def api_data_quality():
     order = {"missing": 0, "bad": 1, "warning": 2, "ok": 3, None: 4}
     out.sort(key=lambda r: (order.get(r.get("data_status"), 4), -(r.get("consecutive_failures") or 0)))
     return jsonify(out)
+
+
+@app.route("/api/gaps-report")
+def api_gaps_report():
+    """
+    Diagnose-endpoint: categoriseert elke ticker in één primaire blocker-bucket.
+
+    Read-only. Joint de opgeslagen data_quality-issues met markt/currency/sector
+    uit `stocks`, zodat de hele universe in ~10 telbare buckets valt zonder
+    per-ticker Yahoo-bevraging. Input voor scripts/gaps_analyze.py (Fase 0) en
+    voor de uiteindelijke remediation-routing (gate-kalibratie vs databron-fix).
+
+    Wijzigt niets aan de kwaliteits-gate; gebruikt data_quality.classify_blockers().
+    """
+    dq_map = db.get_all_data_quality()
+    stocks = db.get_all_stocks()
+    out = []
+    for s in stocks:
+        t = s["ticker"]
+        dq = dq_map.get(t, {})
+        issues = dq.get("issues") or []
+        cls = data_quality.classify_blockers(issues, dq.get("data_status"))
+        out.append({
+            "ticker":               t,
+            "name":                 s.get("name"),
+            "markt":                s.get("markt"),
+            "currency":             s.get("currency"),
+            "sector":               s.get("sector"),
+            "active":               s.get("active"),
+            "data_status":          dq.get("data_status"),
+            "completeness_pct":     dq.get("completeness_pct"),
+            "years_available":      dq.get("years_available"),
+            "consecutive_failures": dq.get("consecutive_failures") or 0,
+            "fetch_success":        dq.get("fetch_success"),
+            "primary_blocker":      cls["primary_blocker"],
+            "blockers":             cls["blockers"],
+            "info_flags":           cls["info_flags"],
+            "evidence":             cls["evidence"],
+            "issue_count":          len(issues),
+        })
+    # Slechtste eerst: bad/missing bovenaan, daarna op aantal fails
+    order = {"missing": 0, "bad": 1, "warning": 2, "ok": 3, None: 4}
+    out.sort(key=lambda r: (order.get(r.get("data_status"), 4), -(r.get("consecutive_failures") or 0)))
+    return jsonify(out)
+
+
+@app.route("/api/data-quality/recompute", methods=["POST"])
+def api_data_quality_recompute():
+    """
+    Her-evalueer data_quality voor alle (of opgegeven) tickers vanuit de REEDS
+    opgeslagen financials/market — geen netwerkcall naar Yahoo.
+
+    Gebruikt om een gewijzigde gate (zie data_quality.evaluate / Route A) direct
+    op de bestaande data toe te passen i.p.v. te wachten op de nachtelijke cron.
+    Fetch-tracking velden (consecutive_failures, fetch_success, freshness_days)
+    blijven behouden — een recompute is geen echte fetch.
+
+    Body: {"dry_run": true, "tickers": [...]}  (dry_run default True)
+    Geeft de before/after status-verdeling + transitie-matrix terug.
+    """
+    data = request.get_json(silent=True) or {}
+    dry_run = bool(data.get("dry_run", True))
+    only = data.get("tickers")
+
+    prev_map = db.get_all_data_quality()
+    stocks = db.get_all_stocks()
+    if only:
+        want = {t.upper() for t in only}
+        stocks = [s for s in stocks if s["ticker"] in want]
+
+    before_counts: dict = {}
+    after_counts: dict = {}
+    transitions: dict = {}
+    rescued: list[dict] = []
+    newly_blocked: list[str] = []
+
+    for s in stocks:
+        t = s["ticker"]
+        prev = prev_map.get(t, {})
+        annual = db.get_financials(t, "annual")
+        market = db.get_market_data(t)
+        fetch_succeeded = bool(annual) or bool((market or {}).get("price"))
+
+        dq = data_quality.evaluate(
+            t, annual, market, s,
+            fetch_success=fetch_succeeded,
+            prev_consecutive_failures=prev.get("consecutive_failures") or 0,
+            fetched_date=None,
+        )
+        # Een recompute is geen fetch → tracking-velden niet vervalsen.
+        dq["consecutive_failures"] = prev.get("consecutive_failures") or 0
+        if prev.get("fetch_success") is not None:
+            dq["fetch_success"] = prev.get("fetch_success")
+        if prev.get("freshness_days") is not None:
+            dq["freshness_days"] = prev.get("freshness_days")
+
+        before = prev.get("data_status")
+        after = dq["data_status"]
+        before_counts[before] = before_counts.get(before, 0) + 1
+        after_counts[after] = after_counts.get(after, 0) + 1
+        key = f"{before} -> {after}"
+        transitions[key] = transitions.get(key, 0) + 1
+
+        was_blocked = before in ("bad", "missing")
+        now_blocked = after in ("bad", "missing")
+        if was_blocked and not now_blocked:
+            rescued.append({"ticker": t, "before": before, "after": after})
+        elif not was_blocked and now_blocked and before is not None:
+            newly_blocked.append(t)
+
+        if not dry_run:
+            db.upsert_data_quality(t, **dq)
+
+    return jsonify({
+        "dry_run": dry_run,
+        "evaluated": len(stocks),
+        "before": before_counts,
+        "after": after_counts,
+        "transitions": dict(sorted(transitions.items(), key=lambda kv: -kv[1])),
+        "rescued_count": len(rescued),
+        "rescued": rescued,
+        "newly_blocked": newly_blocked,
+    })
 
 
 @app.route("/api/data-quality/cleanup", methods=["POST"])

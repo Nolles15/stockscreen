@@ -251,6 +251,7 @@ def run_ticker(ticker: str, config: dict) -> dict:
             ticker,
             signal="INSUFFICIENT DATA",
             warnings=warnings,
+            revenue_cagr=rev_cagr,
             last_calculated=datetime.utcnow().isoformat(),
         )
         return {
@@ -407,6 +408,7 @@ def run_ticker(ticker: str, config: dict) -> dict:
         # Debug/diagnose (Fase 1 — plausibiliteitsgate)
         "fv_price_ratio":  round(combined_fv / price, 3) if (combined_fv and price) else None,
         "fv_methods_dropped": fv_result.get("fv_methods_dropped") or [],
+        "revenue_cagr":    rev_cagr,
         # Extra indicators
         "hist_relative":   hist_relative,
         "accruals_ratio":  accruals_ratio,
@@ -437,6 +439,8 @@ def run_ticker(ticker: str, config: dict) -> dict:
         fv_confidence=result["fv_confidence"],
         fv_spread_pct=result["fv_spread_pct"],
         fv_methods_used=result["fv_methods_used"],
+        fv_methods_dropped=result["fv_methods_dropped"],
+        revenue_cagr=rev_cagr,
         signal=result["signal"],
         margin_of_safety=result.get("margin_of_safety"),
         warnings=warnings,

@@ -7,6 +7,7 @@ app:
 screening:
   min_quality_score: 7
   required_years: 3
+  growth_lossmaker_cagr: 0.15   # >= deze 3-jaars omzet-CAGR markeert een verlieslatende groeier (🌱) op het dashboard
 signals:
   strong_buy_pct: 60
   buy_pct: 75
