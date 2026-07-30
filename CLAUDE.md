@@ -63,6 +63,15 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 
 ## Huidige plan / status
 
+**Lopend traject: "Stockscreen 2.0"** — plan in `~/.claude/plans/lovely-enchanting-mitten.md` (6 fases, geschreven om zonder extra context uitvoerbaar te zijn). **Lees dat plan voordat je aan dit project werkt.** Fase 0 is afgerond op 2026-07-30, fase 1 (refresh-motor v2) is de volgende stap.
+
+**Fase 0 afgerond (2026-07-30):**
+- Repo-structuur omgezet: de app staat nu in de **repo-root** (was een submap van een repo die de hele home-directory omvatte). De home-repo is verwijderd. `CLAUDE.md`, `README.md`, `docs/` en enkele scripts stonden niet onder versiebeheer en zijn toegevoegd. `.dockerignore` toegevoegd (venv niet meer in build-context; image 361MB).
+- **Waarom de refresh 6 weken stil lag:** GitHub schakelde de scheduled workflow uit met `disabled_inactivity` — dat gebeurt automatisch na 60 dagen zonder push naar de repo. Weer aangezet met `gh workflow enable`. **Elke fase eindigt daarom met een push**; dat is functioneel, niet cosmetisch.
+- 115 auto-suspended tickers geheractiveerd via `POST /api/stocks/unsuspend/<T>` (zet active=1, wist de suspend-markering én reset `consecutive_failures` — gebruik dit, niet `bulk-activate`, die de teller laat staan). Dashboard: 798 → 912 actief.
+
+**Open na fase 0:** DATABASE_URL-rotatie (Janco doet dit zelf in de Neon-console; daarna `fly secrets set`).
+
 **Refactor afgerond (2026-04-18)**: async batch-endpoint is vervangen door per-ticker endpoints + workflow die zelf de loop doet. Betrouwbaar omdat elke HTTP-call <100s is en geen in-memory state vereist.
 
 **INSUFFICIENT-DATA aanpak afgerond (2026-06)** — zie [docs/DIAGNOSE_INSUFFICIENT_DATA.md](docs/DIAGNOSE_INSUFFICIENT_DATA.md):
@@ -70,10 +79,9 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **Route A (gate-herkalibratie)**: split-detectie verscherpt (abs EPS-floor + clean-factor), structureel verlies/FCF + buyback-equity niet langer blokkerend. INSUFFICIENT DATA 261→64, 228 gered, 0 regressies. Toegepast via `POST /api/data-quality/recompute` (no-network re-eval uit cache; `{"dry_run":true}` geeft before/after-transities) gevolgd door `POST /api/recalculate`.
 - **Reden-weergave**: dashboard toont 3 onderscheidende labels i.p.v. één rood "INSUFFICIENT DATA" — **GEEN DATA** (grijs), **DATABUG** (paars), **GEEN FV (VERLIES)** (oranje), via `data_quality.classify_signal_reason`. Verlieslatende groeiers krijgen 🌱 (`is_growth_lossmaker`, drempel `screening.growth_lossmaker_cagr`). Vereist `fv_methods_dropped` + `revenue_cagr` in `calculated_scores` (gevuld door recalculate).
 
-**Open werk**:
-1. **Route B** (de resterende 33 gate-geblokkeerde): dual-listings remappen (EXOR.AS → EXO.MI), multi-share-class (Roche/Lindt), holdings met negatieve omzet (Exor/Kinnevik), foute ticker-notaties (`NASDAQ:ICLR` → `ICLR`), 6 fondsen + 2 lege deactiveren, en overrides via `/api/overrides/<T>`.
+**Open werk** (grotendeels belegd in het 2.0-plan hierboven):
+1. **Route B** (gate-geblokkeerde tickers): dual-listings remappen (EXOR.AS → EXO.MI), multi-share-class (Roche/Lindt), holdings met negatieve omzet (Exor/Kinnevik), foute ticker-notaties (`NASDAQ:ICLR` → `ICLR`), fondsen deactiveren, overrides via `/api/overrides/<T>`. → wordt de kwartaal-APK + skill in fase 5.
 2. **Nog niet gedaan** — markt-naam normalisatie (NL/SE/PL abbreviaties).
-3. **Nog niet gedaan** — DATABASE_URL rotatie (credential exposure in oudere chat-historie).
 
 ## Handige commands
 
