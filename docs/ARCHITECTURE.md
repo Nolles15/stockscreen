@@ -9,15 +9,18 @@ Voor een overzicht: [README.md](../README.md). Voor operationele zaken (wat gaat
 ## Overzicht
 
 ```
-                       GitHub Actions (03:00 UTC)
+                    scheduler-thread ín het Flask-proces
+                    (tick per kwartier, state in de database)
                                 │
-                                │ per ticker één HTTP-call
                                 ▼
 ┌─────────────┐          ┌─────────────────┐         ┌──────────────┐
 │  Yahoo      │◄─────────│  Flask op Fly   │────────►│  Neon        │
 │  Finance    │ yfinance │ (stockscreen-   │ psycopg2│ PostgreSQL   │
 │             │          │  janco, ams)    │         │  (Frankfurt) │
 └─────────────┘          └─────────────────┘         └──────────────┘
+                                ▲
+                                │ handmatige noodknop
+                       GitHub Actions (workflow_dispatch)
                                 │
                                 │ dashboard.html + /api/dashboard
                                 ▼
@@ -137,9 +140,71 @@ Drempels in `config.yaml` → `signals`. De high-quality SELL-drempel (-75%) is 
 
 ---
 
-## Cron-ontwerp
+## Refresh-ontwerp
 
-### De oude aanpak (verwijderd april 2026)
+### De huidige aanpak (fase 1, juli 2026) — scheduler op de machine zelf
+
+De verversing draait in het Flask-proces op Fly, dat altijd aan staat
+(`auto_stop_machines = false`). Een daemon-thread tikt elk kwartier en besluit
+op basis van de tabel `refresh_state` wat er moet gebeuren. Zie
+[engine/refresh.py](../engine/refresh.py) en `_scheduler_loop` in [app.py](../app.py).
+
+```
+elk kwartier een tick
+   │
+   ├─ na 18:30 Amsterdam en vandaag nog niet gedraaid?
+   │     └─ refresh_prices_bulk()  — alle tickers, chunks van 200, ~4 min voor 900
+   │
+   ├─ na 03:00 Amsterdam en vandaag nog niet gedraaid?
+   │     └─ refresh_fundamentals_batch(100)  — de 100 langst niet-geprobeerde
+   │
+   └─ langer dan 7 dagen geleden?
+         └─ weekly_reprobe(20) + activity_log ouder dan 90 dagen opruimen
+```
+
+**Waarom de state in de database staat.** Elke beslissing komt uit
+`refresh_state`, niet uit geheugen. Een herstart van de machine — bij een deploy
+of een crash — mag geen ronde overslaan en ook geen dubbele ronde veroorzaken.
+De vorige scheduler keek naar de leeftijd van willekeurige marktdata; zodra één
+ticker toevallig vers was leek alles vers en bleef de verversing uit.
+
+**Waarom koersen en cijfers gescheiden zijn.** Koersen veranderen dagelijks en
+zijn in bulk op te halen (honderden per call). Jaarcijfers veranderen hooguit
+per kwartaal en kosten ~4 seconden per ticker. Ze in één pijplijn stoppen
+betekende dat het trage deel het snelle deel ophield: bij 900 tickers duurde een
+volledige ronde ruim een uur, en bij de beoogde 3.000 zou het niet meer binnen
+een nacht passen.
+
+**Storm-guard.** `refresh_fundamentals_batch` telt mislukkingen pas ná afloop.
+Levert meer dan een kwart van de batch niets op, dan gaan we uit van een storing
+bij Yahoo: er wordt `storm_detected` gelogd en geen enkele failure-teller gaat
+omhoog. Dit is de directe tegenmaatregel tegen wat er in april gebeurde, toen
+één slechte periode 115 tickers automatisch liet suspenderen. Een fetch die
+zonder foutmelding voltooit maar niets oplevert telt hierin mee als mislukking —
+delisted tickers gooien namelijk geen fout.
+
+**Suspenderen is bewust traag.** Pas na 10 mislukkingen, gespreid over minstens
+30 dagen, en alleen als er geen enkel jaarcijfer in de database staat. Daarna
+volgt wekelijks een nieuwe poging; pas na 90 dagen zonder resultaat komt er
+`presumed_delisted_at` op te staan, en ook dan blijft de ticker zichtbaar in het
+beheerscherm. Niets verdwijnt stilzwijgend.
+
+**Zichtbaarheid.** `GET /api/health` (zonder token) geeft de leeftijd van beide
+rondes, versheidspercentages, dekkingscijfers en `scheduler_alive`. Elke pagina
+toont daarvan een banner; het dashboard toont bovendien hoeveel van de universe
+echt beoordeeld is.
+
+**GitHub Actions is teruggebracht tot noodknop.** Het `schedule:`-blok is
+verwijderd. Reden: GitHub schakelt een scheduled workflow automatisch uit na 60
+dagen zonder push naar de repo. Dat gebeurde op 19 juni 2026, waarna de
+verversing zes weken stillag zonder enige melding. Een motor die afhangt van hoe
+recent er code gepusht is, is geen betrouwbare motor.
+
+### De aanpak daarvóór (april–juli 2026) — externe cron per ticker
+
+GitHub Actions hield zelf de loop aan en riep per ticker een synchrone endpoint aan. Betrouwbaarder dan wat eraan voorafging, maar afhankelijk van een externe planner die stilviel zonder melding — zie hierboven. De endpoints (`/api/cron/next-batch`, `/api/cron/refresh-one/<T>`) bestaan nog en werken; ze zijn nu de noodknop.
+
+### De aanpak daarvóór (verwijderd april 2026)
 
 `POST /api/cron/refresh-batch` startte een async job in een thread, polde `/api/cron/refresh-batch/status/<id>` elke 30s. Problemen:
 
@@ -173,7 +238,7 @@ GitHub Actions houdt **zelf** de loop aan. Fly krijgt per ticker één korte syn
 
 **Auth.** Elke `/api/cron/*` endpoint checkt `X-Cron-Token: <CRON_TOKEN>`. Zowel Fly (`fly secrets set CRON_TOKEN=...`) als GitHub (`Settings → Secrets → CRON_TOKEN`) moeten dezelfde waarde hebben.
 
-**Scheduler override.** Als `CRON_TOKEN` op Fly gezet is, slaat `_on_startup` in [app.py](../app.py) de in-process scheduler over. Zo voorkom je dat zowel Fly (oud-gedrag) als GitHub Actions (nieuw) tegelijk refreshen. Zie [app.py cron-startup-guard](../app.py).
+**Scheduler-gate (vervallen).** Tot fase 1 sloeg `_on_startup` de in-process scheduler over zodra `CRON_TOKEN` gezet was. Bedoeld om dubbelwerk te voorkomen, maar het maakte de externe cron tot enige motor — en toen die stilviel, ving niets het op. De gate is vervangen door `SCHEDULER_ENABLED` (default `1`).
 
 ### Relevante endpoints
 
