@@ -246,6 +246,12 @@
     </div>
   </nav>
 
+  <!-- Versheidsbanner: maakt stilstand van de verversing onmiddellijk zichtbaar.
+       Eerder kon de refresh weken stilliggen zonder dat het scherm iets liet
+       merken; de cijfers zagen er dan nog steeds normaal uit. -->
+  <div id="health-banner" style="display:none; max-width:1320px; margin:16px auto 0; padding:10px 16px;
+       border-radius:8px; font-size:13px; align-items:center; gap:10px;"></div>
+
   <!-- Content -->
   <main style="max-width:1320px; margin:0 auto; padding:32px;">
     {% block content %}{% endblock %}
@@ -331,6 +337,58 @@
     if (valM === null || valM === undefined) return '—';
     return currencySymbol(currency) + fmtBig(valM);
   }
+
+  // Versheidsbanner. Toont alleen iets als er aandacht nodig is, behalve op het
+  // dashboard waar ook de "alles is bij" bevestiging waarde heeft.
+  function renderHealthBanner(h) {
+    const el = document.getElementById('health-banner');
+    if (!el) return;
+
+    const age = h.price_age_hours;
+    let level, text;
+
+    if (!h.scheduler_alive) {
+      level = 'rood';
+      text = '⚠ De automatische verversing draait niet. Koersen en cijfers worden niet bijgewerkt.';
+    } else if (age === null || age === undefined) {
+      level = 'geel';
+      text = 'Koersen zijn nog niet automatisch ververst — de eerste ronde moet nog draaien.';
+    } else if (age > 48) {
+      level = 'rood';
+      text = `⚠ Koersen zijn ${Math.round(age / 24)} dagen oud. Er gaat iets mis met de verversing.`;
+    } else if (age > 24) {
+      level = 'geel';
+      text = `Koersen zijn ${Math.round(age)} uur oud — de laatste ronde is overgeslagen.`;
+    } else {
+      const when = new Date(h.last_price_refresh).toLocaleString('nl-NL',
+        { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      level = 'groen';
+      text = `Koersen bijgewerkt: ${when} · ${h.prices_fresh_24h_pct}% van de aandelen vers`;
+    }
+
+    if (h.storm_last_7d > 0 && level === 'groen') {
+      level = 'geel';
+      text += ` · ${h.storm_last_7d}× een storing bij de databron deze week (opgevangen)`;
+    }
+
+    const stijl = {
+      groen: ['#0d3320', '#1a7f4b', '#7ee2a8'],
+      geel:  ['#3a2f0b', '#8a6d1a', '#f0d068'],
+      rood:  ['#3a1417', '#8c2f36', '#f3a0a6'],
+    }[level];
+
+    el.style.background = stijl[0];
+    el.style.border = '1px solid ' + stijl[1];
+    el.style.color = stijl[2];
+    el.textContent = text;
+    el.style.display = 'flex';
+  }
+
+  fetch('/api/health')
+    .then(r => r.ok ? r.json() : null)
+    .then(h => { if (h) { window._health = h; renderHealthBanner(h);
+                          document.dispatchEvent(new CustomEvent('health-loaded', { detail: h })); } })
+    .catch(() => {});
   </script>
 
   {% block scripts %}{% endblock %}

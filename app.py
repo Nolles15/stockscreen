@@ -13,13 +13,15 @@ import re
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import yaml
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
 from engine import data_quality
+from engine import refresh
 from engine import remap_rules
 from engine.data_fetcher import (
     fetch_and_store,
@@ -438,49 +440,137 @@ def _last_market_update_age_hours() -> float | None:
     return (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
 
 
-# Minimum-intervals tussen automatische refreshes. Fail-safe tegen restart-storms:
-# zelfs als de app elke 10 min crasht en herstart, doen we niet telkens opnieuw werk.
-SCHEDULER_TICK_SECONDS    = 3600     # elk uur bekijken of er werk is
-LIGHT_REFRESH_INTERVAL_H  = 20       # dagelijkse marktdata (rekening houdend met drift)
-HEAVY_REFRESH_INTERVAL_H  = 24       # één keer per etmaal stale-ticker check
+# Scheduler v2. Elke beslissing komt uit de tabel `refresh_state`, nooit uit
+# geheugen: een herstart van de machine mag geen run overslaan en ook geen
+# dubbele run veroorzaken.
+SCHEDULER_TICK_SECONDS = 900          # elk kwartier kijken of er werk is
+PRICE_REFRESH_HOUR     = 18           # na sluiting van de Europese beurzen
+PRICE_REFRESH_MINUTE   = 30
+FUNDAMENTALS_HOUR      = 3            # 's nachts, buiten de drukke uren van Yahoo
+AMSTERDAM              = ZoneInfo("Europe/Amsterdam")
+
+
+def _local_now() -> datetime:
+    """Nu in Amsterdamse tijd — de machine draait op UTC, de beurzen niet."""
+    return datetime.now(AMSTERDAM)
+
+
+def _ran_today(state_key: str) -> bool:
+    """Heeft deze taak vandaag (Amsterdamse kalenderdag) al gedraaid?"""
+    raw = db.get_refresh_state(state_key)
+    if not raw:
+        return False
+    try:
+        last = datetime.fromisoformat(raw)
+    except ValueError:
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return last.astimezone(AMSTERDAM).date() == _local_now().date()
+
+
+def _days_since(state_key: str) -> float:
+    raw = db.get_refresh_state(state_key)
+    if not raw:
+        return 9999.0
+    try:
+        last = datetime.fromisoformat(raw)
+    except ValueError:
+        return 9999.0
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - last).total_seconds() / 86400.0
+
+
+def _run_price_refresh(cfg: dict) -> None:
+    tickers = [s["ticker"] for s in db.get_all_stocks()]
+    db.log_activity("refresh_prices", None, "start", {"tickers": len(tickers)})
+    result = refresh.refresh_prices_bulk(tickers, cfg)
+    db.set_refresh_state("last_price_refresh_at", datetime.now(timezone.utc).isoformat())
+    db.log_activity("refresh_prices", None, "ok", {
+        "ok": result["ok"],
+        "failed": len(result["failed"]),
+        "split_suspects": result["split_suspects"],
+        "chunks_failed": result["chunks_failed"],
+    })
+    log.info("Prijsrefresh klaar: %d bijgewerkt, %d mislukt, %d split-verdacht",
+             result["ok"], len(result["failed"]), len(result["split_suspects"]))
+
+
+def _run_fundamentals_refresh(cfg: dict) -> None:
+    limit = int(cfg.get("refresh", {}).get("fundamentals_per_night", 100))
+    db.log_activity("refresh_fundamentals", None, "start", {"limit": limit})
+    result = refresh.refresh_fundamentals_batch(limit, cfg)
+    db.set_refresh_state("last_fundamentals_refresh_at", datetime.now(timezone.utc).isoformat())
+    db.log_activity("refresh_fundamentals", None,
+                    "warning" if result["storm_detected"] else "ok", {
+                        "attempted": result["attempted"],
+                        "ok": result["ok"],
+                        "failed": len(result["failed"]),
+                        "insufficient": result["insufficient"],
+                        "storm_detected": result["storm_detected"],
+                    })
+    # Suspenderen gebeurt alleen buiten een storm, en alleen voor tickers die
+    # aan alle drie de voorwaarden voldoen (zie refresh.maybe_auto_suspend).
+    if not result["storm_detected"]:
+        for ticker in result["failed"]:
+            try:
+                refresh.maybe_auto_suspend(ticker)
+            except Exception:
+                log.exception("Suspend-check mislukt voor %s", ticker)
+    log.info("Fundamentals-refresh klaar: %d/%d ok, storm=%s",
+             result["ok"], result["attempted"], result["storm_detected"])
+
+
+def _run_weekly_tasks(cfg: dict) -> None:
+    db.log_activity("reprobe", None, "start", None)
+    result = refresh.weekly_reprobe(20, cfg)
+    db.set_refresh_state("last_reprobe_at", datetime.now(timezone.utc).isoformat())
+    db.log_activity("reprobe", None, "ok", {
+        "attempted": result["attempted"],
+        "reactivated": result["reactivated"],
+        "delisted": result["delisted"],
+    })
+
+    # Log opschonen: zonder dit groeit activity_log ongelimiteerd.
+    try:
+        with db._cursor() as cur:
+            cur.execute(
+                "DELETE FROM activity_log WHERE timestamp < %s",
+                ((datetime.now(timezone.utc) - timedelta(days=90)).isoformat(),),
+            )
+        db.set_refresh_state("last_prune_at", datetime.now(timezone.utc).isoformat())
+    except Exception:
+        log.exception("Opschonen activity_log mislukt")
 
 
 def _scheduler_loop(cfg: dict) -> None:
     """
-    Achtergrondloop (daemon thread) die elk uur kijkt of er een scheduled refresh
-    uitgevoerd moet worden. De DB is leidend voor 'wanneer draaide de laatste
-    refresh?' — dus restarts resetten het ritme niet.
+    Achtergrondloop (daemon thread) die elk kwartier kijkt of er werk is.
+
+    De vorige versie stuurde op de leeftijd van de marktdata. Dat ging mis zodra
+    één ticker toevallig vers was: dan leek alles vers en bleef de refresh uit.
+    Nu bepaalt uitsluitend `refresh_state` wat er moet gebeuren.
     """
-    log.info("Scheduler-loop gestart (tick=%ds, light=%dh, heavy=%dh)",
-             SCHEDULER_TICK_SECONDS, LIGHT_REFRESH_INTERVAL_H, HEAVY_REFRESH_INTERVAL_H)
+    log.info("Scheduler v2 gestart (tick=%ds, prijzen %02d:%02d, fundamentals %02d:00 Amsterdam)",
+             SCHEDULER_TICK_SECONDS, PRICE_REFRESH_HOUR, PRICE_REFRESH_MINUTE, FUNDAMENTALS_HOUR)
     while True:
         try:
-            age = _last_market_update_age_hours()
-            all_tickers = [s["ticker"] for s in db.get_all_stocks()]
+            db.set_refresh_state("last_scheduler_tick_at", datetime.now(timezone.utc).isoformat())
+            now = _local_now()
 
-            if all_tickers and (age is None or age >= HEAVY_REFRESH_INTERVAL_H):
-                stale = _get_stale_tickers(all_tickers, STALE_HEAVY_DAYS)
-                if stale:
-                    jid = _new_job()
-                    log.info("Scheduler: zware refresh (%d/%d stale tickers)",
-                             len(stale), len(all_tickers))
-                    threading.Thread(target=_run_refresh_job,
-                                     args=(jid, stale, cfg), daemon=True).start()
-                    # Zware refresh werkt ook marktdata bij — geen aparte lichte nodig
-                elif age is None or age >= LIGHT_REFRESH_INTERVAL_H:
-                    jid = _new_job()
-                    log.info("Scheduler: lichte refresh (%d tickers, leeftijd=%.1fu)",
-                             len(all_tickers), age or -1)
-                    threading.Thread(target=_run_light_job,
-                                     args=(jid, all_tickers), daemon=True).start()
-            elif all_tickers and age is not None and age >= LIGHT_REFRESH_INTERVAL_H:
-                jid = _new_job()
-                log.info("Scheduler: lichte refresh (%d tickers, leeftijd=%.1fu)",
-                         len(all_tickers), age)
-                threading.Thread(target=_run_light_job,
-                                 args=(jid, all_tickers), daemon=True).start()
+            past_price_time = (now.hour, now.minute) >= (PRICE_REFRESH_HOUR, PRICE_REFRESH_MINUTE)
+            if past_price_time and not _ran_today("last_price_refresh_at"):
+                _run_price_refresh(cfg)
+
+            if now.hour >= FUNDAMENTALS_HOUR and not _ran_today("last_fundamentals_refresh_at"):
+                _run_fundamentals_refresh(cfg)
+
+            if _days_since("last_reprobe_at") >= 7:
+                _run_weekly_tasks(cfg)
+
         except Exception:
-            log.exception("Scheduler-loop tick crashte — ga door")
+            log.exception("Scheduler-tick crashte — loop blijft draaien")
         time.sleep(SCHEDULER_TICK_SECONDS)
 
 
@@ -1256,6 +1346,94 @@ def api_data_quality():
     return jsonify(out)
 
 
+@app.route("/api/health")
+def api_health():
+    """
+    Eén blik op de gezondheid van de verversing — zonder token, want dit is
+    juist het endpoint dat moet werken als er iets mis is.
+
+    Het draait om de vraag die eerder onbeantwoord bleef: draait de motor nog,
+    en hoe vers is wat ik zie? Zes weken stilstand hoort hier onmiddellijk
+    zichtbaar te zijn.
+    """
+    state = db.get_all_refresh_state()
+    now = datetime.now(timezone.utc)
+
+    def _age_hours(key: str) -> float | None:
+        raw = state.get(key)
+        if not raw:
+            return None
+        try:
+            ts = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return (now - ts).total_seconds() / 3600.0
+
+    with db._cursor() as cur:
+        cur.execute("""
+            SELECT
+              COUNT(*) FILTER (WHERE active = 1 AND presumed_delisted_at IS NULL)  AS active,
+              COUNT(*) FILTER (WHERE active = 0 AND auto_suspended_at IS NOT NULL
+                                 AND presumed_delisted_at IS NULL)                 AS suspended,
+              COUNT(*) FILTER (WHERE presumed_delisted_at IS NOT NULL)             AS presumed_delisted
+            FROM stocks
+        """)
+        counts = dict(cur.fetchone())
+
+        cur.execute("""
+            SELECT COUNT(*) AS n FROM market_data md
+            JOIN stocks s ON s.ticker = md.ticker
+            WHERE s.active = 1 AND md.last_updated >= %s
+        """, ((now - timedelta(hours=24)).isoformat(),))
+        prices_fresh = cur.fetchone()["n"]
+
+        cur.execute("""
+            SELECT COUNT(DISTINCT f.ticker) AS n FROM financials f
+            JOIN stocks s ON s.ticker = f.ticker
+            WHERE s.active = 1 AND f.period_type = 'annual' AND f.fetched_date >= %s
+        """, ((now - timedelta(days=30)).date().isoformat(),))
+        fundamentals_fresh = cur.fetchone()["n"]
+
+        cur.execute("""
+            SELECT COUNT(*) AS n FROM calculated_scores cs
+            JOIN stocks s ON s.ticker = cs.ticker
+            WHERE s.active = 1 AND cs.signal = 'INSUFFICIENT DATA'
+        """)
+        no_verdict = cur.fetchone()["n"]
+
+        cur.execute("""
+            SELECT COUNT(*) AS n FROM activity_log
+            WHERE action = 'storm_detected' AND timestamp >= %s
+        """, ((now - timedelta(days=7)).isoformat(),))
+        storms = cur.fetchone()["n"]
+
+    active = counts.get("active") or 0
+    price_age = _age_hours("last_price_refresh_at")
+    fund_age = _age_hours("last_fundamentals_refresh_at")
+    tick_age = _age_hours("last_scheduler_tick_at")
+
+    return jsonify({
+        "last_price_refresh":        state.get("last_price_refresh_at"),
+        "last_fundamentals_refresh": state.get("last_fundamentals_refresh_at"),
+        "last_reprobe":              state.get("last_reprobe_at"),
+        "price_age_hours":           round(price_age, 1) if price_age is not None else None,
+        "fundamentals_age_hours":    round(fund_age, 1) if fund_age is not None else None,
+        "prices_fresh_24h_pct":      round(100.0 * prices_fresh / active, 1) if active else 0.0,
+        "fundamentals_fresh_30d_pct": round(100.0 * fundamentals_fresh / active, 1) if active else 0.0,
+        "active":                    active,
+        "suspended":                 counts.get("suspended") or 0,
+        "presumed_delisted":         counts.get("presumed_delisted") or 0,
+        "assessed":                  active - no_verdict,
+        "no_verdict":                no_verdict,
+        "storm_last_7d":             storms,
+        # Een tick hoort elk kwartier te komen; een half uur stilte betekent dat
+        # de thread is omgevallen.
+        "scheduler_alive":           tick_age is not None and tick_age < 0.5,
+    })
+
+
 @app.route("/api/gaps-report")
 def api_gaps_report():
     """
@@ -1482,12 +1660,13 @@ def _on_startup() -> None:
             db.upsert_stock(ticker, active=1, added_date=datetime.now(timezone.utc).date().isoformat())
         log.info("Lege DB geseed met %d watchlist-tickers uit config.yaml", len(cfg.get("watchlist", [])))
 
-    # Externe cron (bv. GitHub Actions) is leidend zodra CRON_TOKEN gezet is:
-    # we slaan dan startup-refresh én in-process scheduler over om dubbelwerk
-    # en rate-limit clashes te voorkomen.
-    external_cron = bool(os.environ.get("CRON_TOKEN"))
-    if external_cron:
-        log.info("Externe cron actief (CRON_TOKEN gezet) — in-process scheduler uit")
+    # De scheduler draait nu op de machine zelf (die staat altijd aan). GitHub
+    # Actions is nog slechts een handmatige noodknop, geen dagelijkse motor meer.
+    # De oude gate zette de scheduler uit zodra CRON_TOKEN bestond — daardoor lag
+    # de verversing zes weken stil toen GitHub de workflow uitschakelde, zonder
+    # dat iets dat opving.
+    if os.environ.get("SCHEDULER_ENABLED", "1") != "1":
+        log.info("Scheduler uitgezet via SCHEDULER_ENABLED=0")
         return
 
     # Automatische refresh bij opstart is standaard UIT (config-flag stuurt dit).

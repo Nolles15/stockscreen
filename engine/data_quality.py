@@ -88,12 +88,20 @@ def evaluate(
     fetch_success: bool,
     prev_consecutive_failures: int = 0,
     fetched_date: str | None = None,
+    count_failure: bool = True,
 ) -> dict:
     """
     Evalueer data-kwaliteit voor één ticker. Return dict klaar voor
     `db.upsert_data_quality(**result)`.
+
+    `count_failure=False` laat de failure-teller ongemoeid bij een mislukte
+    fetch. De batch-refresh telt zelf, en alleen als blijkt dat het niet om een
+    storing bij de bron ging — zie engine/refresh.py.
     """
     issues: list[str] = []
+
+    # Bij count_failure=False blijft de teller staan waar hij stond.
+    failed_count = prev_consecutive_failures + 1 if count_failure else prev_consecutive_failures
 
     # 1. Fetch slaagde niet (404, lege info, netwerk kapot na retries)
     if not fetch_success and not annual_rows and not market_data:
@@ -103,7 +111,7 @@ def evaluate(
             "latest_fy":        None,
             "freshness_days":   None,
             "fetch_success":    0,
-            "consecutive_failures": prev_consecutive_failures + 1,
+            "consecutive_failures": failed_count,
             "data_status":      "missing",
             "issues":           ["Yahoo Finance gaf geen data terug — ticker lijkt ongeldig of onbereikbaar."],
             "last_checked":     datetime.utcnow().isoformat(),
@@ -351,7 +359,7 @@ def evaluate(
         # Na 3+ mislukte fetches in een rij klasseren we als 'bad' — deze ticker
         # is waarschijnlijk delisted of verkeerd gespeld ondanks dat er oude
         # data in de DB staat.
-        if prev_consecutive_failures + 1 >= 3:
+        if failed_count >= 3:
             status = "bad"
 
     return {
@@ -360,7 +368,7 @@ def evaluate(
         "latest_fy":        latest_fy,
         "freshness_days":   freshness_days,
         "fetch_success":    0 if fail_note else 1,
-        "consecutive_failures": (prev_consecutive_failures + 1) if fail_note else 0,
+        "consecutive_failures": failed_count if fail_note else 0,
         "data_status":      status,
         "issues":           issues,
         "last_checked":     datetime.utcnow().isoformat(),

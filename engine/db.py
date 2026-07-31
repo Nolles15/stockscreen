@@ -7,6 +7,7 @@ import logging
 import os
 import json
 from contextlib import contextmanager
+from datetime import datetime
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -247,6 +248,82 @@ def init_db() -> None:
         cur.execute("""
             ALTER TABLE data_quality ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER DEFAULT 0
         """)
+        # Wanneer de huidige reeks failures begon. Suspenderen mag pas als een
+        # ticker langdurig faalt, niet na een handvol fouten op één avond.
+        cur.execute("""
+            ALTER TABLE data_quality ADD COLUMN IF NOT EXISTS first_failure_at TEXT
+        """)
+        # Tickers die zo lang niets opleveren dat ze vrijwel zeker delisted zijn.
+        # Ze blijven zichtbaar in het beheerscherm, maar vallen uit de rotatie.
+        cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS presumed_delisted_at TEXT
+        """)
+        # Scheduler-state. De scheduler bewaart hier wanneer elke taak voor het
+        # laatst draaide, zodat een herstart van de machine geen dubbele run
+        # veroorzaakt en geen enkele run overslaat.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS refresh_state (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+
+
+# ---------------------------------------------------------------------------
+# Refresh-state (scheduler)
+# ---------------------------------------------------------------------------
+
+def get_refresh_state(key: str) -> str | None:
+    with _cursor() as cur:
+        cur.execute("SELECT value FROM refresh_state WHERE key=%s", (key,))
+        row = cur.fetchone()
+    return row["value"] if row else None
+
+
+def set_refresh_state(key: str, value: str) -> None:
+    with _cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO refresh_state (key, value) VALUES (%s, %s)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )
+
+
+def get_all_refresh_state() -> dict[str, str]:
+    with _cursor() as cur:
+        cur.execute("SELECT key, value FROM refresh_state")
+        rows = cur.fetchall()
+    return {r["key"]: r["value"] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Upsert-helper
+# ---------------------------------------------------------------------------
+
+def _update_clause(table: str, fields, keys: tuple[str, ...], always: tuple[str, ...] = ()) -> str:
+    """
+    Bouw de SET-clausule van een upsert waarbij een NULL nooit een bestaande
+    waarde wist.
+
+    Yahoo levert regelmatig een half antwoord: prijs wel, jaarcijfers niet, of
+    andersom. Zonder COALESCE overschrijft zo'n antwoord goede cijfers met NULL
+    en is de historie weg tot de volgende geslaagde fetch — precies het
+    "data raakt zoek"-effect. Met COALESCE blijft de oude waarde staan.
+
+    `always` bevat de kolommen waar een NULL wél betekenisvol is (tijdstempels
+    en statusvelden: die horen de nieuwe werkelijkheid te tonen).
+    """
+    parts = []
+    for k in fields:
+        if k in keys:
+            continue
+        if k in always:
+            parts.append(f"{k}=excluded.{k}")
+        else:
+            parts.append(f"{k}=COALESCE(excluded.{k}, {table}.{k})")
+    return ", ".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +370,11 @@ def upsert_financials(ticker: str, period_type: str, fiscal_year: int | None, **
     fields.update({"ticker": ticker, "period_type": period_type, "fiscal_year": fiscal_year})
     cols = ", ".join(fields.keys())
     placeholders = ", ".join(["%s"] * len(fields))
-    updates = ", ".join(f"{k}=excluded.{k}" for k in fields if k not in ("ticker", "period_type", "fiscal_year"))
+    updates = _update_clause(
+        "financials", fields,
+        keys=("ticker", "period_type", "fiscal_year"),
+        always=("fetched_date",),
+    )
     sql = f"""
         INSERT INTO financials ({cols}) VALUES ({placeholders})
         ON CONFLICT(ticker, period_type, fiscal_year) DO UPDATE SET {updates}
@@ -320,7 +401,11 @@ def upsert_market_data(ticker: str, **fields) -> None:
     fields["ticker"] = ticker
     cols = ", ".join(fields.keys())
     placeholders = ", ".join(["%s"] * len(fields))
-    updates = ", ".join(f"{k}=excluded.{k}" for k in fields if k != "ticker")
+    updates = _update_clause(
+        "market_data", fields,
+        keys=("ticker",),
+        always=("last_updated",),
+    )
     sql = f"""
         INSERT INTO market_data ({cols}) VALUES ({placeholders})
         ON CONFLICT(ticker) DO UPDATE SET {updates}
@@ -344,7 +429,7 @@ def upsert_historical_multiples(ticker: str, fiscal_year: int, **fields) -> None
     fields.update({"ticker": ticker, "fiscal_year": fiscal_year})
     cols = ", ".join(fields.keys())
     placeholders = ", ".join(["%s"] * len(fields))
-    updates = ", ".join(f"{k}=excluded.{k}" for k in fields if k not in ("ticker", "fiscal_year"))
+    updates = _update_clause("historical_multiples", fields, keys=("ticker", "fiscal_year"))
     sql = f"""
         INSERT INTO historical_multiples ({cols}) VALUES ({placeholders})
         ON CONFLICT(ticker, fiscal_year) DO UPDATE SET {updates}
@@ -434,6 +519,116 @@ def get_latest_fetched_dates() -> dict[str, str]:
         )
         rows = cur.fetchall()
     return {r["ticker"]: r["fd"] for r in rows if r["fd"]}
+
+
+def get_all_market_data() -> dict[str, dict]:
+    """Alle marktdata in één query — voorkomt N+1 bij de bulk-prijsrefresh."""
+    with _cursor() as cur:
+        cur.execute("SELECT * FROM market_data")
+        rows = cur.fetchall()
+    return {r["ticker"]: dict(r) for r in rows}
+
+
+def get_latest_shares_outstanding() -> dict[str, float]:
+    """{ticker: shares_outstanding} uit het nieuwste boekjaar met een waarde."""
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT ON (ticker) ticker, shares_outstanding
+            FROM financials
+            WHERE period_type='annual' AND shares_outstanding IS NOT NULL
+            ORDER BY ticker, fiscal_year DESC
+        """)
+        rows = cur.fetchall()
+    return {r["ticker"]: r["shares_outstanding"] for r in rows if r["shares_outstanding"]}
+
+
+def get_latest_eps_ttm() -> dict[str, float]:
+    """{ticker: eps_diluted} uit het nieuwste boekjaar — basis voor de K/W-schatting."""
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT ON (ticker) ticker, eps_diluted
+            FROM financials
+            WHERE period_type='annual' AND eps_diluted IS NOT NULL
+            ORDER BY ticker, fiscal_year DESC
+        """)
+        rows = cur.fetchall()
+    return {r["ticker"]: r["eps_diluted"] for r in rows if r["eps_diluted"]}
+
+
+def get_refresh_queue(limit: int) -> list[str]:
+    """
+    De `limit` actieve tickers die het langst niet zijn geprobeerd.
+
+    Sorteert op `data_quality.last_checked` (geschreven bij élke poging), niet op
+    de laatste geslaagde fetch. Tickers die niets opleveren zakken zo netjes naar
+    achteren in plaats van de wachtrij permanent te blokkeren. Nooit-geprobeerde
+    tickers komen vooraan, zodat nieuw toegevoegde aandelen meteen aan de beurt
+    zijn. Vermoedelijk delisted tickers doen niet mee.
+    """
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT s.ticker
+            FROM stocks s
+            LEFT JOIN data_quality dq ON dq.ticker = s.ticker
+            WHERE s.active = 1 AND s.presumed_delisted_at IS NULL
+            ORDER BY dq.last_checked ASC NULLS FIRST, s.ticker
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+    return [r["ticker"] for r in rows]
+
+
+def get_reprobe_candidates(limit: int) -> list[str]:
+    """Gesuspendeerde tickers die opnieuw geprobeerd mogen worden, oudste eerst."""
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT ticker FROM stocks
+            WHERE active = 0
+              AND auto_suspended_at IS NOT NULL
+              AND presumed_delisted_at IS NULL
+            ORDER BY auto_suspended_at ASC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+    return [r["ticker"] for r in rows]
+
+
+def count_annual_rows(ticker: str) -> int:
+    """Aantal jaarcijfer-rijen — de maatstaf voor 'hebben we überhaupt iets'."""
+    with _cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM financials WHERE ticker=%s AND period_type='annual'",
+            (ticker,),
+        )
+        row = cur.fetchone()
+    return int(row["n"]) if row else 0
+
+
+def bump_failure_counter(ticker: str) -> None:
+    """
+    Verhoog de failure-teller en leg vast wanneer de reeks begon.
+
+    `first_failure_at` maakt het verschil tussen "tien keer mislukt op één avond"
+    en "al een maand onbereikbaar" — alleen het tweede rechtvaardigt suspenderen.
+    """
+    now = datetime.utcnow().isoformat()
+    with _cursor() as cur:
+        cur.execute("""
+            INSERT INTO data_quality (ticker, consecutive_failures, first_failure_at, last_checked)
+            VALUES (%s, 1, %s, %s)
+            ON CONFLICT(ticker) DO UPDATE SET
+                consecutive_failures = COALESCE(data_quality.consecutive_failures, 0) + 1,
+                first_failure_at = COALESCE(data_quality.first_failure_at, excluded.first_failure_at),
+                last_checked = excluded.last_checked
+        """, (ticker, now, now))
+
+
+def reset_failure_counter(ticker: str) -> None:
+    with _cursor() as cur:
+        cur.execute(
+            "UPDATE data_quality SET consecutive_failures = 0, first_failure_at = NULL WHERE ticker = %s",
+            (ticker,),
+        )
 
 
 def get_last_attempt_dates() -> dict[str, str]:

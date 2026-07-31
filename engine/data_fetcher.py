@@ -584,10 +584,15 @@ def _calc_ebitda(inc: pd.DataFrame, bal: pd.DataFrame, col_idx: int) -> float | 
 # Persist fetched data to DB
 # ---------------------------------------------------------------------------
 
-def fetch_and_store(ticker: str) -> list[str]:
+def fetch_and_store(ticker: str, count_failure: bool = True) -> list[str]:
     """
     Full pipeline: fetch from Yahoo Finance → apply overrides → persist to DB.
     Returns list of warning strings.
+
+    `count_failure=False` registreert een mislukte fetch wél in data_quality,
+    maar hoogt de failure-teller niet op. De batch-refresh gebruikt dat: die
+    beslist pas ná afloop of de mislukkingen aan de tickers lagen of aan een
+    storing bij Yahoo (zie engine/refresh.py).
     """
     log.info("Fetching %s", ticker)
     data = fetch_ticker(ticker)
@@ -670,6 +675,7 @@ def fetch_and_store(ticker: str) -> list[str]:
             fetch_success=fetch_succeeded,
             prev_consecutive_failures=prev_fails,
             fetched_date=today,
+            count_failure=count_failure,
         )
         db.upsert_data_quality(ticker, **dq)
     except Exception:

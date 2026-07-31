@@ -4,6 +4,13 @@ app:
   auto_refresh_on_startup: false
   new_ticker_days: 7
 
+refresh:
+  # Aantal tickers waarvan per nacht de jaarcijfers worden opgehaald. Koersen
+  # gaan in bulk en zijn niet aan dit getal gebonden. Bij ~900 tickers betekent
+  # 100 per nacht dat elk aandeel elke negen dagen verse cijfers krijgt; dat is
+  # ruim voldoende, want jaarcijfers veranderen hooguit per kwartaal.
+  fundamentals_per_night: 100
+
 screening:
   min_quality_score: 7
   required_years: 3

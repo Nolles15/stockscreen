@@ -1,21 +1,25 @@
-name: Daily refresh
+name: Handmatige refresh (noodknop)
 
-# Roterende refresh: elke nacht worden de N oudste tickers ververst.
-# Met 621 tickers en limit=90 betekent dit dat alles binnen ~7 dagen vers is.
+# LET OP: dit is sinds fase 1 GEEN dagelijkse motor meer. De verversing draait
+# op de Fly-machine zelf (engine/refresh.py + scheduler in app.py), die altijd
+# aan staat. Deze workflow is alleen nog een handmatige noodknop voor als de
+# interne scheduler stilligt en je meteen wilt bijwerken.
 #
-# Architectuur: per-ticker synchrone calls. GitHub Actions houdt zelf de loop
-# aan, dus geen in-memory state op Fly. Dat maakt de pipeline restart-safe —
-# een Fly-restart midden in een batch kost hooguit één mislukte ticker.
+# Het schedule-blok is bewust verwijderd. Redenen:
+#   1. Dubbele verversing naast de interne scheduler geeft onnodige
+#      rate-limit-druk bij Yahoo.
+#   2. GitHub schakelt een scheduled workflow automatisch uit na 60 dagen
+#      zonder push naar de repo. Precies dat gebeurde op 19 juni 2026, waarna
+#      de verversing zes weken stillag zonder enige melding. Een motor die
+#      afhangt van hoe recent er code gepusht is, is geen betrouwbare motor.
 #
 # Benodigde secrets in GitHub (Settings → Secrets and variables → Actions):
 #   CRON_TOKEN — identiek aan fly secret CRON_TOKEN
 #   APP_URL    — https://stockscreen-janco.fly.dev
 #
-# Handmatige run: Actions-tab → "Daily refresh" → "Run workflow"
+# Handmatige run: Actions-tab → "Handmatige refresh (noodknop)" → "Run workflow"
 
 on:
-  schedule:
-    - cron: "0 3 * * *"   # elke dag 03:00 UTC (≈ 04:00/05:00 Amsterdam)
   workflow_dispatch:
     inputs:
       limit:

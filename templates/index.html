@@ -9,6 +9,10 @@
     <p class="text-slate-400 text-sm mt-0.5">
       Gesorteerd op grootste korting t.o.v. gecombineerde fair value
     </p>
+    <!-- Dekkingsverklaring: hoeveel van de universe is daadwerkelijk beoordeeld.
+         Zonder dit oogt een lijst met 900 namen volledig, terwijl een deel geen
+         oordeel heeft — je weet dan niet wat je níet ziet. -->
+    <p id="coverage" class="text-slate-500 text-xs mt-1"></p>
   </div>
 
   <!-- Add ticker(s) -->
@@ -171,6 +175,21 @@
 
 {% block scripts %}
 <script>
+// Dekkingsverklaring vullen zodra /api/health binnen is (opgehaald in base.html).
+document.addEventListener('health-loaded', (e) => {
+  const h = e.detail;
+  const el = document.getElementById('coverage');
+  if (!el) return;
+  const delen = [
+    `${h.active} aandelen gevolgd`,
+    `${h.assessed} beoordeeld`,
+    `${h.no_verdict} zonder oordeel`,
+  ];
+  if (h.suspended) delen.push(`${h.suspended} tijdelijk uit`);
+  if (h.presumed_delisted) delen.push(`${h.presumed_delisted} vermoedelijk van de beurs`);
+  el.textContent = delen.join(' · ');
+});
+
 let _allRows = [];
 let _visibleRows = [];
 let _sortCol = 'margin_of_safety';
