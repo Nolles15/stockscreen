@@ -67,6 +67,12 @@
   </div>
 </div>
 
+<!-- Beslisboom: vier vragen die samen verklaren waarom dit aandeel scoort zoals het
+     scoort. Stond er niet: de detailpagina toonde tabellen met cijfers, maar niet
+     de redenering erachter. Zonder die redenering moet je zelf de getallen wegen,
+     en dan is een screener alleen een duurdere manier om naar cijfers te kijken. -->
+<div id="beslisboom" class="grid gap-3 md:grid-cols-2 mb-6"></div>
+
 <!-- Handmatige koersinvoer (verborgen tot klik) -->
 <div id="manual-price-panel" class="hidden bg-slate-900 border border-yellow-700 rounded-xl p-4 mb-5">
   <h3 class="text-yellow-400 font-semibold text-sm mb-2">✏ Handmatige koers invoeren</h3>
@@ -628,6 +634,140 @@
 {% block scripts %}
 <script>
 const TICKER = '{{ ticker }}';
+
+// ---------------------------------------------------------------------------
+// Beslisboom
+//
+// Vertaalt de opgeslagen scores naar vier vragen in gewone taal: is de data
+// bruikbaar, is het een goed bedrijf, wat is het waard, en wat volgt daaruit.
+// De vertaaltabellen hieronder zetten de sleutels uit quality_breakdown en
+// piotroski_breakdown om in zinnen; zonder die vertaling zegt "F4: false"
+// niemand iets.
+// ---------------------------------------------------------------------------
+
+const KWALITEIT_UITLEG = {
+  profitability: ['Winstgevendheid', 'Rendement op eigen vermogen en op geïnvesteerd kapitaal liggen structureel boven de 12%'],
+  balance_sheet: ['Balans', 'Weinig schuld ten opzichte van eigen vermogen, en de rente wordt ruim verdiend'],
+  stability:     ['Stabiliteit', 'Winst en kasstroom schommelen weinig over de afgelopen vijf jaar'],
+  fcf_positive:  ['Vrije kasstroom', 'Elk beschikbaar jaar bleef er geld over na investeringen'],
+  piotroski:     ['Financiële gezondheid', 'Scoort hoog op de negen boekhoudkundige controles van Piotroski'],
+};
+
+const PIOTROSKI_UITLEG = {
+  F1: 'Maakt winst op de bezittingen',
+  F2: 'Operationele kasstroom is positief',
+  F3: 'Rendement op bezittingen verbetert',
+  F4: 'Winst wordt gedekt door echte kasstroom',
+  F5: 'Langlopende schuld neemt af',
+  F6: 'Kan kortlopende verplichtingen beter dekken',
+  F7: 'Geen nieuwe aandelen uitgegeven (geen verwatering)',
+  F8: 'Brutomarge verbetert',
+  F9: 'Haalt meer omzet uit dezelfde bezittingen',
+};
+
+const STOPLICHT = {
+  groen: ['#0d3320', '#1a7f4b', '#7ee2a8'],
+  geel:  ['#3a2f0b', '#8a6d1a', '#f0d068'],
+  rood:  ['#3a1417', '#8c2f36', '#f3a0a6'],
+  grijs: ['#1e293b', '#334155', '#94a3b8'],
+};
+
+function blok(titel, niveau, kop, regels) {
+  const [bg, rand, tekst] = STOPLICHT[niveau] || STOPLICHT.grijs;
+  const lijst = regels.length
+    ? `<ul class="mt-2 space-y-1 text-xs text-slate-400">${regels.map(r => `<li>${r}</li>`).join('')}</ul>`
+    : '';
+  return `<div style="background:${bg}; border:1px solid ${rand}" class="rounded-xl p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-400">${titel}</div>
+    <div class="mt-1 font-semibold" style="color:${tekst}">${kop}</div>
+    ${lijst}
+  </div>`;
+}
+
+function bouwBeslisboom(d) {
+  const s = d.scores || {};
+  const dq = d.data_quality || {};
+  const blokken = [];
+
+  // 1. Data — kun je hier iets op baseren?
+  const status = dq.data_status || s.data_status;
+  const compleet = dq.completeness_pct;
+  const dataNiveau = status === 'ok' ? 'groen' : status === 'warning' ? 'geel' : 'rood';
+  const dataKop = status === 'ok' ? 'De cijfers zijn compleet'
+    : status === 'warning' ? 'De cijfers zijn deels compleet'
+    : 'De cijfers zijn onvolledig of ontbreken';
+  const dataRegels = [];
+  if (compleet !== null && compleet !== undefined)
+    dataRegels.push(`${Math.round(compleet)}% van de benodigde velden is gevuld`);
+  (dq.issues || []).slice(0, 3).forEach(i => dataRegels.push(i));
+  blokken.push(blok('1 · Data', dataNiveau, dataKop, dataRegels));
+
+  // 2. Kwaliteit — is dit een goed bedrijf?
+  const q = s.quality_score;
+  const qb = s.quality_breakdown || {};
+  const qNiveau = q >= 8 ? 'groen' : q >= 6 ? 'geel' : 'rood';
+  const qKop = q === null || q === undefined ? 'Geen kwaliteitsscore berekend'
+    : `Kwaliteit ${q} van de 10`;
+  // Toon de onderdelen waar punten blijven liggen: dáár zit het verhaal.
+  const zwak = Object.entries(qb)
+    .filter(([, v]) => v < 2)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, 3)
+    .map(([k, v]) => {
+      const u = KWALITEIT_UITLEG[k];
+      return u ? `<span class="text-slate-500">${u[0]} (${v}/2):</span> ${u[1]} — dat lukt hier niet volledig` : `${k}: ${v}/2`;
+    });
+  blokken.push(blok('2 · Kwaliteit', qNiveau, qKop,
+    zwak.length ? zwak : ['Scoort op alle onderdelen de volle punten']));
+
+  // 3. Waardering — wat is het waard, en hoe zeker is dat?
+  const conf = s.fv_confidence;
+  const wNiveau = conf === 'high' ? 'groen' : conf === 'medium' ? 'geel' : 'rood';
+  const wKop = s.combined_fv
+    ? `Geschatte waarde ${Number(s.combined_fv).toFixed(2)}`
+    : 'Geen waardebepaling mogelijk';
+  const wRegels = [];
+  if (s.fv_methods_used)
+    wRegels.push(`Gebaseerd op ${s.fv_methods_used} van de drie methodes`);
+  if ((s.fv_methods_dropped || []).length)
+    wRegels.push(`Buiten beschouwing gelaten omdat de uitkomst te ver afweek: ${s.fv_methods_dropped.join(', ')}`);
+  if (s.conservative_fv && s.optimistic_fv)
+    wRegels.push(`Bandbreedte ${Number(s.conservative_fv).toFixed(2)} tot ${Number(s.optimistic_fv).toFixed(2)}`);
+  if (conf)
+    wRegels.push(`Vertrouwen in deze schatting: ${ {high:'hoog', medium:'gemiddeld', low:'laag'}[conf] || conf }`);
+  blokken.push(blok('3 · Waardering', wNiveau, wKop, wRegels));
+
+  // 4. Oordeel — wat volgt hieruit?
+  const sig = s.signal;
+  const mos = s.margin_of_safety;
+  const oNiveau = (sig === 'BUY' || sig === 'STRONG BUY') ? 'groen'
+    : sig === 'HOLD' ? 'geel' : sig === 'SELL' ? 'rood' : 'grijs';
+  const oRegels = [];
+  if (mos !== null && mos !== undefined) {
+    oRegels.push(mos >= 0
+      ? `De koers ligt ${Math.round(mos)}% onder de geschatte waarde`
+      : `De koers ligt ${Math.round(-mos)}% boven de geschatte waarde`);
+  }
+  if (sig === 'HOLD' && q !== null && q < 7)
+    oRegels.push('Geen koopsignaal omdat de kwaliteitsscore onder de 7 ligt — de prijs is niet het bezwaar');
+  if (sig === 'SELL')
+    oRegels.push('Verkoopsignaal betekent hier uitsluitend: duur ten opzichte van de geschatte waarde');
+  if (s.piotroski_breakdown) {
+    const gezakt = Object.entries(s.piotroski_breakdown)
+      .filter(([, v]) => v === false)
+      .map(([k]) => PIOTROSKI_UITLEG[k] || k)
+      .slice(0, 2);
+    if (gezakt.length) oRegels.push(`Let op: ${gezakt.join('; ')}`);
+  }
+  blokken.push(blok('4 · Oordeel', oNiveau, sig || 'Geen oordeel', oRegels));
+
+  document.getElementById('beslisboom').innerHTML = blokken.join('');
+}
+
+fetch(`/api/stock/${TICKER}`)
+  .then(r => r.ok ? r.json() : null)
+  .then(d => { if (d) bouwBeslisboom(d); })
+  .catch(() => {});
 
 const FIELD_HINTS = {
   eps_diluted:        'Winst per aandeel (verwaterd) — per aandeel in lokale valuta',

@@ -1694,11 +1694,20 @@ def api_stock_detail(ticker):
     market = db.get_market_data(t)
     scores = db.get_scores(t)
     hist   = db.get_historical_multiples(t)
+    # Data-kwaliteit hoort erbij: het eerste blok van de beslisboom op de
+    # detailpagina beantwoordt de vraag of je op deze cijfers kunt bouwen.
+    dq = db.get_data_quality(t)
+    if dq and isinstance(dq.get("issues"), str):
+        try:
+            dq["issues"] = json.loads(dq["issues"])
+        except (json.JSONDecodeError, TypeError):
+            dq["issues"] = [dq["issues"]]
     return jsonify({
         "stock":  stock,
         "annual": annual,
         "market": market,
         "scores": scores,
+        "data_quality": dq,
         "historical_multiples": hist,
     })
 
