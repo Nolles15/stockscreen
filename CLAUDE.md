@@ -59,11 +59,23 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **yfinance is flaky** — retry-logic in `_yf_retry` (3 pogingen, exponential backoff 2s/4s/8s, 3× langer bij 429). Rate-limits in bulk: 3 workers max in `fetch_all_tickers`.
 - **INSUFFICIENT DATA** na refresh — betekent echt: Yahoo gaf niks terug. Categoriseer via `/api/data-quality` endpoint.
 - **ETFs** — screener werkt niet voor ETFs (bv. BFIT). Deactiveer met `active=0`.
-- **Fly auto-stop UIT** — `fly.toml` heeft `auto_stop_machines = false` + `min_machines_running = 1`. Dat is expres: per-ticker cron verwacht een levende machine.
+- **Fly auto-stop UIT** — `fly.toml` heeft `auto_stop_machines = false` + `min_machines_running = 1`. Dat is expres en sinds fase 1 essentieel: de scheduler draait ín het proces, dus een slapende machine betekent geen verversing.
+- **Secrets via de Fly-website blijven op "Staged"** — de draaiende app pakt ze dan niet op. Altijd afsluiten met `fly secrets deploy -a stockscreen-janco`. Via `fly secrets set` gebeurt dat automatisch.
+- **Machine draait op UTC, beurzen op Amsterdamse tijd.** De scheduler rekent expliciet om via `ZoneInfo("Europe/Amsterdam")`; vergelijk nooit direct met `datetime.utcnow()`.
 
 ## Huidige plan / status
 
-**Lopend traject: "Stockscreen 2.0"** — plan in `~/.claude/plans/lovely-enchanting-mitten.md` (6 fases, geschreven om zonder extra context uitvoerbaar te zijn). **Lees dat plan voordat je aan dit project werkt.** Fase 0 is afgerond op 2026-07-30, fase 1 (refresh-motor v2) is de volgende stap.
+**Lopend traject: "Stockscreen 2.0"** — plan in `~/.claude/plans/lovely-enchanting-mitten.md` (6 fases, geschreven om zonder extra context uitvoerbaar te zijn). **Lees dat plan voordat je aan dit project werkt.** Fase 0 en 1 zijn afgerond (2026-07-30/31); fase 2 (herkalibratie naar een bruikbare BUY-lijst) is de volgende stap.
+
+**Fase 1 afgerond (2026-07-31) — refresh-motor v2:**
+- **De verversing draait nu op de Fly-machine zelf** ([engine/refresh.py](engine/refresh.py) + scheduler in [app.py](app.py)). GitHub Actions is nog slechts een handmatige noodknop; het `schedule:`-blok is bewust verwijderd.
+- **Koersen in bulk** — `refresh_prices_bulk()` haalt ze op in chunks van 200 via `yf.download` in plaats van één voor één. Gemeten: 10 tickers in 4s (was ~45s). Split-guard weigert een koers die >40% afwijkt en haalt die ticker volledig opnieuw op, zodat koers/shares/EPS bij elkaar horen.
+- **Storm-guard** — `refresh_fundamentals_batch()` telt failures pas ná afloop. Boven 25% mislukking in één batch gaan we uit van een storing bij Yahoo: `storm_detected` in het log, geen enkele teller omhoog, geen suspensies. Dit is de directe tegenmaatregel tegen de 115 tickers die in april verdwenen.
+- **Suspenderen is streng geworden**: pas na 10 fouten, gespreid over ≥30 dagen (`data_quality.first_failure_at`), én alleen als er nul jaarcijfers in de DB staan. Wekelijkse `weekly_reprobe()` geeft gesuspendeerde tickers een nieuwe kans; na 90 dagen zonder resultaat `presumed_delisted_at` (blijft zichtbaar in Beheer).
+- **NULL-bescherming**: `upsert_financials/market_data/historical_multiples` gebruiken `COALESCE(excluded.col, tabel.col)` via `db._update_clause()`. Een half antwoord van Yahoo wist geen goede cijfers meer. Tijdstempels overschrijven wél altijd. **`upsert_scores` bewust NIET** — dat is een afgeleide tabel die volledig herberekend wordt; daar is een lege uitkomst een echt resultaat en zou COALESCE stale fair values laten blijven staan.
+- **Scheduler v2** stuurt uitsluitend op de tabel `refresh_state` (restart-safe), niet meer op de leeftijd van willekeurige marktdata. Koersen na 18:30 Amsterdam, fundamentals na 03:00, wekelijks re-probe + logopschoning (90 dagen). Tick elk kwartier. Uitzetten kan met env `SCHEDULER_ENABLED=0`.
+- **`GET /api/health`** (zonder token) toont in één blik of de motor draait: `scheduler_alive`, leeftijd van beide rondes, versheidspercentages, en de dekking (actief/beoordeeld/geen oordeel/gesuspendeerd/delisted). Versheidsbanner in [templates/base.html](templates/base.html) op elke pagina, dekkingsverklaring in de dashboardkop.
+- **`POST /api/refresh/prices`** start handmatig een koersronde (body `{"tickers":[...]}` optioneel).
 
 **Fase 0 afgerond (2026-07-30):**
 - Repo-structuur omgezet: de app staat nu in de **repo-root** (was een submap van een repo die de hele home-directory omvatte). De home-repo is verwijderd. `CLAUDE.md`, `README.md`, `docs/` en enkele scripts stonden niet onder versiebeheer en zijn toegevoegd. `.dockerignore` toegevoegd (venv niet meer in build-context; image 361MB).

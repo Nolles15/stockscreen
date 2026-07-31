@@ -507,13 +507,14 @@ def _run_fundamentals_refresh(cfg: dict) -> None:
                         "attempted": result["attempted"],
                         "ok": result["ok"],
                         "failed": len(result["failed"]),
+                        "empty": len(result["empty"]),
                         "insufficient": result["insufficient"],
                         "storm_detected": result["storm_detected"],
                     })
     # Suspenderen gebeurt alleen buiten een storm, en alleen voor tickers die
     # aan alle drie de voorwaarden voldoen (zie refresh.maybe_auto_suspend).
     if not result["storm_detected"]:
-        for ticker in result["failed"]:
+        for ticker in result["failed"] + result["empty"]:
             try:
                 refresh.maybe_auto_suspend(ticker)
             except Exception:

@@ -181,6 +181,7 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
         "attempted": len(tickers),
         "ok": 0,
         "failed": [],
+        "empty": [],
         "insufficient": 0,
         "storm_detected": False,
     }
@@ -193,6 +194,12 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
             # count_failure=False: de teller gaat pas omhoog als na afloop blijkt
             # dat dit géén storm was.
             data_fetcher.fetch_and_store(ticker, count_failure=False)
+            # Een fetch die netjes voltooit maar niets oplevert is óók een
+            # mislukking. Zonder dit onderscheid blijven delisted tickers eeuwig
+            # meedraaien in de rotatie: ze gooien geen fout, dus niets merkt op
+            # dat er structureel niets binnenkomt.
+            if db.count_annual_rows(ticker) == 0:
+                outcome["empty"].append(ticker)
             calc = screener.run_ticker(ticker, cfg)
             if (calc or {}).get("signal") == "INSUFFICIENT DATA":
                 outcome["insufficient"] += 1
@@ -201,19 +208,23 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
             log.warning("Refresh mislukt voor %s: %s", ticker, exc)
             outcome["failed"].append(ticker)
 
-    failure_rate = len(outcome["failed"]) / len(tickers)
+    # Lege opbrengst telt mee voor de storm-detectie: valt Yahoo uit, dan levert
+    # alles niets op en mag er niemand gestraft worden.
+    unproductive = outcome["failed"] + outcome["empty"]
+    failure_rate = len(unproductive) / len(tickers)
     if failure_rate > STORM_THRESHOLD:
         outcome["storm_detected"] = True
         db.log_activity("storm_detected", None, "warning", {
             "failure_rate": round(failure_rate, 3),
             "attempted": len(tickers),
             "failed": len(outcome["failed"]),
+            "empty": len(outcome["empty"]),
             "note": "Tellers niet opgehoogd — dit lijkt een storing bij de bron.",
         })
-        log.warning("Storm gedetecteerd (%.0f%% mislukt) — failure-tellers ongemoeid gelaten",
+        log.warning("Storm gedetecteerd (%.0f%% zonder opbrengst) — failure-tellers ongemoeid gelaten",
                     failure_rate * 100)
     else:
-        for ticker in outcome["failed"]:
+        for ticker in unproductive:
             db.bump_failure_counter(ticker)
 
     return outcome
