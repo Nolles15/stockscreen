@@ -31,8 +31,16 @@
   </div>
 </div>
 
-<!-- Filters -->
-<div class="flex flex-wrap gap-3 mb-4 text-sm">
+<!-- Tabbladen. Elk tabblad beantwoordt één vraag; de oude filterbalk vroeg je eerst
+     zelf te bedenken wélke vraag je had. De filters staan nog wel onder "Alles". -->
+<div class="border-b border-slate-800 mb-4">
+  <nav id="tabs" class="flex flex-wrap gap-1 -mb-px text-sm"></nav>
+</div>
+
+<p id="tab-uitleg" class="text-slate-400 text-sm mb-3"></p>
+
+<!-- Filters — alleen zinvol op het tabblad "Alles" -->
+<div id="filterbalk" class="flex flex-wrap gap-3 mb-4 text-sm hidden">
   <select id="filter-market" onchange="renderTable()"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alle markten</option>
@@ -55,7 +63,7 @@
   </select>
 
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
-    <input type="checkbox" id="filter-showall" onchange="renderTable()" class="rounded" />
+    <input type="checkbox" id="filter-showall" onchange="renderTable()" class="rounded" checked />
     <span>Toon alle (ook lage kwaliteit)</span>
   </label>
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
@@ -77,8 +85,18 @@
   </button>
 </div>
 
-<!-- Table wrapper -->
-<div class="overflow-x-auto rounded-xl border border-slate-800">
+<!-- Compacte weergave voor de gerichte tabbladen -->
+<div id="focus-view" class="hidden overflow-x-auto rounded-lg border border-slate-800">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
+      <tr id="focus-head"></tr>
+    </thead>
+    <tbody id="focus-body" class="divide-y divide-slate-800/60"></tbody>
+  </table>
+</div>
+
+<!-- Volledige tabel — alleen op het tabblad "Alles" -->
+<div id="alles-view" class="hidden overflow-x-auto rounded-xl border border-slate-800">
   <table class="w-full text-sm" id="main-table">
     <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
       <tr>
@@ -190,6 +208,181 @@ document.addEventListener('health-loaded', (e) => {
   el.textContent = delen.join(' · ');
 });
 
+// ---------------------------------------------------------------------------
+// Tabbladen
+//
+// Het dashboard toonde één tabel met zes filters. Dat vroeg je eerst zelf te
+// bedenken welke vraag je had en die daarna in filterstanden te vertalen. Nu
+// beantwoordt elk tabblad één vraag, en staat de vraag waar je meestal mee
+// begint - "wat verdient nu aandacht" - standaard open.
+// ---------------------------------------------------------------------------
+
+const PINS_KEY = 'stockscreen.pins';
+const TAB_KEY  = 'stockscreen.tab';
+
+function getPins() {
+  try { return JSON.parse(localStorage.getItem(PINS_KEY)) || []; }
+  catch { return []; }
+}
+function togglePin(ticker, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const pins = getPins();
+  const i = pins.indexOf(ticker);
+  if (i >= 0) pins.splice(i, 1); else pins.push(ticker);
+  localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+  renderActiveTab();
+}
+
+const TABS = [
+  {
+    id: 'kansen', label: '⭐ Kansen',
+    uitleg: 'De twintig aandelen die nu het meest de moeite waard lijken, gewogen op korting, kwaliteit en hoe betrouwbaar de waardering is.',
+    select: rows => rows
+      .filter(r => r.rank_score !== null && r.rank_score !== undefined)
+      .sort((a, b) => b.rank_score - a.rank_score)
+      .slice(0, 20),
+  },
+  {
+    id: 'groeiers', label: '🌱 Groeiers',
+    uitleg: 'Bedrijven die verlies maken maar hard groeien. Hiervoor is geen fair value te berekenen — dit is een lijst om zelf naar te kijken, geen oordeel.',
+    select: rows => rows
+      .filter(r => r.is_growth_lossmaker)
+      .sort((a, b) => (b.revenue_cagr || 0) - (a.revenue_cagr || 0)),
+  },
+  {
+    id: 'pins', label: '📌 Mijn lijst',
+    uitleg: 'De aandelen die je zelf hebt gemarkeerd met een ster.',
+    select: rows => {
+      const pins = getPins();
+      return rows.filter(r => pins.includes(r.ticker))
+                 .sort((a, b) => (b.rank_score || 0) - (a.rank_score || 0));
+    },
+  },
+  {
+    id: 'alles', label: '📋 Alles',
+    uitleg: '',
+    select: rows => rows,
+  },
+  {
+    id: 'geenoordeel', label: '❓ Geen oordeel',
+    uitleg: 'Aandelen waarover de screener niets kan zeggen, met de reden erbij. Hier zie je wat je níet ziet.',
+    select: rows => rows
+      .filter(r => r.signal === 'INSUFFICIENT DATA')
+      .sort((a, b) => (a.reason_label || '').localeCompare(b.reason_label || '') ||
+                      a.ticker.localeCompare(b.ticker)),
+  },
+];
+
+let _actieveTab = localStorage.getItem(TAB_KEY) || 'kansen';
+
+function renderTabs() {
+  const pins = getPins().length;
+  document.getElementById('tabs').innerHTML = TABS.map(t => {
+    const actief = t.id === _actieveTab;
+    const telling = t.id === 'pins' && pins ? ` (${pins})` : '';
+    const klasse = actief
+      ? 'border-blue-500 text-blue-400'
+      : 'border-transparent text-slate-400 hover:text-slate-200';
+    return `<button onclick="kiesTab('${t.id}')"
+      class="px-4 py-2 border-b-2 ${klasse} transition">${t.label}${telling}</button>`;
+  }).join('') +
+  `<a href="/triage" class="px-4 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">🔧 Beheer</a>`;
+}
+
+function kiesTab(id) {
+  _actieveTab = id;
+  localStorage.setItem(TAB_KEY, id);
+  renderTabs();
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  const tab = TABS.find(t => t.id === _actieveTab) || TABS[0];
+  document.getElementById('tab-uitleg').textContent = tab.uitleg;
+  const isAlles = tab.id === 'alles';
+
+  document.getElementById('filterbalk').classList.toggle('hidden', !isAlles);
+  document.getElementById('alles-view').classList.toggle('hidden', !isAlles);
+  document.getElementById('focus-view').classList.toggle('hidden', isAlles);
+
+  if (isAlles) { renderTable(); return; }
+  renderFocus(tab);
+}
+
+// Eén regel uitleg in gewone taal, zodat je niet eerst de kolomkoppen hoeft te
+// ontcijferen om te snappen waarom iets in de lijst staat.
+function eenRegelUitleg(r) {
+  const delen = [];
+  if (r.quality_score !== null && r.quality_score !== undefined)
+    delen.push(`Kwaliteit ${r.quality_score}/10`);
+  if (r.margin_of_safety !== null && r.margin_of_safety !== undefined) {
+    const m = Math.round(r.margin_of_safety);
+    delen.push(m >= 0 ? `${m}% onder geschatte waarde` : `${-m}% erboven`);
+  }
+  if (r.data_status === 'ok') delen.push('cijfers compleet');
+  else if (r.data_status === 'warning') delen.push('cijfers deels compleet');
+  return delen.join(' · ');
+}
+
+function renderFocus(tab) {
+  const rows = tab.select(_allRows);
+  const head = document.getElementById('focus-head');
+  const body = document.getElementById('focus-body');
+
+  const kolommen = tab.id === 'geenoordeel'
+    ? ['', 'Ticker', 'Naam', 'Reden', 'Sector']
+    : tab.id === 'groeiers'
+      ? ['', 'Ticker', 'Naam', 'Prijs', 'Omzetgroei', 'Kwaliteit', '']
+      : ['', 'Ticker', 'Naam', 'Prijs', 'Waarde', 'Korting', 'Waarom'];
+
+  head.innerHTML = kolommen.map((k, i) =>
+    `<th class="px-3 py-3 ${i > 3 ? 'text-right' : 'text-left'}">${k}</th>`).join('');
+
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="${kolommen.length}" class="text-center py-12 text-slate-500">
+      ${tab.id === 'pins'
+        ? 'Nog niets gemarkeerd. Klik op de ster naast een aandeel om het hier te bewaren.'
+        : 'Niets gevonden.'}</td></tr>`;
+    document.getElementById('row-count').textContent = '';
+    return;
+  }
+
+  const pins = getPins();
+  body.innerHTML = rows.map(r => {
+    const ster = pins.includes(r.ticker) ? '★' : '☆';
+    const sterKleur = pins.includes(r.ticker) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400';
+    const cel = `<td class="px-3 py-2"><button onclick="togglePin('${r.ticker}', event)"
+        class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button></td>
+      <td class="px-3 py-2"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a></td>
+      <td class="px-3 py-2 text-slate-300">${r.name || ''}</td>`;
+
+    if (tab.id === 'geenoordeel') {
+      return `<tr class="hover:bg-slate-800/40">${cel}
+        <td class="px-3 py-2"><span style="color:${r.reason_color || '#94a3b8'}">${r.reason_label || 'Onbekend'}</span></td>
+        <td class="px-3 py-2 text-slate-400 text-right">${r.sector || ''}</td></tr>`;
+    }
+    if (tab.id === 'groeiers') {
+      const cagr = r.revenue_cagr !== null && r.revenue_cagr !== undefined
+        ? (r.revenue_cagr * 100).toFixed(0) + '%' : '—';
+      return `<tr class="hover:bg-slate-800/40">${cel}
+        <td class="px-3 py-2 text-right">${fmt(r.price)}</td>
+        <td class="px-3 py-2 text-right text-emerald-400">${cagr}</td>
+        <td class="px-3 py-2 text-right">${r.quality_score ?? '—'}</td>
+        <td class="px-3 py-2 text-right text-xs text-slate-500">geen waardebepaling mogelijk</td></tr>`;
+    }
+    const mos = r.margin_of_safety;
+    const kleur = mos >= 25 ? 'text-emerald-400' : mos >= 0 ? 'text-slate-300' : 'text-red-400';
+    return `<tr class="hover:bg-slate-800/40">${cel}
+      <td class="px-3 py-2 text-right">${fmt(r.price)}</td>
+      <td class="px-3 py-2 text-right text-slate-400">${fmt(r.combined_fv)}</td>
+      <td class="px-3 py-2 text-right font-medium ${kleur}">${mos !== null && mos !== undefined ? mos.toFixed(0) + '%' : '—'}</td>
+      <td class="px-3 py-2 text-right text-xs text-slate-500">${eenRegelUitleg(r)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('row-count').textContent =
+    `${rows.length} aandelen · van ${_allRows.length} in totaal`;
+}
+
 let _allRows = [];
 let _visibleRows = [];
 let _sortCol = 'margin_of_safety';
@@ -207,7 +400,8 @@ async function loadDashboard() {
     console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
     populateMarketFilter();
     populateSectorFilter();
-    renderTable();
+    renderTabs();
+    renderActiveTab();
   } catch (e) {
     console.error('loadDashboard fout:', e);
     document.getElementById('row-count').textContent = '⚠ Fout bij laden: ' + e.message;
