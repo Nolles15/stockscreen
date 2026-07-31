@@ -3,7 +3,7 @@ Kalibratierapport: laat zien of de fair-value-instellingen realistisch staan.
 
 Achtergrond: het dashboard gaf 615 van de 913 aandelen een SELL. Een screener
 die twee derde van een brede Europese universe te duur noemt is niet aan het
-selecteren maar aan het afwijzen — dan is de meetlat verkeerd afgesteld, niet
+selecteren maar aan het afwijzen - dan is de meetlat verkeerd afgesteld, niet
 de markt. Dit script maakt zichtbaar wáár de scheefheid zit, zodat je gericht
 per sector kunt bijstellen in plaats van aan één algemene knop te draaien.
 
@@ -77,7 +77,7 @@ def main() -> int:
         and r.get("margin_of_safety") is not None
     ]
 
-    print(f"Universe: {len(rijen)} tickers · {len(beoordeeld)} met een oordeel\n")
+    print(f"Universe: {len(rijen)} tickers - {len(beoordeeld)} met een oordeel\n")
 
     # --- Signaalverdeling ---------------------------------------------------
     verdeling: dict[str, int] = defaultdict(int)
@@ -99,7 +99,7 @@ def main() -> int:
 
     koop_pct = 100.0 * koop / totaal_beoordeeld
     verkoop_pct = 100.0 * (verdeling.get("SELL", 0) + verdeling.get("STRONG SELL", 0)) / totaal_beoordeeld
-    print(f"\n  koopsignalen samen : {koop_pct:5.1f}%   (streefwaarde 5–15%)")
+    print(f"\n  koopsignalen samen : {koop_pct:5.1f}%   (streefwaarde 5-15%)")
     print(f"  verkoopsignalen    : {verkoop_pct:5.1f}%   (streefwaarde onder 40%)")
 
     # --- Per sector ---------------------------------------------------------
@@ -116,8 +116,8 @@ def main() -> int:
         med = mediaan(waarden)
         sector_medianen[sector] = med
         kw = kwartielen(waarden)
-        kw1 = f"{kw[0]:7.1f}%" if kw else "      —"
-        kw3 = f"{kw[1]:7.1f}%" if kw else "      —"
+        kw1 = f"{kw[0]:7.1f}%" if kw else "      -"
+        kw3 = f"{kw[1]:7.1f}%" if kw else "      -"
         vlag = "  <-- fors scheef" if med is not None and med < -30 else ""
         print(f"  {sector:26s} {len(waarden):4d} {med:8.1f}% {kw1} {kw3}{vlag}")
 
@@ -145,7 +145,7 @@ def main() -> int:
             continue
         prijs, fv, mos = r.get("price"), r.get("combined_fv"), r.get("margin_of_safety")
         if not prijs or not fv:
-            print(f"  {t:12s} {'—':>9s} {'—':>11s} {'—':>7s} {'—':>8s}  {r.get('signal')}")
+            print(f"  {t:12s} {'-':>9s} {'-':>11s} {'-':>7s} {'-':>8s}  {r.get('signal')}")
             continue
         ratio = prijs / fv
         if mos is not None and abs(mos) > 60:
@@ -161,20 +161,20 @@ def main() -> int:
     print("\nOORDEEL")
     goed = True
     if not (5 <= koop_pct <= 15):
-        print(f"  ✗ koopsignalen {koop_pct:.1f}% ligt buiten 5–15%")
+        print(f"  X koopsignalen {koop_pct:.1f}% ligt buiten 5-15%")
         goed = False
     else:
-        print(f"  ✓ koopsignalen {koop_pct:.1f}%")
+        print(f"  v koopsignalen {koop_pct:.1f}%")
     if verkoop_pct >= 40:
-        print(f"  ✗ verkoopsignalen {verkoop_pct:.1f}% ligt boven 40%")
+        print(f"  X verkoopsignalen {verkoop_pct:.1f}% ligt boven 40%")
         goed = False
     else:
-        print(f"  ✓ verkoopsignalen {verkoop_pct:.1f}%")
+        print(f"  v verkoopsignalen {verkoop_pct:.1f}%")
     if extreem:
-        print(f"  ✗ {len(extreem)} referentie-aandelen met een afwijking boven 60%")
+        print(f"  X {len(extreem)} referentie-aandelen met een afwijking boven 60%")
         goed = False
     else:
-        print("  ✓ referentieset binnen redelijke grenzen")
+        print("  v referentieset binnen redelijke grenzen")
     print("\n  " + ("Kalibratie is op orde." if goed else "Kalibratie moet nog bijgesteld worden."))
 
     if args.json_out:
