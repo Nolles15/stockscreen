@@ -302,8 +302,44 @@ def api_dashboard():
             "is_growth_lossmaker":  is_growth_lossmaker,
         })
 
+    _add_rank_scores(rows)
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
     return jsonify(_sanitize(rows))
+
+
+def _add_rank_scores(rows: list[dict]) -> None:
+    """
+    Geef elke beoordeelde rij een `rank_score` van 0 tot 100.
+
+    Bestaansreden: de absolute signalen hangen af van hoe goed de fair values
+    gekalibreerd zijn, en dat blijft altijd een benadering. Een rangorde niet:
+    die zegt alleen "dit aandeel is binnen de huidige selectie aantrekkelijker
+    dan dat". Daardoor is er altijd een bruikbare shortlist, ook wanneer er
+    volgens de absolute maatstaf nauwelijks koopjes zijn.
+
+    Weging: korting weegt het zwaarst, daarna de kwaliteit van het bedrijf, en
+    als laatste hoeveel vertrouwen we in de waardering zelf hebben.
+    """
+    kandidaten = [
+        r for r in rows
+        if r.get("margin_of_safety") is not None
+        and r.get("data_status") in ("ok", "warning")
+        and r.get("combined_fv")
+    ]
+    if len(kandidaten) < 2:
+        return
+
+    # Percentielpositie binnen de huidige selectie: 0 = de duurste, 1 = de goedkoopste.
+    op_marge = sorted(kandidaten, key=lambda r: r["margin_of_safety"])
+    laatste = len(op_marge) - 1
+    positie = {id(r): i / laatste for i, r in enumerate(op_marge)}
+
+    vertrouwen = {"high": 1.0, "medium": 0.6, "low": 0.3}
+    for r in kandidaten:
+        kwaliteit = (r.get("quality_score") or 0) / 10.0
+        conf = vertrouwen.get(r.get("fv_confidence"), 0.3)
+        score = 0.5 * positie[id(r)] + 0.3 * kwaliteit + 0.2 * conf
+        r["rank_score"] = round(100 * score, 1)
 
 
 def _price_vs_fv(price, fv):

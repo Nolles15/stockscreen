@@ -54,9 +54,18 @@ def determine_signal(
     # boven de FV noteren omdat ze hun waardering blijven ingroeien.
     effective_sell_pct = sell_pct_compounder if quality >= 9 else sell_pct
 
-    if quality < sell_q_floor:
-        signal = "SELL"
-    elif quality >= 8 and price_vs_fv <= strong_buy_pct:
+    # SELL betekent hier uitsluitend "te duur ten opzichte van de fair value".
+    #
+    # Eerder stond hier `if quality < sell_quality_floor: signal = "SELL"`, waardoor
+    # elk aandeel met een kwaliteitsscore onder de 6 een verkoopsignaal kreeg —
+    # ongeacht de prijs. Dat gold voor 72,5% van de portefeuille en verklaarde vrijwel
+    # de hele scheve verdeling. Umicore noteerde onder zijn eigen fair value en stond
+    # tóch op SELL: een kwaliteitsoordeel met een waarderingsetiket erop.
+    #
+    # Kwaliteit blijft wél bepalen of iets een KOOPsignaal mag heten — een koopadvies
+    # op een zwak bedrijf is niets waard. Een goedkoop maar middelmatig bedrijf komt nu
+    # in HOLD terecht: niet te duur, maar ook geen kandidaat om jaren vast te houden.
+    if quality >= 8 and price_vs_fv <= strong_buy_pct:
         signal = "STRONG BUY"
     elif quality >= min_quality and price_vs_fv <= buy_pct:
         signal = "BUY"

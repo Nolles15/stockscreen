@@ -16,13 +16,15 @@ screening:
   required_years: 3
   growth_lossmaker_cagr: 0.15   # >= deze 3-jaars omzet-CAGR markeert een verlieslatende groeier (🌱) op het dashboard
 signals:
-  # Drempels als percentage van de fair value. Aangescherpt in fase 2: nadat de
-  # Graham-fout was hersteld kwamen de waarderingen zo'n 20% hoger uit, waardoor
-  # met de oude drempels een kwart van de portefeuille een koopsignaal kreeg. Een
-  # koopsignaal bij 60% van de fair value komt neer op de klassieke veiligheids-
-  # marge van 40%; daarmee blijft de lijst kort genoeg om iets mee te doen.
-  strong_buy_pct: 45
-  buy_pct: 60
+  # Drempels als percentage van de fair value. Een koopsignaal bij 70% komt neer
+  # op een veiligheidsmarge van 30%; samen met de kwaliteitseis (score >= 7) levert
+  # dat een korte lijst op. Dat de koopsignalen daarmee onder de nagestreefde 5%
+  # blijven is een echte uitkomst en geen instelfout: er zijn nu eenmaal weinig
+  # aandelen die tegelijk een fatsoenlijk bedrijf zijn en fors afgeprijsd. Verlaag
+  # de kwaliteitseis niet om het quotum te halen - gebruik de ranglijst (rank_score)
+  # om te bepalen wat aandacht verdient.
+  strong_buy_pct: 50
+  buy_pct: 70
   hold_upper_pct: 115
   sell_pct: 130
   sell_pct_high_quality: 175   # compounders (quality >= 9) pas SELL bij 175% van FV
