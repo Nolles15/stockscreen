@@ -1346,6 +1346,40 @@ def api_data_quality():
     return jsonify(out)
 
 
+@app.route("/api/refresh/prices", methods=["POST"])
+def api_refresh_prices():
+    """
+    Start direct een koersronde. Normaal doet de scheduler dit na 18:30, maar
+    handmatig starten is handig na een storing of om iets te controleren.
+
+    Body (optioneel): {"tickers": [...]} om alleen die tickers te doen.
+    Draait op de achtergrond — een volledige ronde duurt langer dan een
+    HTTP-request mag duren.
+    """
+    data = request.get_json(silent=True) or {}
+    tickers = data.get("tickers") or [s["ticker"] for s in db.get_all_stocks()]
+    cfg = load_config()
+
+    def _work():
+        try:
+            db.log_activity("refresh_prices", None, "start",
+                            {"tickers": len(tickers), "trigger": "handmatig"})
+            result = refresh.refresh_prices_bulk(tickers, cfg)
+            db.set_refresh_state("last_price_refresh_at", datetime.now(timezone.utc).isoformat())
+            db.log_activity("refresh_prices", None, "ok", {
+                "ok": result["ok"],
+                "failed": len(result["failed"]),
+                "split_suspects": result["split_suspects"],
+                "trigger": "handmatig",
+            })
+        except Exception:
+            log.exception("Handmatige koersronde mislukt")
+            db.log_activity("refresh_prices", None, "error", {"trigger": "handmatig"})
+
+    threading.Thread(target=_work, daemon=True).start()
+    return jsonify({"started": True, "tickers": len(tickers)})
+
+
 @app.route("/api/health")
 def api_health():
     """
