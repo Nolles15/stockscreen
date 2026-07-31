@@ -329,14 +329,18 @@ function renderFocus(tab) {
   const head = document.getElementById('focus-head');
   const body = document.getElementById('focus-body');
 
+  // Uitlijning expliciet per kolom, niet op positie — anders verschuift die zodra
+  // er een kolom bij komt.
   const kolommen = tab.id === 'geenoordeel'
-    ? ['', 'Ticker', 'Naam', 'Reden', 'Sector']
+    ? [['', 'l'], ['Ticker', 'l'], ['Naam', 'l'], ['Reden', 'l'], ['Sector', 'r']]
     : tab.id === 'groeiers'
-      ? ['', 'Ticker', 'Naam', 'Prijs', 'Omzetgroei', 'Kwaliteit', '']
-      : ['', 'Ticker', 'Naam', 'Prijs', 'Waarde', 'Korting', 'Waarom'];
+      ? [['', 'l'], ['Ticker', 'l'], ['Naam', 'l'], ['Sector', 'l'], ['Prijs', 'r'],
+         ['Omzetgroei', 'r'], ['Kwaliteit', 'r'], ['', 'r']]
+      : [['', 'l'], ['Ticker', 'l'], ['Naam', 'l'], ['Sector', 'l'], ['Prijs', 'r'],
+         ['Waarde', 'r'], ['Korting', 'r'], ['Waarom', 'r']];
 
-  head.innerHTML = kolommen.map((k, i) =>
-    `<th class="px-3 py-3 ${i > 3 ? 'text-right' : 'text-left'}">${k}</th>`).join('');
+  head.innerHTML = kolommen.map(([k, a]) =>
+    `<th class="px-3 py-3 ${a === 'r' ? 'text-right' : 'text-left'}">${k}</th>`).join('');
 
   if (!rows.length) {
     body.innerHTML = `<tr><td colspan="${kolommen.length}" class="text-center py-12 text-slate-500">
@@ -365,6 +369,7 @@ function renderFocus(tab) {
       const cagr = r.revenue_cagr !== null && r.revenue_cagr !== undefined
         ? (r.revenue_cagr * 100).toFixed(0) + '%' : '—';
       return `<tr class="hover:bg-slate-800/40">${cel}
+        <td class="px-3 py-2 text-slate-400 text-xs">${r.sector || '—'}</td>
         <td class="px-3 py-2 text-right">${fmt(r.price)}</td>
         <td class="px-3 py-2 text-right text-emerald-400">${cagr}</td>
         <td class="px-3 py-2 text-right">${r.quality_score ?? '—'}</td>
@@ -373,6 +378,7 @@ function renderFocus(tab) {
     const mos = r.margin_of_safety;
     const kleur = mos >= 25 ? 'text-emerald-400' : mos >= 0 ? 'text-slate-300' : 'text-red-400';
     return `<tr class="hover:bg-slate-800/40">${cel}
+      <td class="px-3 py-2 text-slate-400 text-xs">${r.sector || '—'}</td>
       <td class="px-3 py-2 text-right">${fmt(r.price)}</td>
       <td class="px-3 py-2 text-right text-slate-400">${fmt(r.combined_fv)}</td>
       <td class="px-3 py-2 text-right font-medium ${kleur}">${mos !== null && mos !== undefined ? mos.toFixed(0) + '%' : '—'}</td>
