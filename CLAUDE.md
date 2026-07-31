@@ -90,6 +90,14 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **Waarom BUY laag blijft:** een koopsignaal eist kwaliteitsscore ≥7 én een koers onder 70% van de fair value. Slechts 13 aandelen halen beide. Om aan 5–15% te komen moet je óf de kwaliteitseis verlagen (koopadvies op zwakke bedrijven) óf de fair values kunstmatig verhogen. Beide maken het signaal betekenisloos. **Niet aan draaien om het quotum te halen** — gebruik `rank_score`.
 - **Openstaand vermoeden:** de kwaliteitsscore zelf is mogelijk te streng — mediaan 3 van de 10 over 742 Europese aandelen, 72,5% scoort onder de 6. Als die verdeling naar een realistischer midden schuift komen er vanzelf meer koopkandidaten. Dit is niet onderzocht; `engine/quality_score.py` is het startpunt.
 
+**Fase 3 (UI v2) — grotendeels afgerond (2026-07-31):**
+- **Tabbladen vervangen de zes filters** in [templates/index.html](templates/index.html). Elk tabblad beantwoordt één vraag: ⭐ Kansen (top-20 op `rank_score`, standaard open), 🌱 Groeiers, 📌 Mijn lijst, 📋 Alles (met de oude filters), ❓ Geen oordeel, 🔧 Beheer. Tabkeuze in localStorage onder `stockscreen.tab`.
+- **Pins** in localStorage onder `stockscreen.pins`, ster-knop per rij. **Nog niet gedaan:** dezelfde ster op de detailpagina.
+- **Eén regel uitleg** per rij in de gerichte tabbladen ("Kwaliteit 9/10 · 44% onder geschatte waarde · cijfers compleet").
+- **Beslisboom op [templates/stock.html](templates/stock.html)**: vier blokken met stoplichtkleur (Data / Kwaliteit / Waardering / Oordeel). `KWALITEIT_UITLEG` en `PIOTROSKI_UITLEG` vertalen de sleutels uit `quality_breakdown` en `piotroski_breakdown` naar gewone taal. `/api/stock/<T>` geeft nu ook `data_quality` terug (nodig voor blok 1).
+- **Afwijking van het plan:** er is géén aparte `/beheer`-pagina gebouwd; het tabblad linkt naar de bestaande `/triage`. Die dekt de triage al; overrides, activity-log en `/api/diagnostics/mos` zijn daar nog niet samengebracht.
+- **Niet geverifieerd in een browser** — het Fly-domein is geblokkeerd in de browsertool van deze sessie. Wel getest: JS-syntax via `node --check`, en alle tabselecties plus de beslisboom-logica tegen de echte productiedata (TXT.WA, ASML.AS, RE.PA, DDRIL.OL). **Kijk zelf even of het er goed uitziet.**
+
 **Fase 2 — verloop:**
 - **Gedaan:** Graham-formule gebruikte de rendementseis op aandelen (10–12%) op de plek waar Graham de AAA-obligatierente bedoelt. Dat kortte de Graham-waarde met 55–60% en telde het risico dubbel. Nu `valuation.bond_yield: 5.0`. Fair values stegen ~8%. Koopdrempels aangescherpt naar 45/60% van FV. Alles herberekend en gedeployed.
 - **Gedaan:** [scripts/calibrate_report.py](scripts/calibrate_report.py) meet de verdeling, mediane marge per sector/markt en een referentieset van 25 bekende namen. Draaien met `--file` als het netwerk TLS onderschept.
