@@ -16,8 +16,13 @@ screening:
   required_years: 3
   growth_lossmaker_cagr: 0.15   # >= deze 3-jaars omzet-CAGR markeert een verlieslatende groeier (🌱) op het dashboard
 signals:
-  strong_buy_pct: 60
-  buy_pct: 75
+  # Drempels als percentage van de fair value. Aangescherpt in fase 2: nadat de
+  # Graham-fout was hersteld kwamen de waarderingen zo'n 20% hoger uit, waardoor
+  # met de oude drempels een kwart van de portefeuille een koopsignaal kreeg. Een
+  # koopsignaal bij 60% van de fair value komt neer op de klassieke veiligheids-
+  # marge van 40%; daarmee blijft de lijst kort genoeg om iets mee te doen.
+  strong_buy_pct: 45
+  buy_pct: 60
   hold_upper_pct: 115
   sell_pct: 130
   sell_pct_high_quality: 175   # compounders (quality >= 9) pas SELL bij 175% van FV
@@ -29,6 +34,12 @@ valuation:
   default_required_return: 10
   max_growth_rate: 8
   max_perpetuity_growth: 5
+  # Rente op AAA-bedrijfsobligaties, gebruikt om de Graham-formule te herschalen
+  # naar het huidige renteniveau (Graham ijkte op 4,4% in 1962). Dit is expres een
+  # obligatierente en niet de rendementseis op aandelen: die laatste bevat al een
+  # risico-opslag die ook in de multiples en de DCF zit, en dubbel tellen drukte
+  # de waarderingen structureel omlaag. Bijstellen als de rente structureel wijzigt.
+  bond_yield: 5.0
 sectors:
   Technology:
     growth_base: 6

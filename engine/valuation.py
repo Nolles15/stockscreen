@@ -261,11 +261,18 @@ def multiples_fair_value(
 def graham_fair_value(normalized: dict, sector: str, config: dict, scenario: str = "base") -> Optional[float]:
     """
     Gemoderniseerde Graham IV = EPS × (8.5 + 2g) × (4.4 / Y)
-    waarbij Y = sector required_return (min. 4.4%).
+    waarbij Y de geldende bedrijfsobligatierente is.
 
-    De klassieke formule is geijkt op AAA-bondyields van 4.4% (1962). In een hogere-rente-
-    omgeving overwaardeert de pure formule; de Y-correctie dempt dat. We scalen alleen naar
-    beneden (cap bij 1.0) zodat Graham nooit wordt opgeblazen in ultra-laag-rente-sectoren.
+    Graham ijkte zijn formule op een AAA-bedrijfsobligatierente van 4,4% (1962) en
+    gebruikte Y om naar het renteniveau van het moment te herschalen. Y is dus een
+    *obligatie*rente, geen rendementseis op aandelen.
+
+    Hier stond eerder de rendementseis per sector (10–12%) op die plek. Dat telt het
+    risico dubbel: de risico-opslag zit al in de multiples en in de disconteringsvoet
+    van de DCF. Het effect was fors — voor een technologiebedrijf werd de Graham-waarde
+    met 60% gekort, wat neerkwam op een koers-winstverhouding van nog geen 10 voor een
+    bedrijf als ASML. Omdat Graham voor een vijfde meetelt in de eindwaarde, verklaarde
+    dat een groot deel van de systematische onderwaardering over de hele portefeuille.
     """
     eps = normalized.get("normalized_eps")
     if not eps or eps <= 0:
@@ -278,8 +285,8 @@ def graham_fair_value(normalized: dict, sector: str, config: dict, scenario: str
     g_pct = sc.get(g_key, sc.get("growth_base", 4))
     g = _cap_growth(g_pct, config, perpetuity=False)   # percentage
 
-    required_return = sc.get("required_return", val_cfg.get("default_required_return", 10))
-    yield_scaler = min(1.0, GRAHAM_REFERENCE_YIELD / max(required_return, GRAHAM_REFERENCE_YIELD))
+    bond_yield = val_cfg.get("bond_yield", 5.0)
+    yield_scaler = min(1.0, GRAHAM_REFERENCE_YIELD / max(bond_yield, GRAHAM_REFERENCE_YIELD))
 
     return eps * (8.5 + 2 * g) * yield_scaler
 
