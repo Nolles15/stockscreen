@@ -206,6 +206,8 @@ def api_dashboard():
         # goed matcht tegen de laatste FV/quality-snapshot (staleness-fix).
         # FV-plausibiliteitsgate: factor-10+ afwijking tussen FV en price =
         # schaal/eenheid/data-bug → INSUFFICIENT DATA ipv misleidend signal.
+        fv_price_ratio = _fv_price_ratio(price, fv)
+        fv_ratio_oob = _fv_ratio_oob(fv_price_ratio)
         signal = _effective_signal(price, fv, q_score, r, cfg)
 
         norm_fcf_raw = r.get("normalized_fcf")
@@ -332,6 +334,19 @@ def _add_rank_scores(rows: list[dict]) -> None:
         r["rank_score"] = round(100 * score, 1)
 
 
+def _fv_price_ratio(price, fv):
+    return (fv / price) if (price and fv and fv > 0) else None
+
+
+def _fv_ratio_oob(ratio):
+    """
+    Wijkt de fair value een factor tien af van de koers, dan klopt er iets niet
+    met de schaal of de eenheid. Dan liever geen oordeel dan een misleidend
+    oordeel.
+    """
+    return ratio is not None and (ratio < 0.1 or ratio > 10.0)
+
+
 def _effective_signal(price, fv, q_score, row, cfg):
     """
     Het signaal zoals het nú geldt, niet zoals het bij de laatste herberekening
@@ -347,13 +362,8 @@ def _effective_signal(price, fv, q_score, row, cfg):
     oordeel" naast "179"). Dat soort verschil ondermijnt het vertrouwen in elk
     ander getal op de pagina.
     """
-    # Wijkt de fair value een factor tien af van de koers, dan is er iets mis met
-    # de schaal of de eenheid. Dan liever geen oordeel dan een misleidend oordeel.
-    fv_price_ratio = (fv / price) if (price and fv and fv > 0) else None
-    fv_ratio_oob = (
-        fv_price_ratio is not None
-        and (fv_price_ratio < 0.1 or fv_price_ratio > 10.0)
-    )
+    fv_price_ratio = _fv_price_ratio(price, fv)
+    fv_ratio_oob = _fv_ratio_oob(fv_price_ratio)
     if price and fv and fv > 0 and q_score is not None and not fv_ratio_oob:
         return determine_signal(price, fv, q_score, cfg).get("signal")
     if fv_ratio_oob:
