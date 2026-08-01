@@ -21,6 +21,13 @@ REMAP_RULES: dict[str, tuple[str, str]] = {
     "MHG.OL":      ("MOWI.OL",   "Marine Harvest hernoemd naar Mowi"),
     "HOLN.DE":     ("HOLN.SW",   "Holcim primary op SIX Swiss"),
     "ADS.DE":      ("ADDYY",     "Adidas; yfinance .DE data inconsistent"),
+    # Gevonden in juli 2026: stonden als dubbeling in de watchlist onder een beurs
+    # waar yfinance niets voor teruggeeft, terwijl hetzelfde bedrijf onder de
+    # primaire notering wel gewoon werkte.
+    "WDP.AS":      ("WDP.BR",    "Warehouses De Pauw primary op Euronext Brussel"),
+    "BPOST.AS":    ("BPOST.BR",  "bpost primary op Euronext Brussel"),
+    "REN.LS":      ("REN.AS",    "yfinance levert alleen data op de .AS-notering"),
+    "AI.AS":       ("AI.PA",     "Air Liquide primary op Euronext Parijs"),
 }
 
 

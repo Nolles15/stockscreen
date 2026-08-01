@@ -234,11 +234,22 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
 # Suspend-beleid
 # ---------------------------------------------------------------------------
 
-# Een ticker mag pas verdwijnen als het écht structureel is: veel pogingen,
-# gespreid over ruim een maand, en geen enkel jaarcijfer in de database.
-SUSPEND_MIN_FAILURES = 10
-SUSPEND_MIN_DAYS = 30
-DELISTED_AFTER_DAYS = 90
+# Een ticker mag pas op non-actief als er structureel niets binnenkomt: meerdere
+# mislukte pogingen, gespreid over weken, en geen enkel jaarcijfer in de database.
+#
+# De drempels stonden aanvankelijk op 10 pogingen / 30 dagen. Dat leek streng maar
+# pakte anders uit dan bedoeld: bij een rotatie van ~900 tickers en 100 per nacht
+# krijgt elke ticker maar eens per negen dagen een beurt, dus tien pogingen duurt
+# drie maanden en het archief werd pas na een half jaar bereikt. Voor symbolen
+# waar Yahoo letterlijk "possibly delisted" op teruggeeft is dat onnodig lang, en
+# ze slokken al die tijd rotatiecapaciteit op.
+#
+# De echte bescherming tegen massa-suspensies zit niet in deze drempels maar in de
+# storm-guard: bij een storing worden de tellers helemaal niet opgehoogd. Daarom
+# kunnen deze getallen omlaag zonder het risico terug te halen dat in april speelde.
+SUSPEND_MIN_FAILURES = 3
+SUSPEND_MIN_DAYS = 21
+DELISTED_AFTER_DAYS = 45
 
 
 def maybe_auto_suspend(ticker: str) -> bool:

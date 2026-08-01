@@ -561,7 +561,9 @@ def _run_fundamentals_refresh(cfg: dict) -> None:
 
 def _run_weekly_tasks(cfg: dict) -> None:
     db.log_activity("reprobe", None, "start", None)
-    result = refresh.weekly_reprobe(20, cfg)
+    # 40 per week: met ruim honderd gesuspendeerde tickers krijgt elk er zo eens
+    # per drie weken een nieuwe kans, in plaats van eens per zes.
+    result = refresh.weekly_reprobe(40, cfg)
     db.set_refresh_state("last_reprobe_at", datetime.now(timezone.utc).isoformat())
     db.log_activity("reprobe", None, "ok", {
         "attempted": result["attempted"],
