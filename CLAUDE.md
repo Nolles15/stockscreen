@@ -118,6 +118,14 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **Dekkingsoverzicht per beurs** (wat we wel/niet hebben, incl. VS): https://claude.ai/code/artifact/cf6bc61d-a01f-4f8c-86fd-d0a7e13b216e
 - **Grootste resterende gaten:** Verenigde Staten (51 van 7.485 — de Nasdaq Trader symbolenlijst is gratis en getest, zie `scratchpad`-notities), VK (14 van ~1.545), Zwitserland (20 van ~237), Spanje (57 van ~143). Plus ~1.250 groeisegment-noteringen die met `--include-growth` binnen handbereik liggen maar bewust uit staan.
 
+**Wat blijft er bewaard als Yahoo ermee stopt? (uitgezocht 2026-08-01)**
+- **Jaarcijfers stapelen op.** `upsert_financials` gebruikt `ON CONFLICT(ticker, period_type, fiscal_year) DO UPDATE` en er staat nergens een `DELETE FROM financials`. Een oud boekjaar wordt dus nooit verwijderd. Yahoo levert een venster van ~5 jaar; de database bouwt daar elk jaar één jaar bovenop. Nu heeft iedereen 2021–2025; in 2031 staat er 2021–2030 terwijl Yahoo er nog steeds vijf toont. Zelfde principe voor `historical_multiples` (sleutel `ticker, fiscal_year`).
+- **Koershistorie wordt NIET bewaard.** `market_data` heeft `ticker` als PRIMARY KEY: één rij per aandeel met alleen de laatste koers. Er is geen koersreeks-tabel. Valt Yahoo weg, dan blijven alle ooit opgehaalde jaarcijfers staan, maar is er geen koers meer — en zonder koers geen margin of safety en dus geen signaal. `historical_multiples` bewaart wel pe/ev_ebitda/pb/ev_fcf per jaar, dus indirect een stukje koersinformatie per boekjaar.
+- **Het archief begint pas bij de eerste geslaagde fetch.** De 1.846 tickers van 2026-08-01 hebben nog niets; hoe eerder ze opgehaald worden, hoe eerder hun historie begint. Een jaar dat nooit is opgehaald vóórdat Yahoo het liet vallen, is definitief weg.
+- **Openstaand:** een `price_history`-tabel zou de enige echt onvervangbare reeks veiligstellen. Niet gebouwd — bewust als voorstel neergelegd bij Janco.
+
+**Landenfilter (2026-08-01):** staat boven de tabbladen in [templates/index.html](templates/index.html) en werkt op álle tabbladen. **Leidt het land af uit het beurssuffix, niet uit `stocks.market`** — dat veld is nooit genormaliseerd (dezelfde beurs staat er als `NL`, `Nederland` én `US` in), dus filteren daarop geeft onvolledige lijsten. `LAND_PER_SUFFIX` dekt alle 27 landen in de huidige dataset; `.DE` en `.F` tellen samen als Duitsland. Keuze in localStorage onder `stockscreen.land`.
+
 **Open na fase 0:** ~~DATABASE_URL-rotatie~~ (gedaan 2026-07-31).
 **Losse eindjes:** er hangt nog een oude **Render**-service aan deze repo die bij elke push probeert te bouwen en faalt (Janco krijgt faalmails). Controleren of daar nog een oude versie draait die naar dezelfde Neon-database schrijft — zo ja, dat is een tweede schrijver op dezelfde data. De `Procfile` in de repo is een restant daarvan.
 
