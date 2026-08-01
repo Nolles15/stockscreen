@@ -206,17 +206,7 @@ def api_dashboard():
         # goed matcht tegen de laatste FV/quality-snapshot (staleness-fix).
         # FV-plausibiliteitsgate: factor-10+ afwijking tussen FV en price =
         # schaal/eenheid/data-bug → INSUFFICIENT DATA ipv misleidend signal.
-        fv_price_ratio = (fv / price) if (price and fv and fv > 0) else None
-        fv_ratio_oob = (
-            fv_price_ratio is not None
-            and (fv_price_ratio < 0.1 or fv_price_ratio > 10.0)
-        )
-        if price and fv and fv > 0 and q_score is not None and not fv_ratio_oob:
-            signal = determine_signal(price, fv, q_score, cfg).get("signal")
-        elif fv_ratio_oob:
-            signal = "INSUFFICIENT DATA"
-        else:
-            signal = r.get("signal") or "N/A"
+        signal = _effective_signal(price, fv, q_score, r, cfg)
 
         norm_fcf_raw = r.get("normalized_fcf")
         fcf_m        = (norm_fcf_raw / 1e6) if norm_fcf_raw is not None else None
@@ -340,6 +330,35 @@ def _add_rank_scores(rows: list[dict]) -> None:
         conf = vertrouwen.get(r.get("fv_confidence"), 0.3)
         score = 0.5 * positie[id(r)] + 0.3 * kwaliteit + 0.2 * conf
         r["rank_score"] = round(100 * score, 1)
+
+
+def _effective_signal(price, fv, q_score, row, cfg):
+    """
+    Het signaal zoals het nú geldt, niet zoals het bij de laatste herberekening
+    was opgeslagen.
+
+    Koersen worden dagelijks ververst, de fair value hooguit eens per negen dagen.
+    Het opgeslagen signaal is dus al snel achterhaald; live herberekenen zorgt dat
+    een verse koers meteen tegen de laatste waardering wordt gehouden.
+
+    Deze functie is met opzet de enige plek waar die afleiding gebeurt. Toen het
+    dashboard live herberekende en /api/health de opgeslagen waarde telde, gaven
+    de twee schermen verschillende aantallen voor precies hetzelfde ("167 zonder
+    oordeel" naast "179"). Dat soort verschil ondermijnt het vertrouwen in elk
+    ander getal op de pagina.
+    """
+    # Wijkt de fair value een factor tien af van de koers, dan is er iets mis met
+    # de schaal of de eenheid. Dan liever geen oordeel dan een misleidend oordeel.
+    fv_price_ratio = (fv / price) if (price and fv and fv > 0) else None
+    fv_ratio_oob = (
+        fv_price_ratio is not None
+        and (fv_price_ratio < 0.1 or fv_price_ratio > 10.0)
+    )
+    if price and fv and fv > 0 and q_score is not None and not fv_ratio_oob:
+        return determine_signal(price, fv, q_score, cfg).get("signal")
+    if fv_ratio_oob:
+        return "INSUFFICIENT DATA"
+    return (row or {}).get("signal") or "N/A"
 
 
 def _price_vs_fv(price, fv):
@@ -1470,17 +1489,20 @@ def api_health():
         fundamentals_fresh = cur.fetchone()["n"]
 
         cur.execute("""
-            SELECT COUNT(*) AS n FROM calculated_scores cs
-            JOIN stocks s ON s.ticker = cs.ticker
-            WHERE s.active = 1 AND cs.signal = 'INSUFFICIENT DATA'
-        """)
-        no_verdict = cur.fetchone()["n"]
-
-        cur.execute("""
             SELECT COUNT(*) AS n FROM activity_log
             WHERE action = 'storm_detected' AND timestamp >= %s
         """, ((now - timedelta(days=7)).isoformat(),))
         storms = cur.fetchone()["n"]
+
+    # Zonder oordeel op dezelfde manier tellen als het dashboard het toont —
+    # zie _effective_signal voor waarom dat via dezelfde functie moet lopen.
+    cfg = load_config()
+    no_verdict = 0
+    for r in db.get_dashboard_data():
+        sig = _effective_signal(r.get("price"), r.get("combined_fv"),
+                                r.get("quality_score"), r, cfg)
+        if sig in ("INSUFFICIENT DATA", "N/A"):
+            no_verdict += 1
 
     active = counts.get("active") or 0
     price_age = _age_hours("last_price_refresh_at")
