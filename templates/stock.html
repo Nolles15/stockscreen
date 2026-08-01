@@ -73,6 +73,9 @@
      en dan is een screener alleen een duurdere manier om naar cijfers te kijken. -->
 <div id="beslisboom" class="grid gap-3 md:grid-cols-2 mb-6"></div>
 
+<!-- Onderbouwing van het moat-blok; blijft verborgen tot er cijfers zijn. -->
+<div id="moat-cijfers" class="hidden mb-6"></div>
+
 <!-- Handmatige koersinvoer (verborgen tot klik) -->
 <div id="manual-price-panel" class="hidden bg-slate-900 border border-yellow-700 rounded-xl p-4 mb-5">
   <h3 class="text-yellow-400 font-semibold text-sm mb-2">✏ Handmatige koers invoeren</h3>
@@ -761,7 +764,61 @@ function bouwBeslisboom(d) {
   }
   blokken.push(blok('4 · Oordeel', oNiveau, sig || 'Geen oordeel', oRegels));
 
+  // 5. Moat — is dit een goed bedrijf, of alleen een goedkoop bedrijf?
+  // De screener meet de prijs goed maar niet de concurrentiepositie. Uit de
+  // afgeronde diepe analyses bleek dat juist die tweede vraag het oordeel
+  // bepaalde: goedkope aandelen met een zwakke moat kwamen steevast op HOLD uit.
+  const m = d.moat;
+  if (m) {
+    const regels = (m.redenen || []).slice();
+    if (m.niveau === 'rood')
+      regels.push('<span class="text-slate-500">Goedkoop is hier geen koopje — dit profiel viel eerder herhaaldelijk tegen.</span>');
+    else if (m.niveau === 'geel')
+      regels.push('<span class="text-slate-500">De cijfers sluiten een moat niet uit, maar bewijzen hem ook niet. Dat vraagt onderzoek.</span>');
+    blokken.push(blok('5 · Moat', m.niveau, m.kop, regels));
+  }
+
   document.getElementById('beslisboom').innerHTML = blokken.join('');
+  if (m) toonMoatCijfers(m);
+}
+
+// De reeksen waarop het moat-oordeel rust. Bewust onder de beslisboom en niet
+// erin: het blok geeft de conclusie, dit geeft de onderbouwing.
+function toonMoatCijfers(m) {
+  const doel = document.getElementById('moat-cijfers');
+  if (!doel) return;
+  const roic = m.roic || [];
+  if (!roic.length) { doel.classList.add('hidden'); return; }
+
+  const rij = (label, reeks, achtervoegsel = '%') =>
+    `<tr><td class="px-3 py-1.5 text-slate-400">${label}</td>` +
+    reeks.map(p => `<td class="px-3 py-1.5 text-right tabular-nums">${p.pct}${achtervoegsel}</td>`).join('') +
+    '</tr>';
+
+  const jaren = roic.map(p => `<th class="px-3 py-1.5 text-right font-medium">${p.jaar}</th>`).join('');
+  const cyc = m.cyclus || {};
+  const cyclusRegel = cyc.beschikbaar
+    ? `<p class="text-xs text-slate-500 mt-3">Koershistorie vanaf ${cyc.vanaf}: zwaarste terugval
+       ${cyc.diepste_terugval_pct}% (${cyc.diepste_terugval_datum}),
+       nu ${cyc.onder_top_pct}% ten opzichte van de hoogste slotkoers ooit.</p>`
+    : '<p class="text-xs text-slate-500 mt-3">Nog geen koershistorie opgeslagen voor dit aandeel.</p>';
+
+  doel.innerHTML = `
+    <h2 class="text-sm font-semibold text-slate-300 mb-2">Waarop het moat-oordeel rust</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-800">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-900 text-slate-400">
+          <tr><th class="px-3 py-1.5 text-left font-medium">Per boekjaar</th>${jaren}</tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800">
+          ${rij('Rendement op kapitaal', roic)}
+          ${m.brutomarge && m.brutomarge.length ? rij('Brutomarge', m.brutomarge) : ''}
+          ${m.operationele_marge && m.operationele_marge.length ? rij('Operationele marge', m.operationele_marge) : ''}
+        </tbody>
+      </table>
+    </div>
+    ${cyclusRegel}`;
+  doel.classList.remove('hidden');
 }
 
 fetch(`/api/stock/${TICKER}`)

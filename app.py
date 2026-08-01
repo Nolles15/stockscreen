@@ -21,6 +21,7 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
 from engine import data_quality
+from engine import moat_profile
 from engine import refresh
 from engine import remap_rules
 from engine.data_fetcher import (
@@ -1978,6 +1979,7 @@ def api_stock_detail(ticker):
             dq["issues"] = json.loads(dq["issues"])
         except (json.JSONDecodeError, TypeError):
             dq["issues"] = [dq["issues"]]
+    prijzen = db.get_price_history(t)
     return jsonify({
         "stock":  stock,
         "annual": annual,
@@ -1985,7 +1987,11 @@ def api_stock_detail(ticker):
         "scores": scores,
         "data_quality": dq,
         "historical_multiples": hist,
-        "price_history": db.get_price_history(ticker),
+        "price_history": prijzen,
+        # Het vijfde blok van de beslisboom: houdt het rendement stand, of is
+        # dit aandeel goedkoop omdat het bedrijf zwak is? Dat onderscheid bepaalt
+        # in de diepe analyses vrijwel het hele oordeel.
+        "moat": moat_profile.bouw_profiel(annual, prijzen),
     })
 
 
