@@ -61,6 +61,7 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **ETFs** — screener werkt niet voor ETFs (bv. BFIT). Deactiveer met `active=0`.
 - **Fly auto-stop UIT** — `fly.toml` heeft `auto_stop_machines = false` + `min_machines_running = 1`. Dat is expres en sinds fase 1 essentieel: de scheduler draait ín het proces, dus een slapende machine betekent geen verversing.
 - **Secrets via de Fly-website blijven op "Staged"** — de draaiende app pakt ze dan niet op. Altijd afsluiten met `fly secrets deploy -a stockscreen-janco`. Via `fly secrets set` gebeurt dat automatisch.
+- **Draai `pyflakes` vóór elke deploy** — `py_compile` ziet ongedefinieerde namen niet. Zo ging `/api/dashboard` op 2026-08-01 onderuit met een NameError die netjes compileerde. `pip install -r requirements-dev.txt`, dan `python -m pyflakes app.py engine/*.py`.
 - **Machine draait op UTC, beurzen op Amsterdamse tijd.** De scheduler rekent expliciet om via `ZoneInfo("Europe/Amsterdam")`; vergelijk nooit direct met `datetime.utcnow()`.
 
 ## Huidige plan / status

@@ -1,0 +1,9 @@
+# Alleen voor ontwikkeling; niet nodig in het Docker-image.
+#
+# pyflakes vangt ongedefinieerde namen die `python -m py_compile` mist. Dat is
+# geen theoretisch risico: op 1 augustus 2026 ging /api/dashboard onderuit met
+# een NameError die wel compileerde en pas in productie zichtbaar werd.
+#
+#   venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+#   venv/Scripts/python.exe -m pyflakes app.py engine/*.py
+pyflakes>=3.2
