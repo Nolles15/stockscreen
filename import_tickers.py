@@ -75,6 +75,11 @@ ISIN_HOME_SUFFIX = {
     "EE": "TL", "LV": "RG", "LT": "VS",
 }
 
+# Beurssuffix -> alternatieven die de probe probeert als het eerste symbool
+# niets oplevert. Yahoo voert kleinere Duitse fondsen vaak alleen onder
+# Frankfurt (.F) in plaats van Xetra (.DE); dat scheelde bij meting 34 tickers.
+ALT_SUFFIX = {"DE": ["F"]}
+
 # Auto-downloads landen hier; `data/` staat in .gitignore.
 DOWNLOAD_DIR = Path(__file__).parent / "data" / "exchange_lists"
 
@@ -371,6 +376,31 @@ def existing_tickers() -> tuple[set[str], str]:
     return {r["ticker"] for r in rows}, "live API (alleen actieve tickers!)"
 
 
+def _probe_call(tickers: list[str]) -> tuple[set[str], set[str]]:
+    """Eén ronde langs /api/stocks/probe. Returns (gevonden, onbeoordeeld)."""
+    verify = os.environ.get("IMPORT_TLS_VERIFY", "1") != "0"
+    resolved: set[str] = set()
+    unknown: set[str] = set()
+    for start in range(0, len(tickers), 200):
+        chunk = tickers[start:start + 200]
+        r = requests.post(f"{APP_URL}/api/stocks/probe", json={"tickers": chunk},
+                          headers=UA, timeout=300, verify=verify)
+        if r.status_code != 200:
+            print(f"  [WAARSCHUWING] probe mislukt ({r.status_code}); "
+                  f"{len(chunk)} tickers overgeslagen", file=sys.stderr)
+            unknown.update(chunk)
+            continue
+        data = r.json()
+        resolved.update(data.get("resolved") or [])
+        if data.get("chunks_failed"):
+            # Een storing bij Yahoo mag geldige symbolen niet afschrijven; die
+            # blijven onbeoordeeld en komen een volgende run opnieuw langs.
+            print(f"  [WAARSCHUWING] {data['chunks_failed']} deelchunk(s) faalden bij Yahoo; "
+                  "die tickers blijven liggen voor een volgende run", file=sys.stderr)
+            unknown.update(set(chunk) - resolved)
+    return resolved, unknown
+
+
 def probe_batch(records: list[dict]) -> tuple[list[dict], list[dict]]:
     """
     Laat de server testen welke kandidaat-symbolen Yahoo kent.
@@ -381,29 +411,37 @@ def probe_batch(records: list[dict]) -> tuple[list[dict], list[dict]]:
 
     Returns (te importeren records, onvindbare records).
     """
-    verify = os.environ.get("IMPORT_TLS_VERIFY", "1") != "0"
     by_ticker = {r["ticker"]: r for r in records}
-    resolved: set[str] = set()
-    unknown: set[str] = set()  # chunk mislukt: geen oordeel, dus niet importeren
-
     tickers = list(by_ticker)
-    for start in range(0, len(tickers), 200):
-        chunk = tickers[start:start + 200]
-        r = requests.post(f"{APP_URL}/api/stocks/probe", json={"tickers": chunk},
-                          headers=UA, timeout=180, verify=verify)
-        if r.status_code != 200:
-            print(f"  [WAARSCHUWING] probe mislukt ({r.status_code}); "
-                  f"{len(chunk)} tickers overgeslagen", file=sys.stderr)
-            unknown.update(chunk)
-            continue
-        data = r.json()
-        resolved.update(data.get("resolved") or [])
-        if data.get("chunks_failed"):
-            print(f"  [WAARSCHUWING] {data['chunks_failed']} deelchunk(s) faalden bij Yahoo; "
-                  "die tickers blijven liggen voor een volgende run", file=sys.stderr)
+    if not tickers:
+        return [], []
 
-    keep = [by_ticker[t] for t in tickers if t in resolved]
-    lost = [by_ticker[t] for t in tickers if t not in resolved and t not in unknown]
+    resolved, unknown = _probe_call(tickers)
+
+    # Tweede kans onder een ander beurssuffix. Gemeten op de Xetra-lijst:
+    # 34 van de 53 niet-gevonden .DE-symbolen bestaan wél als .F, meestal
+    # kleinere fondsen die Yahoo alleen onder Frankfurt voert (80% -> 93%).
+    retry = [t for t in tickers if t not in resolved and t not in unknown
+             and ALT_SUFFIX.get(t.rsplit(".", 1)[1])]
+    if retry:
+        alt_of = {}
+        for t in retry:
+            base, suffix = t.rsplit(".", 1)
+            for alt in ALT_SUFFIX[suffix]:
+                alt_of[f"{base}.{alt}"] = t
+        alt_resolved, _ = _probe_call(list(alt_of))
+        for alt_ticker in alt_resolved:
+            original = alt_of[alt_ticker]
+            record = by_ticker.pop(original)
+            record["ticker"] = alt_ticker
+            by_ticker[alt_ticker] = record
+            resolved.add(alt_ticker)
+        if alt_resolved:
+            print(f"  {len(alt_resolved)} alsnog gevonden onder een ander beurssuffix "
+                  f"(o.a. {', '.join(sorted(alt_resolved)[:6])})")
+
+    keep = [r for t, r in by_ticker.items() if t in resolved]
+    lost = [r for t, r in by_ticker.items() if t not in resolved and t not in unknown]
     pct = (100 * len(keep) // len(tickers)) if tickers else 0
     print(f"\nProbe: {len(keep)}/{len(tickers)} symbolen leveren een koers op ({pct}%)")
     if lost:

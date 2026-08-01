@@ -104,6 +104,14 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **Gedaan:** [scripts/calibrate_report.py](scripts/calibrate_report.py) meet de verdeling, mediane marge per sector/markt en een referentieset van 25 bekende namen. Draaien met `--file` als het netwerk TLS onderschept.
 - **De hoofdoorzaak was de signaallogica, niet de waardering.** In `determine_signal` ([engine/screener.py](engine/screener.py)) stond `if quality < sell_quality_floor: signal = "SELL"` — ongeacht de prijs, en dat gold voor 72,5% van de portefeuille. UMI.BR noteerde onder zijn fair value en stond tóch op SELL. **Verwijderd:** SELL betekent nu uitsluitend "te duur". Kwaliteit bewaakt nog wel de koopsignalen. `sell_quality_floor` in config.yaml wordt niet meer gebruikt.
 
+**Fase 4 (universe uitbreiden) — importer klaar, onboarding nog niet gestart (2026-08-01):**
+- **`import_tickers.py` is herbouwd** tot `--source {euronext,xetra,nasdaq-nordic,baltic,gpw}` en leest de complete noteringslijsten van de beurzen zelf. Elke bron doet auto-download; `--file` is de terugval als een site dichtzit. Handige vlaggen: `--dry-run`, `--limit N` (default 250), `--include-growth`, `--out <csv>`.
+- **Gemeten gat: 1.715 noteringen die we nog niet volgen** — 913 → 2.628, zónder Growth/Access/First North. Per markt: PL 341, SE 296, DE 267, FR 254, NO 135, FI 117, DK 89, BE 66, NL 62, IS 23, LT 19, IE 15, PT 12, EE 11, LV 8.
+- **Het beurssymbool is niet het Yahoo-symbool.** Balder noteert op Nasdaq als `BALD B`, bij Yahoo als `FAST-B.ST`. Dat geldt voor een deel van élke lijst. Zulke symbolen klakkeloos importeren levert permanente "GEEN DATA"-regels op — precies de rommel die fase 0 heeft opgeruimd. **Importeer daarom altijd met `--probe`.** Dat test elke kandidaat via `POST /api/stocks/probe` (draait op Fly, want daar wérkt Yahoo) en laat alleen symbolen met een koers door; de rest gaat naar `<out>_onvindbaar.csv` als remap-werk.
+- **ISIN** staat nu in `stocks` en ontdubbelt dual-listings binnen een batch: bij dezelfde ISIN wint de notering in het thuisland van die ISIN. Ving o.a. NDA-SE.ST/NDA-DK.CO en SAMPO-SEK.ST/SAMPO-DKK.CO af.
+- **Bronvalkuilen:** een onbekende MIC in de Euronext-URL breekt het endpoint (301 → lege pagina), dus `MERK` (Growth Oslo) staat er bewust niet in. De GPW-lijst komt van biznesradar.pl omdat gpw.pl vanaf dit netwerk niet bereikbaar is; de grootste Poolse namen staan daar zónder haakjes-notatie ("PZU" i.p.v. "PZU (PZU)") — dat kostte eerst 29 tickers, waaronder PZU en PGE. `tests/test_import_parsers.py` bewaakt dit.
+- **Nog te doen:** de plan-gate is `/api/health` twee weken groen vóór de eerste onboarding-ronde; daarna max ~250 nieuwe per week. Geheugen bewaken (256MB) — bij OOM `fly scale memory 512` na akkoord van Janco.
+
 **Open na fase 0:** ~~DATABASE_URL-rotatie~~ (gedaan 2026-07-31).
 **Losse eindjes:** er hangt nog een oude **Render**-service aan deze repo die bij elke push probeert te bouwen en faalt (Janco krijgt faalmails). Controleren of daar nog een oude versie draait die naar dezelfde Neon-database schrijft — zo ja, dat is een tweede schrijver op dezelfde data. De `Procfile` in de repo is een restant daarvan.
 
@@ -129,6 +137,12 @@ fly logs -a stockscreen-janco
 
 # Secret checken (toont hash, niet waarde)
 fly secrets list -a stockscreen-janco
+
+# Universe-gat bekijken zonder iets te wijzigen
+python import_tickers.py --source euronext --dry-run --limit 99999
+
+# Echte onboarding-ronde (altijd met --probe, anders komen er dode symbolen in)
+DATABASE_URL="..." python import_tickers.py --source gpw --probe --limit 250
 
 # Handmatige workflow-run: GitHub → Actions → "Daily refresh" → Run workflow
 

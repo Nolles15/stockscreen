@@ -29,7 +29,25 @@ Voor een overzicht: [README.md](../README.md). Voor operationele zaken (wat gaat
 
 **Stack.** Flask 3 (gunicorn 1 worker / 8 threads) · psycopg2 · yfinance · pandas · PyYAML. Alles in `engine/`.
 
-**Data-flow.** (1) tickers komen uit `import_tickers.py` (Excel met indices), (2) nachtelijke refresh haalt per ticker financials + koers op, (3) valuation-engine rekent fair value + signal, (4) dashboard leest uit DB en recomputeert het signal live met de actuele prijs.
+**Data-flow.** (1) tickers komen uit `import_tickers.py` (complete noteringslijsten van de beurzen), (2) nachtelijke refresh haalt per ticker financials + koers op, (3) valuation-engine rekent fair value + signal, (4) dashboard leest uit DB en recomputeert het signal live met de actuele prijs.
+
+### Universe-import (`import_tickers.py`)
+
+De tickerlijst komt van de beurzen zelf, niet van een index. Een index is een selectie en zou per definitie kansen buiten die selectie missen; een noteringslijst is compleet.
+
+| `--source` | Bron | Dekking |
+|---|---|---|
+| `euronext` | CSV-endpoint van live.euronext.com | `.AS` `.BR` `.PA` `.LS` `.IR` `.OL` |
+| `xetra` | "Listed companies"-xlsx van Deutsche Börse | `.DE` |
+| `nasdaq-nordic` | `api.nasdaq.com/api/nordic` screener, Main Market per beurs | `.ST` `.CO` `.HE` `.IC` |
+| `baltic` | share-list-xlsx van nasdaqbaltic.com | `.TL` `.RG` `.VS` |
+| `gpw` | biznesradar.pl (gpw.pl is niet altijd bereikbaar) | `.WA` |
+
+**Waarom er een probe-stap tussen zit.** Een beurs publiceert haar eigen symbool, en dat is niet altijd het symbool waaronder Yahoo hetzelfde aandeel kent — Balder staat bij Nasdaq als `BALD B` en bij Yahoo als `FAST-B.ST`. Een niet-bestaand symbool importeren is niet onschuldig: de ticker levert nooit data, blijft als "GEEN DATA" in het dashboard staan en vult de refresh-rotatie met kansloze pogingen. Dat is precies het probleem dat fase 0 heeft opgeruimd (114 lege tickers). `--probe` stuurt de kandidaten daarom eerst naar `POST /api/stocks/probe` op de Fly-machine, die één bulk-`yf.download` doet en per symbool teruggeeft of er een koers uitkomt. Alleen die symbolen worden geïmporteerd.
+
+Een mislukte probe-chunk telt niet als "onvindbaar": die tickers blijven onbeoordeeld liggen voor een volgende run. Een storing bij Yahoo mag nooit leiden tot het permanent afschrijven van geldige symbolen — dezelfde redenering als de storm-guard in `engine/refresh.py`.
+
+**Dubbelingen** worden op ISIN gevangen. Dezelfde ISIN op twee beurzen betekent hetzelfde bedrijf; de notering in het thuisland van de ISIN wint, want daar heeft yfinance vrijwel altijd de beste dekking. Bekende uitzonderingen staan handmatig in [engine/remap_rules.py](../engine/remap_rules.py) en worden overgeslagen bij import.
 
 ---
 
