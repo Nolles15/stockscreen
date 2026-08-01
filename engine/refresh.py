@@ -71,6 +71,92 @@ def _extract_last_close(frame: pd.DataFrame, ticker: str, multi: bool) -> float 
     return value if value > 0 else None
 
 
+def _closes_uit_frame(frame: pd.DataFrame, ticker: str, multi: bool) -> list[tuple[str, str, float]]:
+    """Alle slotkoersen van één ticker uit een yf.download-resultaat, klaar
+    voor `db.insert_price_history`. Lege dagen (beursvakanties) vallen weg."""
+    try:
+        series = frame[ticker]["Close"] if multi else frame["Close"]
+    except (KeyError, TypeError):
+        return []
+    series = series.dropna()
+    if series.empty:
+        return []
+
+    # Zelfde pence-correctie als bij de actuele koers: zonder deling staat er
+    # een reeks in het archief die een factor 100 afwijkt van de cijfers.
+    deler = 100.0 if ticker.endswith(".L") else 1.0
+    rijen = []
+    for stamp, value in series.items():
+        try:
+            close = float(value) / deler
+        except (TypeError, ValueError):
+            continue
+        if close <= 0:
+            continue
+        rijen.append((ticker, stamp.strftime("%Y-%m-%d"), close))
+    return rijen
+
+
+def backfill_price_history(tickers: list[str], period: str = "5y") -> dict:
+    """
+    Haal de koershistorie op die Yahoo *nu* nog heeft en leg die vast.
+
+    Alleen vooruit archiveren is niet genoeg: op het moment dat Yahoo ermee
+    stopt ben je alles van vóór vandaag kwijt, terwijl het nu nog gewoon op te
+    halen is. Deze functie is bedoeld om eenmalig per ticker te draaien.
+
+    Returns {"tickers_ok": n, "rows": n, "failed": [ticker], "chunks_failed": n}
+    """
+    result = {"tickers_ok": 0, "rows": 0, "failed": [], "chunks_failed": 0}
+    if not tickers:
+        return result
+
+    # Kleinere chunks dan bij de dagelijkse ronde: vijf jaar dagkoersen voor 200
+    # tickers is een fors antwoord om in één keer in het geheugen te houden.
+    chunk_size = 50
+    for start in range(0, len(tickers), chunk_size):
+        chunk = tickers[start:start + chunk_size]
+        try:
+            frame = data_fetcher._yf_retry(
+                lambda: yf.download(
+                    tickers=" ".join(chunk),
+                    period=period,
+                    interval="1d",
+                    group_by="ticker",
+                    threads=False,
+                    progress=False,
+                    auto_adjust=False,
+                ),
+                label=f"backfill chunk {start // chunk_size + 1}",
+                attempts=3,
+            )
+        except Exception:
+            log.exception("Backfill-chunk mislukt (%d tickers)", len(chunk))
+            result["chunks_failed"] += 1
+            result["failed"].extend(chunk)
+            continue
+
+        if frame is None or frame.empty:
+            result["chunks_failed"] += 1
+            result["failed"].extend(chunk)
+            continue
+
+        multi = isinstance(frame.columns, pd.MultiIndex)
+        for ticker in chunk:
+            rijen = _closes_uit_frame(frame, ticker, multi)
+            if not rijen:
+                result["failed"].append(ticker)
+                continue
+            try:
+                result["rows"] += db.insert_price_history(rijen)
+                result["tickers_ok"] += 1
+            except Exception:
+                log.exception("Opslaan backfill mislukt voor %s", ticker)
+                result["failed"].append(ticker)
+
+    return result
+
+
 def refresh_prices_bulk(tickers: list[str], config: dict | None = None) -> dict:
     """
     Werk de koersen van alle meegegeven tickers bij via bulk-downloads.
@@ -78,7 +164,8 @@ def refresh_prices_bulk(tickers: list[str], config: dict | None = None) -> dict:
     Returns {"ok": int, "failed": [ticker], "split_suspects": [ticker],
              "chunks_failed": int}
     """
-    result = {"ok": 0, "failed": [], "split_suspects": [], "chunks_failed": 0}
+    result = {"ok": 0, "failed": [], "split_suspects": [], "chunks_failed": 0,
+              "history_rows": 0}
     if not tickers:
         return result
 
@@ -115,6 +202,19 @@ def refresh_prices_bulk(tickers: list[str], config: dict | None = None) -> dict:
             continue
 
         multi = isinstance(frame.columns, pd.MultiIndex)
+
+        # De download bevat vijf handelsdagen; die leggen we allemaal vast. Zo
+        # vult een ronde meteen de gaten van een paar gemiste dagen op, in
+        # plaats van alleen vandaag te bewaren.
+        archief: list[tuple[str, str, float]] = []
+        for ticker in chunk:
+            archief.extend(_closes_uit_frame(frame, ticker, multi))
+        if archief:
+            try:
+                result["history_rows"] += db.insert_price_history(archief)
+            except Exception:
+                log.exception("Wegschrijven koershistorie mislukt (%d rijen)", len(archief))
+
         for ticker in chunk:
             price = _extract_last_close(frame, ticker, multi)
             if price is None:

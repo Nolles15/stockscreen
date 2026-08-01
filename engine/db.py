@@ -156,6 +156,25 @@ def init_db() -> None:
                 FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
             )
         """)
+        # Koershistorie. Dit is de enige reeks die we niet kunnen terughalen als
+        # Yahoo ermee stopt: `market_data` houdt alleen de laatste koers, en
+        # jaarcijfers stapelen zichzelf wel op (een oud boekjaar wordt nooit
+        # verwijderd) maar een koersreeks bestaat nergens anders in de database.
+        # Bewust smal gehouden — alleen de slotkoers, geen volume of intraday —
+        # zodat de tabel bij ~2.800 tickers beheersbaar blijft.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                ticker TEXT NOT NULL,
+                date   TEXT NOT NULL,
+                close  REAL NOT NULL,
+                PRIMARY KEY (ticker, date),
+                FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_history_ticker
+            ON price_history (ticker, date DESC)
+        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS calculated_scores (
                 ticker                  TEXT PRIMARY KEY,
@@ -451,6 +470,70 @@ def get_historical_multiples(ticker: str) -> list[dict]:
         )
         rows = cur.fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Koershistorie
+# ---------------------------------------------------------------------------
+
+def insert_price_history(rows: list[tuple[str, str, float]]) -> int:
+    """
+    Sla slotkoersen op. `rows` is [(ticker, 'YYYY-MM-DD', close), ...].
+
+    Bestaande dagen worden met rust gelaten (DO NOTHING, niet DO UPDATE): een
+    eenmaal vastgelegde slotkoers is een feit, en een latere herziening door
+    Yahoo — of een fout in een bulk-download — mag de vastgelegde reeks niet
+    stilletjes herschrijven. Dat is precies het archiefdoel van deze tabel.
+    """
+    if not rows:
+        return 0
+    with _cursor() as cur:
+        cur.executemany(
+            """
+            INSERT INTO price_history (ticker, date, close) VALUES (%s, %s, %s)
+            ON CONFLICT (ticker, date) DO NOTHING
+            """,
+            rows,
+        )
+        return cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+
+
+def get_price_history(ticker: str, limit: int = 3650) -> list[dict]:
+    with _cursor() as cur:
+        cur.execute(
+            "SELECT date, close FROM price_history WHERE ticker=%s ORDER BY date DESC LIMIT %s",
+            (ticker, limit),
+        )
+        rows = cur.fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+def price_history_stats() -> dict:
+    """Omvang van het archief — voor /api/health en om de groei te bewaken."""
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT COUNT(*) AS rijen,
+                   COUNT(DISTINCT ticker) AS tickers,
+                   MIN(date) AS vroegste,
+                   MAX(date) AS laatste
+            FROM price_history
+        """)
+        row = cur.fetchone()
+    return dict(row) if row else {}
+
+
+def tickers_without_price_history(limit: int) -> list[str]:
+    """Actieve tickers waarvoor nog geen koershistorie is opgehaald."""
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT s.ticker FROM stocks s
+            LEFT JOIN price_history p ON p.ticker = s.ticker
+            WHERE s.active = 1 AND p.ticker IS NULL
+            GROUP BY s.ticker
+            ORDER BY s.ticker
+            LIMIT %s
+        """, (limit,))
+        return [r["ticker"] for r in cur.fetchall()]
 
 
 # ---------------------------------------------------------------------------

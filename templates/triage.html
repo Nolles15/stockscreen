@@ -35,6 +35,34 @@
   </button>
 </div>
 
+<!-- Koershistorie veiligstellen -->
+<div class="mb-4 p-3 rounded-xl border border-slate-800 bg-slate-900 flex items-center gap-3 text-sm flex-wrap">
+  <div class="flex-1 min-w-[16rem]">
+    <div class="font-semibold text-slate-200">Koershistorie veiligstellen</div>
+    <div id="hist-status" class="text-slate-400 text-xs mt-0.5">
+      Laden…
+    </div>
+  </div>
+  <label class="text-slate-400">Periode
+    <select id="hist-period"
+            class="ml-1 bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-slate-100">
+      <option value="1y">1 jaar</option>
+      <option value="2y">2 jaar</option>
+      <option value="5y" selected>5 jaar</option>
+      <option value="10y">10 jaar</option>
+      <option value="max">alles</option>
+    </select>
+  </label>
+  <label class="text-slate-400">Aantal
+    <input id="hist-limit" type="number" min="1" max="500" value="100"
+           class="ml-1 w-20 bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-slate-100">
+  </label>
+  <button id="hist-btn" onclick="startBackfill()"
+          class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md">
+    ↓ Ophalen
+  </button>
+</div>
+
 <!-- Filter-chips -->
 <div class="flex flex-wrap gap-2 mb-4 text-sm">
   <button data-filter="all" class="triage-chip active">Alle <span class="count"></span></button>
@@ -431,6 +459,75 @@ function setFundStatus(msg) {
   document.getElementById('fund-status').textContent = msg;
 }
 
+// --- Koershistorie veiligstellen --------------------------------------------
+// Deelt het slot met de ronde jaarcijfers: beide bevragen Yahoo, en twee
+// tegelijk lopen in de rate-limits.
+async function toonHistStats() {
+  try {
+    const res = await fetch('/api/price-history/stats');
+    const s = await res.json();
+    const wacht = s.tickers_zonder_historie ?? 0;
+    const rijen = (s.rijen ?? 0).toLocaleString('nl-NL');
+    const bereik = s.vroegste ? ` — ${s.vroegste} t/m ${s.laatste}` : '';
+    setHistStatus(wacht > 0
+      ? `${rijen} koersen bewaard voor ${s.tickers ?? 0} aandelen${bereik}. Nog ${wacht} aandelen zonder historie.`
+      : `${rijen} koersen bewaard voor ${s.tickers ?? 0} aandelen${bereik}. Alles opgehaald.`);
+  } catch (e) {
+    setHistStatus('Omvang van het archief niet op te halen.');
+  }
+}
+
+async function startBackfill() {
+  const limit = parseInt(document.getElementById('hist-limit').value, 10) || 100;
+  const period = document.getElementById('hist-period').value;
+  setHistBusy(true, 'Ophalen…');
+  try {
+    const res = await fetch('/api/price-history/backfill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit, period }),
+    });
+    const data = await res.json();
+    if (res.status === 409) { setHistStatus(data.reason); pollHist(); return; }
+    if (!res.ok) { setHistBusy(false, `Niet gestart: ${data.error || res.status}`); return; }
+    if (!data.started) { setHistBusy(false, data.reason || 'Niets te doen.'); return; }
+    setHistStatus(`Bezig met ${data.tickers} aandelen over ${data.period}. Dit duurt even.`);
+    pollHist();
+  } catch (e) {
+    setHistBusy(false, `Niet gestart: ${e.message}`);
+  }
+}
+
+let _histPoll = null;
+function pollHist() {
+  if (_histPoll) clearInterval(_histPoll);
+  _histPoll = setInterval(async () => {
+    try {
+      const res = await fetch('/api/refresh/fundamentals/status');
+      const { running } = await res.json();
+      if (!running) {
+        clearInterval(_histPoll);
+        _histPoll = null;
+        setHistBusy(false);
+        toonHistStats();
+      }
+    } catch (e) { /* server even druk; blijf pollen */ }
+  }, 5000);
+}
+
+function setHistBusy(busy, msg) {
+  const btn = document.getElementById('hist-btn');
+  btn.disabled = busy;
+  btn.classList.toggle('opacity-50', busy);
+  btn.classList.toggle('cursor-not-allowed', busy);
+  btn.textContent = busy ? '⏳ Bezig…' : '↓ Ophalen';
+  if (msg) setHistStatus(msg);
+}
+
+function setHistStatus(msg) {
+  document.getElementById('hist-status').textContent = msg;
+}
+
 function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
@@ -448,11 +545,14 @@ loadTriage();
 
 // Draait er al een ronde (nachtelijk of vanuit een ander tabblad)? Dan meteen
 // de knop op bezet zetten in plaats van te doen alsof er niets gebeurt.
+toonHistStats();
+
 fetch('/api/refresh/fundamentals/status')
   .then(r => r.json())
   .then(({ running }) => {
     if (running) {
       setFundBusy(true, 'Er loopt al een ronde jaarcijfers.');
+      setHistBusy(true);
       pollFundamentals();
     }
   })

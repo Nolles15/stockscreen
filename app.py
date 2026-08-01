@@ -1585,6 +1585,74 @@ def api_refresh_fundamentals_status():
     return jsonify({"running": _fundamentals_running})
 
 
+@app.route("/api/price-history/backfill", methods=["POST"])
+def api_backfill_price_history():
+    """
+    Haal de koershistorie op die Yahoo nu nog heeft, voor tickers die er nog
+    geen hebben. Body (optioneel): {"limit": N, "period": "5y"}.
+
+    Waarom dit apart staat van de dagelijkse koersronde: die legt alleen vast
+    wat er vanaf nu gebeurt. Alles van vóór vandaag is nu nog op te halen maar
+    verdwijnt zodra de bron wegvalt, en een koersreeks staat nergens anders in
+    de database — `market_data` houdt maar één koers per aandeel vast.
+
+    Draait op de achtergrond; deelt het slot met de rondes jaarcijfers zodat we
+    Yahoo niet vanuit twee kanten tegelijk bevragen.
+    """
+    global _fundamentals_running
+    data = request.get_json(silent=True) or {}
+    try:
+        limit = int(data.get("limit") or 200)
+    except (TypeError, ValueError):
+        return jsonify({"error": "limit moet een getal zijn"}), 400
+    limit = max(1, min(limit, 500))
+    period = str(data.get("period") or "5y")
+    if period not in ("1y", "2y", "5y", "10y", "max"):
+        return jsonify({"error": "period moet 1y, 2y, 5y, 10y of max zijn"}), 400
+
+    tickers = data.get("tickers") or db.tickers_without_price_history(limit)
+    if not tickers:
+        return jsonify({"started": False, "reason": "Alle actieve tickers hebben al koershistorie."})
+
+    with _fundamentals_lock:
+        if _fundamentals_running:
+            return jsonify({
+                "started": False,
+                "reason": "Er loopt al een ophaalronde. Wacht tot die klaar is.",
+            }), 409
+        _fundamentals_running = True
+
+    def _work():
+        global _fundamentals_running
+        try:
+            db.log_activity("backfill_prices", None, "start",
+                            {"tickers": len(tickers), "period": period})
+            result = refresh.backfill_price_history(tickers, period)
+            db.log_activity("backfill_prices", None, "ok", {
+                "tickers_ok": result["tickers_ok"],
+                "rows": result["rows"],
+                "failed": len(result["failed"]),
+                "period": period,
+            })
+        except Exception:
+            log.exception("Backfill koershistorie mislukt")
+            db.log_activity("backfill_prices", None, "error", {})
+        finally:
+            with _fundamentals_lock:
+                _fundamentals_running = False
+
+    threading.Thread(target=_work, daemon=True).start()
+    return jsonify({"started": True, "tickers": len(tickers), "period": period})
+
+
+@app.route("/api/price-history/stats")
+def api_price_history_stats():
+    """Omvang van het koersarchief + hoeveel tickers er nog op wachten."""
+    stats = db.price_history_stats()
+    stats["tickers_zonder_historie"] = len(db.tickers_without_price_history(100000))
+    return jsonify(stats)
+
+
 @app.route("/api/stocks/probe", methods=["POST"])
 def api_probe_stocks():
     """
@@ -1917,6 +1985,7 @@ def api_stock_detail(ticker):
         "scores": scores,
         "data_quality": dq,
         "historical_multiples": hist,
+        "price_history": db.get_price_history(ticker),
     })
 
 
