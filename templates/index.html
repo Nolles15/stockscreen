@@ -31,6 +31,20 @@
   </div>
 </div>
 
+<!-- Landenfilter. Staat boven de tabbladen omdat hij op álle tabbladen werkt:
+     "alleen Nederland" hoort ook te gelden voor Kansen en Groeiers. -->
+<div class="flex flex-wrap items-center gap-2 mb-3 text-sm">
+  <label for="filter-land" class="text-slate-400">Land</label>
+  <select id="filter-land" onchange="kiesLand(this.value)"
+    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-500">
+    <option value="">Alle landen</option>
+  </select>
+  <button id="land-wis" onclick="kiesLand('')"
+    class="text-slate-400 hover:text-slate-200 underline underline-offset-2 hidden">
+    toon alle landen
+  </button>
+</div>
+
 <!-- Tabbladen. Elk tabblad beantwoordt één vraag; de oude filterbalk vroeg je eerst
      zelf te bedenken wélke vraag je had. De filters staan nog wel onder "Alles". -->
 <div class="border-b border-slate-800 mb-4">
@@ -233,6 +247,64 @@ function togglePin(ticker, ev) {
   renderActiveTab();
 }
 
+// ---- Landenfilter ----------------------------------------------------------
+// Het land leiden we af uit het beurssuffix van de ticker, niet uit het veld
+// `market`. Dat veld is nooit genormaliseerd: dezelfde beurs staat er als "NL",
+// "Nederland" én "US" in, dus filteren daarop levert onvolledige lijsten op.
+// Het suffix komt rechtstreeks van Yahoo en is wél consistent.
+const LAND_PER_SUFFIX = {
+  AS: 'Nederland',      BR: 'België',        PA: 'Frankrijk',
+  MI: 'Italië',         LS: 'Portugal',      IR: 'Ierland',
+  DE: 'Duitsland',      F:  'Duitsland',     SW: 'Zwitserland',
+  VI: 'Oostenrijk',     MC: 'Spanje',        L:  'Verenigd Koninkrijk',
+  ST: 'Zweden',         OL: 'Noorwegen',     CO: 'Denemarken',
+  HE: 'Finland',        IC: 'IJsland',       WA: 'Polen',
+  TL: 'Estland',        RG: 'Letland',       VS: 'Litouwen',
+  PR: 'Tsjechië',       BD: 'Hongarije',     RO: 'Roemenië',
+  AT: 'Griekenland',    IS: 'Turkije',       TA: 'Israël',
+  AX: 'Australië',      TO: 'Canada',
+};
+
+const LAND_KEY = 'stockscreen.land';
+let _actiefLand = localStorage.getItem(LAND_KEY) || '';
+
+function landVan(ticker) {
+  if (!ticker.includes('.')) return 'Verenigde Staten';
+  return LAND_PER_SUFFIX[ticker.split('.').pop()] || 'Overig';
+}
+
+// Alle tabbladen kijken hierdoorheen, zodat "alleen Nederland" ook geldt voor
+// Kansen en Groeiers en niet alleen voor de grote tabel.
+function zichtbareRijen() {
+  if (!_actiefLand) return _allRows;
+  return _allRows.filter(r => landVan(r.ticker) === _actiefLand);
+}
+
+function vulLandFilter() {
+  const sel = document.getElementById('filter-land');
+  if (!sel) return;
+  const telling = {};
+  _allRows.forEach(r => {
+    const land = landVan(r.ticker);
+    telling[land] = (telling[land] || 0) + 1;
+  });
+  const landen = Object.keys(telling).sort((a, b) => a.localeCompare(b, 'nl'));
+  sel.innerHTML =
+    `<option value="">Alle landen (${_allRows.length})</option>` +
+    // Landnamen komen uit LAND_PER_SUFFIX hierboven, niet uit de data, dus er
+    // valt hier niets te ontsnappen.
+    landen.map(l => `<option value="${l}">${l} (${telling[l]})</option>`).join('');
+  sel.value = landen.includes(_actiefLand) ? _actiefLand : '';
+  if (sel.value !== _actiefLand) _actiefLand = sel.value;
+}
+
+function kiesLand(waarde) {
+  _actiefLand = waarde;
+  localStorage.setItem(LAND_KEY, waarde);
+  renderTabs();
+  renderActiveTab();
+}
+
 const TABS = [
   {
     id: 'kansen', label: '⭐ Kansen',
@@ -299,6 +371,11 @@ function kiesTab(id) {
 function renderActiveTab() {
   const tab = TABS.find(t => t.id === _actieveTab) || TABS[0];
   document.getElementById('tab-uitleg').textContent = tab.uitleg;
+
+  // Zichtbaar maken dát er gefilterd is; anders lijkt een korte lijst al gauw
+  // op "er zijn geen kansen" terwijl je naar één land kijkt.
+  const wis = document.getElementById('land-wis');
+  if (wis) wis.classList.toggle('hidden', !_actiefLand);
   const isAlles = tab.id === 'alles';
 
   document.getElementById('filterbalk').classList.toggle('hidden', !isAlles);
@@ -325,7 +402,7 @@ function eenRegelUitleg(r) {
 }
 
 function renderFocus(tab) {
-  const rows = tab.select(_allRows);
+  const rows = tab.select(zichtbareRijen());
   const head = document.getElementById('focus-head');
   const body = document.getElementById('focus-body');
 
@@ -385,8 +462,10 @@ function renderFocus(tab) {
       <td class="px-3 py-2 text-right text-xs text-slate-500">${eenRegelUitleg(r)}</td></tr>`;
   }).join('');
 
-  document.getElementById('row-count').textContent =
-    `${rows.length} aandelen · van ${_allRows.length} in totaal`;
+  const totaal = _actiefLand
+    ? `${zichtbareRijen().length} in ${_actiefLand} · ${_allRows.length} in totaal`
+    : `${_allRows.length} in totaal`;
+  document.getElementById('row-count').textContent = `${rows.length} aandelen · van ${totaal}`;
 }
 
 let _allRows = [];
@@ -404,6 +483,7 @@ async function loadDashboard() {
     if (!res.ok) throw new Error('Server fout: ' + res.status + ' ' + res.statusText);
     _allRows = await res.json();
     console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
+    vulLandFilter();
     populateMarketFilter();
     populateSectorFilter();
     renderTabs();
@@ -439,7 +519,7 @@ function renderTable() {
 
   const badDataOnly  = document.getElementById('filter-baddataonly').checked;
 
-  let rows = _allRows.filter(r => {
+  let rows = zichtbareRijen().filter(r => {
     if (mktFilter && r.market !== mktFilter) return false;
     if (secFilter && r.sector !== secFilter) return false;
     if (sigFilter) {
@@ -483,8 +563,9 @@ function renderTable() {
   }
   _visibleRows = rows;
   tbody.innerHTML = htmlParts.join('');
-  document.getElementById('row-count').textContent =
-    `${rows.length} van ${_allRows.length} aandelen weergegeven`;
+  document.getElementById('row-count').textContent = _actiefLand
+    ? `${rows.length} van ${zichtbareRijen().length} aandelen in ${_actiefLand} weergegeven`
+    : `${rows.length} van ${_allRows.length} aandelen weergegeven`;
 
   updateSortIndicators();
 }
