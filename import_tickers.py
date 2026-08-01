@@ -401,6 +401,36 @@ def _probe_call(tickers: list[str]) -> tuple[set[str], set[str]]:
     return resolved, unknown
 
 
+def apply_via_api(records: list[dict], source: str) -> int:
+    """Schrijf de records weg via de server. Bewust géén fetch: die ronde zou
+    de machine (256MB) omleggen; de nachtelijke rotatie pakt ze vanzelf op."""
+    verify = os.environ.get("IMPORT_TLS_VERIFY", "1") != "0"
+    added, skipped, rejected = 0, 0, []
+    for start in range(0, len(records), 250):
+        chunk = records[start:start + 250]
+        payload = [{k: r.get(k) for k in ("ticker", "name", "isin", "market", "currency", "sector")}
+                   for r in chunk]
+        r = requests.post(f"{APP_URL}/api/stocks/import",
+                          json={"stocks": payload, "source": source},
+                          headers=UA, timeout=180, verify=verify)
+        if r.status_code not in (200, 201):
+            print(f"FOUT: import mislukt ({r.status_code}): {r.text[:200]}", file=sys.stderr)
+            return 2
+        data = r.json()
+        added += len(data.get("added") or [])
+        skipped += len(data.get("skipped") or [])
+        rejected += data.get("rejected") or []
+        print(f"  ...{added} toegevoegd")
+
+    print(f"\n{added} tickers toegevoegd ({skipped} stonden er al). "
+          "De nachtelijke fundamentals-rotatie pakt ze met voorrang op.")
+    if rejected:
+        print(f"{len(rejected)} geweigerd:")
+        for item in rejected[:10]:
+            print(f"  {item.get('ticker')}: {item.get('reason')}")
+    return 0
+
+
 def probe_batch(records: list[dict]) -> tuple[list[dict], list[dict]]:
     """
     Laat de server testen welke kandidaat-symbolen Yahoo kent.
@@ -468,6 +498,10 @@ def main() -> int:
                     help="Ook Growth/Access/Scale/First North Baltic-segmenten")
     ap.add_argument("--out", type=Path, default=None,
                     help="Schrijf de nieuwe tickers (vóór --limit) als CSV")
+    ap.add_argument("--apply-via-api", action="store_true",
+                    help="Schrijf via POST /api/stocks/import op de server i.p.v. "
+                         "rechtstreeks in de database (nodig als je DATABASE_URL "
+                         "niet lokaal hebt)")
     ap.add_argument("--probe", action="store_true",
                     help="Test kandidaten eerst via /api/stocks/probe op de server "
                          "en importeer alleen de tickers waarvoor Yahoo een koers "
@@ -544,6 +578,9 @@ def main() -> int:
         for r in batch[:10]:
             print(f"  {r['ticker']:<12} {r['name'] or '':<40} {r['isin'] or ''}")
         return 0
+
+    if args.apply_via_api:
+        return apply_via_api(batch, args.source)
 
     if not os.environ.get("DATABASE_URL"):
         print("FOUT: echt importeren vereist DATABASE_URL.", file=sys.stderr)

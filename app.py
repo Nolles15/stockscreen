@@ -1051,6 +1051,63 @@ def api_add_stock():
     return jsonify({"ticker": ticker, "job_id": jid}), 201
 
 
+@app.route("/api/stocks/import", methods=["POST"])
+def api_import_stocks():
+    """
+    Voeg tickers toe mét hun metadata, zónder direct op te halen.
+    Body: {"stocks": [{"ticker","name","isin","market","currency","sector"}, ...]}
+
+    Bedoeld voor `import_tickers.py --apply-via-api`. Anders dan
+    `/api/stocks/bulk` start dit géén fetch: bij een onboarding-ronde van
+    honderden tickers zou dat de machine (256MB) omleggen. De nachtelijke
+    fundamentals-rotatie pakt ze vanzelf met voorrang op, want hun
+    `financials.fetched_date` is NULL.
+
+    Aannemen dat de aanroeper al geprobed heeft: symbolen die Yahoo niet kent
+    horen hier niet binnen te komen.
+    """
+    data = request.get_json(silent=True) or {}
+    rows = data.get("stocks") or []
+    if not isinstance(rows, list):
+        return jsonify({"error": "stocks moet een lijst zijn"}), 400
+    if len(rows) > 500:
+        return jsonify({"error": "max 500 per aanroep"}), 400
+
+    added, skipped, rejected = [], [], []
+    today = datetime.utcnow().date().isoformat()
+    for row in rows:
+        if not isinstance(row, dict):
+            rejected.append({"ticker": row, "reason": "geen object"})
+            continue
+        ticker, err = _validate_ticker(row.get("ticker") or "")
+        if err:
+            rejected.append({"ticker": row.get("ticker"), "reason": err})
+            continue
+        if db.get_stock(ticker):
+            skipped.append(ticker)
+            continue
+        fields = {"active": 1, "added_date": today}
+        for key in ("name", "isin", "market", "currency", "sector"):
+            if row.get(key):
+                fields[key] = row[key]
+        if row.get("currency"):
+            # Aanname tot de eerste fetch het echte rapportagevaluta oplevert.
+            fields.setdefault("financial_currency", row["currency"])
+        try:
+            db.upsert_stock(ticker, **fields)
+            added.append(ticker)
+        except Exception as e:  # noqa: BLE001 — één slechte rij mag de rest niet blokkeren
+            log.exception("Import mislukt voor %s", ticker)
+            rejected.append({"ticker": ticker, "reason": str(e)})
+
+    if added:
+        db.log_activity("import", None, "ok", {
+            "added": len(added), "skipped": len(skipped),
+            "source": data.get("source") or "import_tickers.py",
+        })
+    return jsonify({"added": added, "skipped": skipped, "rejected": rejected}), 201
+
+
 @app.route("/api/stocks/bulk", methods=["POST"])
 def api_add_stocks_bulk():
     """Add multiple tickers at once. Body: {tickers: ["AAPL", "ASML.AS", ...]}"""
