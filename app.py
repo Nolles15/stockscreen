@@ -1586,6 +1586,19 @@ def api_refresh_fundamentals_status():
     return jsonify({"running": _fundamentals_running})
 
 
+def _backfill_cutoff(period: str) -> str:
+    """
+    Vanaf welke datum een ticker geldt als "historie compleet genoeg".
+
+    Ruim de helft van de gevraagde periode: precies matchen kan niet, want een
+    aandeel dat pas drie jaar noteert krijgt nooit tien jaar historie en zou
+    anders elke ronde opnieuw worden opgehaald.
+    """
+    jaren = {"1y": 1, "2y": 2, "5y": 5, "10y": 10, "max": 10}.get(period, 5)
+    grens = datetime.now(timezone.utc) - timedelta(days=int(jaren * 365 * 0.6))
+    return grens.date().isoformat()
+
+
 @app.route("/api/price-history/backfill", methods=["POST"])
 def api_backfill_price_history():
     """
@@ -1611,9 +1624,12 @@ def api_backfill_price_history():
     if period not in ("1y", "2y", "5y", "10y", "max"):
         return jsonify({"error": "period moet 1y, 2y, 5y, 10y of max zijn"}), 400
 
-    tickers = data.get("tickers") or db.tickers_without_price_history(limit)
+    # Een ticker telt pas als "gedaan" wanneer de historie ook echt terugloopt.
+    # Anders zou de dagelijkse koersronde, die vijf dagen wegschrijft, een ticker
+    # voorgoed uit de backfill houden met vijf dagen in plaats van jaren.
+    tickers = data.get("tickers") or db.tickers_needing_backfill(limit, _backfill_cutoff(period))
     if not tickers:
-        return jsonify({"started": False, "reason": "Alle actieve tickers hebben al koershistorie."})
+        return jsonify({"started": False, "reason": "Alle actieve tickers hebben koershistorie over deze periode."})
 
     with _fundamentals_lock:
         if _fundamentals_running:
@@ -1650,7 +1666,10 @@ def api_backfill_price_history():
 def api_price_history_stats():
     """Omvang van het koersarchief + hoeveel tickers er nog op wachten."""
     stats = db.price_history_stats()
-    stats["tickers_zonder_historie"] = len(db.tickers_without_price_history(100000))
+    # Telt ook de tickers die alleen de laatste paar dagen hebben: die missen de
+    # diepe historie nog, ook al staan er rijen voor ze in de tabel.
+    stats["tickers_zonder_historie"] = len(
+        db.tickers_needing_backfill(100000, _backfill_cutoff("5y")))
     return jsonify(stats)
 
 

@@ -522,17 +522,27 @@ def price_history_stats() -> dict:
     return dict(row) if row else {}
 
 
-def tickers_without_price_history(limit: int) -> list[str]:
-    """Actieve tickers waarvoor nog geen koershistorie is opgehaald."""
+def tickers_needing_backfill(limit: int, min_start: str) -> list[str]:
+    """
+    Actieve tickers zonder bruikbare koershistorie.
+
+    Let op de HAVING-clausule: selecteren op "helemaal geen rijen" is niet
+    genoeg. De dagelijkse koersronde schrijft vijf dagen weg, dus zodra die een
+    keer langs is geweest heeft een ticker rijen en zou hij nooit meer worden
+    aangevuld — met vijf dagen historie in plaats van tien jaar. Daarom kijken we
+    naar de oudste opgeslagen dag: ligt die na `min_start`, dan ontbreekt de
+    diepe historie nog.
+    """
     with _cursor() as cur:
         cur.execute("""
             SELECT s.ticker FROM stocks s
             LEFT JOIN price_history p ON p.ticker = s.ticker
-            WHERE s.active = 1 AND p.ticker IS NULL
+            WHERE s.active = 1
             GROUP BY s.ticker
+            HAVING MIN(p.date) IS NULL OR MIN(p.date) > %s
             ORDER BY s.ticker
             LIMIT %s
-        """, (limit,))
+        """, (min_start, limit))
         return [r["ticker"] for r in cur.fetchall()]
 
 
