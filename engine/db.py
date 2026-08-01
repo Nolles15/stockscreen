@@ -87,6 +87,11 @@ def init_db() -> None:
         cur.execute("""
             ALTER TABLE stocks ADD COLUMN IF NOT EXISTS quote_type TEXT
         """)
+        # ISIN maakt dual-listings herkenbaar: twee tickers met dezelfde ISIN
+        # zijn hetzelfde bedrijf op twee beurzen. Gevuld door import_tickers.py.
+        cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS isin TEXT
+        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS financials (
                 id                  SERIAL PRIMARY KEY,

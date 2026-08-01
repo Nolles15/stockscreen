@@ -1448,6 +1448,43 @@ def api_refresh_prices():
     return jsonify({"started": True, "tickers": len(tickers)})
 
 
+@app.route("/api/stocks/probe", methods=["POST"])
+def api_probe_stocks():
+    """
+    Test kandidaat-tickers zonder ze toe te voegen. Body: {"tickers": [...]}.
+
+    Bedoeld voor `import_tickers.py --probe`: de beurslijsten leveren het
+    symbool van de beurs, en dat wijkt regelmatig af van wat Yahoo gebruikt.
+    Dit draait op de Fly-machine omdat daar wél een werkende netwerkverbinding
+    naar Yahoo is.
+
+    Synchroon (max ~200 per call, zodat het binnen de gunicorn-timeout blijft).
+    """
+    data = request.get_json(silent=True) or {}
+    raw = data.get("tickers") or []
+    if not isinstance(raw, list):
+        return jsonify({"error": "tickers moet een lijst zijn"}), 400
+    if len(raw) > 200:
+        return jsonify({"error": "max 200 tickers per aanroep"}), 400
+
+    candidates, rejected = [], []
+    for item in raw:
+        ticker, err = _validate_ticker(item)
+        if err:
+            rejected.append({"ticker": item, "reason": err})
+        else:
+            candidates.append(ticker)
+
+    result = refresh.probe_tickers(candidates)
+    result["rejected"] = rejected
+    db.log_activity("probe", None, "ok", {
+        "candidates": len(candidates),
+        "resolved": len(result["resolved"]),
+        "unresolved": len(result["unresolved"]),
+    })
+    return jsonify(result)
+
+
 @app.route("/api/health")
 def api_health():
     """

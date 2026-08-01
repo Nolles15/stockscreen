@@ -163,6 +163,59 @@ def refresh_prices_bulk(tickers: list[str], config: dict | None = None) -> dict:
     return result
 
 
+def probe_tickers(candidates: list[str]) -> dict:
+    """
+    Test of Yahoo een koers kent voor elk kandidaat-symbool. Schrijft niets.
+
+    Beurslijsten geven het symbool van de beurs zélf, en dat is niet altijd het
+    symbool dat Yahoo gebruikt (Balder noteert op Nasdaq als "BALD B", bij Yahoo
+    als FAST-B.ST). Zonder deze test belandt zo'n symbool als permanente
+    "GEEN DATA"-regel in het dashboard — precies de rommel die in fase 0 is
+    opgeruimd. Alleen wat hier een koers oplevert is de moeite van importeren waard.
+
+    Returns {"resolved": [ticker], "unresolved": [ticker], "chunks_failed": int}
+    """
+    result = {"resolved": [], "unresolved": [], "chunks_failed": 0}
+    if not candidates:
+        return result
+
+    for start in range(0, len(candidates), PRICE_CHUNK_SIZE):
+        chunk = candidates[start:start + PRICE_CHUNK_SIZE]
+        try:
+            frame = data_fetcher._yf_retry(
+                lambda: yf.download(
+                    tickers=" ".join(chunk),
+                    period="5d",
+                    interval="1d",
+                    group_by="ticker",
+                    threads=False,
+                    progress=False,
+                    auto_adjust=False,
+                ),
+                label=f"probe chunk {start // PRICE_CHUNK_SIZE + 1}",
+                attempts=3,
+            )
+        except Exception:
+            log.exception("Probe-chunk mislukt (%d tickers)", len(chunk))
+            result["chunks_failed"] += 1
+            continue
+
+        if frame is None or frame.empty:
+            result["chunks_failed"] += 1
+            continue
+
+        multi = isinstance(frame.columns, pd.MultiIndex)
+        for ticker in chunk:
+            if _extract_last_close(frame, ticker, multi) is None:
+                result["unresolved"].append(ticker)
+            else:
+                result["resolved"].append(ticker)
+
+    # Een mislukte chunk zegt niets over de tickers erin: die blijven onbekend
+    # in plaats van dat we ze onterecht als onvindbaar bestempelen.
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Fundamentals (traag, in rotatie)
 # ---------------------------------------------------------------------------
