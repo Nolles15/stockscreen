@@ -11,6 +11,9 @@ primary_region = "ams"
   min_machines_running = 1
 
 [[vm]]
-  memory = "256mb"
+  # 512MB sinds 2026-08-01. Op 256MB raakte de app in een OOM-crashloop zodra
+  # het universum naar 2.759 tickers ging: pandas + yfinance kosten al ~100MB
+  # en een dashboardrespons over dat aantal rijen paste er niet meer bij.
+  memory = "512mb"
   cpu_kind = "shared"
   cpus = 1
