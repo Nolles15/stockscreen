@@ -60,6 +60,7 @@ APP_URL = "https://stockscreen-janco.fly.dev"
 # Yahoo-suffix -> (valuta, market-code zoals in de stocks-tabel)
 SUFFIX_INFO = {
     "AS": ("EUR", "NL"), "BR": ("EUR", "BE"), "PA": ("EUR", "FR"),
+    "MI": ("EUR", "IT"),
     "LS": ("EUR", "PT"), "IR": ("EUR", "IE"), "OL": ("NOK", "NO"),
     "DE": ("EUR", "DE"), "ST": ("SEK", "SE"), "CO": ("DKK", "DK"),
     "HE": ("EUR", "FI"), "IC": ("ISK", "IS"), "WA": ("PLN", "PL"),
@@ -70,7 +71,7 @@ SUFFIX_INFO = {
 # meerdere beurzen in één batch wint de notering in het thuisland (daar heeft
 # yfinance vrijwel altijd de beste dekking — zie remap_rules voor de bewijslast).
 ISIN_HOME_SUFFIX = {
-    "NL": "AS", "BE": "BR", "FR": "PA", "PT": "LS", "IE": "IR", "NO": "OL",
+    "NL": "AS", "BE": "BR", "FR": "PA", "IT": "MI", "PT": "LS", "IE": "IR", "NO": "OL",
     "DE": "DE", "SE": "ST", "DK": "CO", "FI": "HE", "IS": "IC", "PL": "WA",
     "EE": "TL", "LV": "RG", "LT": "VS",
 }
@@ -89,13 +90,13 @@ TICKER_RE = re.compile(r"^[A-Z0-9\-]{1,12}\.[A-Z]{1,3}$")
 # inschrijvingsrechten ("AB SCIENCE BSA"). Geen aandelen -> overslaan.
 NON_EQUITY_NAME_RE = re.compile(r"\b(BSA|WARRANT|WTS?|RTS|RIGHTS?|OBLIG)\b", re.IGNORECASE)
 
-# Let op: een onbekende MIC in de lijst (bv. MERK, Euronext Growth Oslo) maakt
-# het endpoint kapot — je krijgt dan een 301 naar een lege pagina. Growth Oslo
-# ontbreekt daardoor; dat is alleen relevant met --include-growth.
+# Let op: het `/en/`-pad is verplicht. Zonder taalprefix antwoordt Euronext met
+# een redirect-pagina en krijg je stilletjes nul rijen terug.
+# MTAA/EXGM = Borsa Italiana, dat sinds 2021 onderdeel van Euronext is.
 EURONEXT_URL = (
-    "https://live.euronext.com/pd_es/data/stocks/download"
-    "?mics=XAMS,XBRU,XPAR,XLIS,XOSL,XOAS,ALXB,ALXP,ALXL,XMLI,TNLA,"
-    "ENXB,ENXL,XESM,XMSM,XATL"
+    "https://live.euronext.com/en/pd_es/data/stocks/download"
+    "?mics=XAMS,XBRU,XPAR,XLIS,XOSL,XOAS,MERK,MTAA,EXGM,ALXB,ALXP,ALXL,XMLI,"
+    "TNLA,ENXB,ENXL,XESM,XMSM,XATL"
     "&display_datapoints=dp_stocks&display_filters=df_stocks"
 )
 XETRA_PAGE = "https://www.deutsche-boerse-cash-market.com/dbcm-en/instruments-statistics/statistics/listed-companies"
@@ -145,7 +146,7 @@ def parse_euronext(text: str) -> list[dict]:
     """CSV (;-gescheiden): Name;ISIN;Symbol;Market;Currency;..."""
     market_to_suffix = {
         "amsterdam": "AS", "brussels": "BR", "paris": "PA", "lisbon": "LS",
-        "dublin": "IR", "oslo": "OL",
+        "dublin": "IR", "oslo": "OL", "milan": "MI",
     }
     records = []
     reader = csv.reader(io.StringIO(text), delimiter=";")
