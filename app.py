@@ -87,6 +87,12 @@ _jobs: dict[str, dict] = {}   # job_id → {status, progress, current, errors}
 _jobs_lock = threading.Lock()
 _startup_job_id: str | None = None   # job_id of the auto-refresh triggered at startup
 
+# Bewaakt dat er maar één ronde jaarcijfers tegelijk draait. Twee batches
+# tegelijk verdubbelen het aantal Yahoo-aanroepen per seconde en lopen linea
+# recta in de rate-limits; de scheduler en de handmatige knop delen deze vlag.
+_fundamentals_lock = threading.Lock()
+_fundamentals_running = False
+
 STALE_HEAVY_DAYS = 6   # dagen zonder zware refresh → opnieuw ophalen bij next run
 
 
@@ -563,7 +569,27 @@ def _run_price_refresh(cfg: dict) -> None:
 
 
 def _run_fundamentals_refresh(cfg: dict) -> None:
+    global _fundamentals_running
     limit = int(cfg.get("refresh", {}).get("fundamentals_per_night", 100))
+
+    # Deelt de vlag met de handmatige knop: draait er al een ronde, dan slaan we
+    # deze over in plaats van het aantal Yahoo-aanroepen te verdubbelen.
+    with _fundamentals_lock:
+        if _fundamentals_running:
+            log.info("Nachtelijke ronde jaarcijfers overgeslagen: er loopt er al een")
+            db.log_activity("refresh_fundamentals", None, "skipped",
+                            {"reason": "handmatige ronde was nog bezig"})
+            return
+        _fundamentals_running = True
+
+    try:
+        _do_fundamentals_refresh(cfg, limit)
+    finally:
+        with _fundamentals_lock:
+            _fundamentals_running = False
+
+
+def _do_fundamentals_refresh(cfg: dict, limit: int) -> None:
     db.log_activity("refresh_fundamentals", None, "start", {"limit": limit})
     result = refresh.refresh_fundamentals_batch(limit, cfg)
     db.set_refresh_state("last_fundamentals_refresh_at", datetime.now(timezone.utc).isoformat())
@@ -1503,6 +1529,60 @@ def api_refresh_prices():
 
     threading.Thread(target=_work, daemon=True).start()
     return jsonify({"started": True, "tickers": len(tickers)})
+
+
+@app.route("/api/refresh/fundamentals", methods=["POST"])
+def api_refresh_fundamentals():
+    """
+    Draai direct een ronde jaarcijfers, bovenop de nachtelijke rotatie.
+
+    Body (optioneel): {"limit": N}. Handig om een achterstand in te lopen na
+    een grote import; de rotatie pakt sowieso de langst niet-geprobeerde
+    tickers eerst, dus nieuwe tickers komen vanzelf bovenaan.
+
+    Draait op de achtergrond en weigert een tweede ronde zolang er één loopt:
+    twee batches tegelijk verdubbelen het aantal Yahoo-aanroepen per seconde
+    en dat is precies waar de rate-limits op afgaan.
+    """
+    global _fundamentals_running
+    data = request.get_json(silent=True) or {}
+    cfg = load_config()
+    default_limit = int((cfg.get("refresh") or {}).get("fundamentals_per_night", 100))
+    try:
+        limit = int(data.get("limit") or default_limit)
+    except (TypeError, ValueError):
+        return jsonify({"error": "limit moet een getal zijn"}), 400
+    limit = max(1, min(limit, 500))
+
+    with _fundamentals_lock:
+        if _fundamentals_running:
+            return jsonify({
+                "started": False,
+                "reason": "Er loopt al een ronde jaarcijfers. Wacht tot die klaar is.",
+            }), 409
+        _fundamentals_running = True
+
+    def _work():
+        global _fundamentals_running
+        try:
+            # Zelfde functie als de nachtelijke ronde, zodat storm-guard,
+            # suspend-regels en logging niet uit elkaar kunnen gaan lopen.
+            _do_fundamentals_refresh(cfg, limit)
+        except Exception:
+            log.exception("Handmatige ronde jaarcijfers mislukt")
+            db.log_activity("refresh_fundamentals", None, "error", {"trigger": "handmatig"})
+        finally:
+            with _fundamentals_lock:
+                _fundamentals_running = False
+
+    threading.Thread(target=_work, daemon=True).start()
+    return jsonify({"started": True, "limit": limit})
+
+
+@app.route("/api/refresh/fundamentals/status")
+def api_refresh_fundamentals_status():
+    """Loopt er een ronde jaarcijfers? Gebruikt door de knop in Beheer."""
+    return jsonify({"running": _fundamentals_running})
 
 
 @app.route("/api/stocks/probe", methods=["POST"])

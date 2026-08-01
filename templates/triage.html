@@ -14,6 +14,25 @@
   </div>
 </div>
 
+<!-- Inhaalronde jaarcijfers -->
+<div class="mb-4 p-3 rounded-xl border border-slate-800 bg-slate-900 flex items-center gap-3 text-sm flex-wrap">
+  <div class="flex-1 min-w-[16rem]">
+    <div class="font-semibold text-slate-200">Jaarcijfers ophalen</div>
+    <div id="fund-status" class="text-slate-400 text-xs mt-0.5">
+      Haalt de tickers op die het langst niet aan de beurt zijn geweest. Nieuwe
+      tickers staan vooraan.
+    </div>
+  </div>
+  <label class="text-slate-400">Aantal
+    <input id="fund-limit" type="number" min="1" max="500" value="250"
+           class="ml-1 w-20 bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-slate-100">
+  </label>
+  <button id="fund-btn" onclick="startFundamentals()"
+          class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md">
+    ↻ Ronde starten
+  </button>
+</div>
+
 <!-- Filter-chips -->
 <div class="flex flex-wrap gap-2 mb-4 text-sm">
   <button data-filter="all" class="triage-chip active">Alle <span class="count"></span></button>
@@ -348,6 +367,68 @@ async function confirmRemap() {
   loadTriage();
 }
 
+// --- Inhaalronde jaarcijfers -------------------------------------------------
+// Eén ronde tegelijk: de server weigert een tweede met een 409. De knop volgt
+// die toestand zodat je niet staat te klikken zonder dat er iets gebeurt.
+let _fundPoll = null;
+
+async function startFundamentals() {
+  const limit = parseInt(document.getElementById('fund-limit').value, 10) || 250;
+  setFundBusy(true, 'Ronde starten…');
+  try {
+    const res = await fetch('/api/refresh/fundamentals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit }),
+    });
+    const data = await res.json();
+    if (res.status === 409) {
+      setFundStatus(data.reason || 'Er loopt al een ronde.');
+      pollFundamentals();
+      return;
+    }
+    if (!res.ok) {
+      setFundBusy(false, `Niet gestart: ${data.error || res.status}`);
+      return;
+    }
+    setFundStatus(`Ronde gestart voor ${data.limit} tickers. Dit duurt een paar minuten.`);
+    pollFundamentals();
+  } catch (e) {
+    setFundBusy(false, `Niet gestart: ${e.message}`);
+  }
+}
+
+function pollFundamentals() {
+  if (_fundPoll) clearInterval(_fundPoll);
+  _fundPoll = setInterval(async () => {
+    try {
+      const res = await fetch('/api/refresh/fundamentals/status');
+      const { running } = await res.json();
+      if (!running) {
+        clearInterval(_fundPoll);
+        _fundPoll = null;
+        setFundBusy(false, 'Ronde klaar. De lijst hieronder is bijgewerkt.');
+        loadTriage();
+      }
+    } catch (e) {
+      // Tijdens een zware ronde kan de server even niet antwoorden; blijf pollen.
+    }
+  }, 5000);
+}
+
+function setFundBusy(busy, msg) {
+  const btn = document.getElementById('fund-btn');
+  btn.disabled = busy;
+  btn.classList.toggle('opacity-50', busy);
+  btn.classList.toggle('cursor-not-allowed', busy);
+  btn.textContent = busy ? '⏳ Bezig…' : '↻ Ronde starten';
+  if (msg) setFundStatus(msg);
+}
+
+function setFundStatus(msg) {
+  document.getElementById('fund-status').textContent = msg;
+}
+
 function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
@@ -362,5 +443,17 @@ document.querySelectorAll('.triage-chip').forEach(btn => {
 });
 
 loadTriage();
+
+// Draait er al een ronde (nachtelijk of vanuit een ander tabblad)? Dan meteen
+// de knop op bezet zetten in plaats van te doen alsof er niets gebeurt.
+fetch('/api/refresh/fundamentals/status')
+  .then(r => r.json())
+  .then(({ running }) => {
+    if (running) {
+      setFundBusy(true, 'Er loopt al een ronde jaarcijfers.');
+      pollFundamentals();
+    }
+  })
+  .catch(() => {});
 </script>
 {% endblock %}
