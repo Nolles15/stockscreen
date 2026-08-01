@@ -6,10 +6,17 @@ app:
 
 refresh:
   # Aantal tickers waarvan per nacht de jaarcijfers worden opgehaald. Koersen
-  # gaan in bulk en zijn niet aan dit getal gebonden. Bij ~900 tickers betekent
-  # 100 per nacht dat elk aandeel elke negen dagen verse cijfers krijgt; dat is
-  # ruim voldoende, want jaarcijfers veranderen hooguit per kwartaal.
-  fundamentals_per_night: 100
+  # gaan in bulk en zijn niet aan dit getal gebonden. Jaarcijfers veranderen
+  # hooguit per kwartaal, dus een volledige ronde mag gerust weken duren.
+  #
+  # Verhoogd van 100 naar 250 toen het universum in augustus 2026 groeide van
+  # 913 naar ~2.760 tickers. Met 100 per nacht duurt één ronde 28 dagen en zou
+  # de inhaalslag voor de 2.000 nieuwe tickers 20 nachten kosten; met 250 is
+  # dat 11 nachten en blijft een volledige ronde op 11 dagen. Hoger durven we
+  # niet: elke ticker is een losse Yahoo-aanroep en boven dit tempo lopen we
+  # tegen rate-limits aan (de storm-guard vangt dat wel op, maar dan staat de
+  # verversing alsnog stil).
+  fundamentals_per_night: 250
 
 screening:
   min_quality_score: 7
