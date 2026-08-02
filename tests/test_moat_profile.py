@@ -89,6 +89,35 @@ def test_margeerosie_is_rood():
     print("  [OK] wegbrokkelende brutomarge wordt rood ondanks hoog rendement")
 
 
+def test_herstel_is_geen_instorting():
+    # Huuuge-profiel: slechtste jaar is het eerste (11,6%), daarna loopt het op
+    # naar 48%. De oude regel las dat als "stort in bij tegenwind" omdat hij
+    # alleen naar het dieptepunt ten opzichte van de mediaan keek.
+    herstel = _jaren(ebit=[52, 176, 145, 215],
+                     total_equity=[250]*4, total_debt=[85]*4,
+                     revenue=[100]*4, gross_profit=[70, 71, 73, 76])
+    p = bouw_profiel(herstel)
+    assert p["niveau"] == "geel", p
+    assert "opgeklommen" in p["kop"], p["kop"]
+
+    # Spiegelbeeld: dezelfde waarden aflopend is wél een instorting.
+    instorting = _jaren(ebit=[215, 145, 176, 52],
+                        total_equity=[250]*4, total_debt=[85]*4,
+                        revenue=[100]*4, gross_profit=[76, 73, 71, 70])
+    assert bouw_profiel(instorting)["niveau"] == "rood"
+    print("  [OK] opklimmen vanaf een zwakke start is geen instorting")
+
+
+def test_herstel_wordt_niet_zomaar_groen():
+    # Een reeks die net op niveau is gekomen heeft nog geen slecht jaar
+    # doorstaan; duurzaamheid is dan niet aangetoond, dus geen groen.
+    herstel = _jaren(ebit=[40, 210, 205, 220],
+                     total_equity=[750]*4, total_debt=[250]*4,
+                     revenue=[100]*4, gross_profit=[70]*4)
+    assert bouw_profiel(herstel)["niveau"] == "geel"
+    print("  [OK] herstel geeft geel, niet groen")
+
+
 def test_te_weinig_jaren():
     kort = _jaren(ebit=[200, 210], total_equity=[750, 750], total_debt=[250, 250])
     p = bouw_profiel(kort)
@@ -103,5 +132,7 @@ if __name__ == "__main__":
     test_groen_vereist_hoog_en_standvastig()
     test_instortend_rendement_is_rood()
     test_margeerosie_is_rood()
+    test_herstel_is_geen_instorting()
+    test_herstel_wordt_niet_zomaar_groen()
     test_te_weinig_jaren()
     print("\nAlle tests moat-profiel geslaagd.")

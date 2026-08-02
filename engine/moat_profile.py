@@ -159,17 +159,31 @@ def _oordeel(roics: list[float], bruto_trend: Optional[float],
 
     erosie = bruto_trend is not None and bruto_trend <= MARGE_EROSIE_PP
 
+    # Ligt het dieptepunt in het éérste jaar en staat het laatste jaar op of
+    # boven de mediaan, dan is het rendement niet ingestort maar opgeklommen.
+    # Zonder dit onderscheid krijgt een bedrijf dat zijn zaken op orde bracht
+    # hetzelfde rode stempel als een bedrijf dat wegzakt: bij Huuuge was het
+    # slechtste jaar 2022 (11,6%) waarna het opliep naar 48,3% in 2025, en dat
+    # werd gelezen als "stort in bij tegenwind".
+    herstellend = len(roics) >= 3 and roics.index(laagste) == 0 and roics[-1] >= mediaan
+
     # Rood: het rendement houdt geen stand, is structureel mager, of de marge
     # brokkelt af. Dit is het profiel dat in de diepe analyse steevast op HOLD
     # of PASS uitkwam, ook wanneer het aandeel goedkoop leek.
     if mediaan <= 0:
         return "rood", "Verdient geen rendement op het geïnvesteerde kapitaal"
-    if standvastig < STABIEL_ROOD:
+    if standvastig < STABIEL_ROOD and not herstellend:
         return "rood", "Het rendement stort in bij tegenwind"
     if mediaan < ROIC_ZWAK:
         return "rood", "Structureel mager rendement op kapitaal"
     if erosie:
         return "rood", "De brutomarge brokkelt af"
+
+    # Een herstellende reeks is geen instorting, maar ook geen bewijs van
+    # duurzaamheid: er is maar een paar jaar goed rendement en nog geen enkel
+    # slecht jaar doorstaan. Dat hoort in het midden, niet in het groen.
+    if herstellend and standvastig < STABIEL_GROEN:
+        return "geel", "Rendement is opgeklommen, maar nog te kort op niveau"
 
     # Groen alleen bij hoog én standvastig rendement — dat is het profiel van
     # de aandelen die de diepe analyse tot KOOP bestempelde.
