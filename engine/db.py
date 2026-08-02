@@ -532,6 +532,14 @@ def tickers_needing_backfill(limit: int, min_start: str) -> list[str]:
     aangevuld — met vijf dagen historie in plaats van tien jaar. Daarom kijken we
     naar de oudste opgeslagen dag: ligt die na `min_start`, dan ontbreekt de
     diepe historie nog.
+
+    En let op de willekeurige volgorde. Alfabetisch sorteren lijkt netter maar
+    loopt vast: een ticker waarvoor Yahoo geen historie heeft blijft in de
+    selectie zitten en wordt elke ronde opnieuw geprobeerd. Gemeten over 26
+    rondes zakte de opbrengst daardoor van 56 naar 9 geslaagde tickers per
+    ronde van honderd — tegen het eind ging vrijwel elke plek naar een bekende
+    mislukking. Willekeurig trekken verdeelt die kansloze gevallen over alle
+    rondes in plaats van ze vooraan te laten ophopen.
     """
     with _cursor() as cur:
         cur.execute("""
@@ -540,7 +548,7 @@ def tickers_needing_backfill(limit: int, min_start: str) -> list[str]:
             WHERE s.active = 1
             GROUP BY s.ticker
             HAVING MIN(p.date) IS NULL OR MIN(p.date) > %s
-            ORDER BY s.ticker
+            ORDER BY random()
             LIMIT %s
         """, (min_start, limit))
         return [r["ticker"] for r in cur.fetchall()]
