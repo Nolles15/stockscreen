@@ -413,6 +413,12 @@ def run_ticker(ticker: str, config: dict) -> dict:
         "quality_detail":      q_result.get("detail"),
         "piotroski_waarden":   q_result.get("piotroski", {}).get("waarden"),
         "fv_detail":           fv_result.get("detail"),
+        # De rijen waarover werkelijk gerekend is — inclusief de TTM-rij als
+        # "boekjaar 0". De methodepagina moet exact deze rijen normaliseren,
+        # anders toont hij een berekening die niet is uitgevoerd. Dat gebeurde:
+        # bij ASML gaf de trace een genormaliseerde WPA van 19,92 terwijl de
+        # motor met 20,59 rekende, omdat de trace de TTM-rij oversloeg.
+        "calc_rows":           calc_rows,
         # Normalized metrics
         "normalized_eps":        normalized.get("normalized_eps"),
         "normalized_ebitda":     normalized.get("normalized_ebitda"),

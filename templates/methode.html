@@ -64,6 +64,11 @@ const groot = (v) => (v === null || v === undefined) ? '—'
   : nf(v, 0);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+// De motor zet de cijfers over de laatste twaalf maanden vooraan als "boekjaar 0"
+// zodra het jongste jaarverslag van vorig jaar is. Zonder dit label staat er een
+// onverklaarbare 0 in elke tabel.
+const jaarLabel = (j) => (j === 0 || j === '0')
+  ? '<span title="Cijfers over de laatste twaalf maanden">laatste 12 mnd</span>' : esc(j);
 const jaNee = (b) => b === true ? '<span class="text-emerald-400">ja</span>'
   : b === false ? '<span class="text-rose-400">nee</span>'
   : '<span class="text-slate-500">onbekend</span>';
@@ -126,7 +131,7 @@ function bron(bestand, functie) {
 function bouwHerkomst(t) {
   const s = t.stock || {}, m = t.market || {}, dq = t.data_quality || {};
   const rijen = (t.annual || []).map(a => [
-    a.fiscal_year, groot(a.revenue), groot(a.ebit), groot(a.net_income),
+    jaarLabel(a.fiscal_year), groot(a.revenue), groot(a.ebit), groot(a.net_income),
     nf(a.eps_diluted), groot(a.fcf), groot(a.total_equity), groot(a.total_debt),
   ]);
   return stap('herkomst', STAPPEN[0].titel,
@@ -168,7 +173,7 @@ function bouwNormalisatie(t) {
   const n = t.normalisatie || {};
   const blokken = Object.values(n).map(v => {
     const rijen = (v.per_jaar || []).map(p => [
-      p.jaar,
+      jaarLabel(p.jaar),
       p.waarde === null || p.waarde === undefined ? '—' : groot(p.waarde),
       (v.afgevallen || []).includes(p.waarde)
         ? '<span class="text-rose-400">afgevallen</span>'
@@ -250,7 +255,7 @@ function bouwKwaliteit(t) {
   const p = det.profitability || {}, b = det.balance_sheet || {},
         st = det.stability || {}, f = det.fcf_positive || {};
   const roicRijen = (p.roic_per_jaar || []).map(r =>
-    [r.jaar, pct(r.waarde), groot(r.ebit), groot(r.geinvesteerd_kapitaal)]);
+    [jaarLabel(r.jaar), pct(r.waarde), groot(r.ebit), groot(r.geinvesteerd_kapitaal)]);
   return stap('kwaliteit', STAPPEN[4].titel,
     `Vijf criteria van elk maximaal twee punten. Deze score bepaalt niet de waarde, maar wél
      of een koopsignaal wordt afgegeven: een goedkoop aandeel van een zwak bedrijf is geen
@@ -287,7 +292,7 @@ function bouwKwaliteit(t) {
 
      <div class="text-sm font-medium text-slate-200 mt-4">4 · Vrije kasstroom — ${nf(bd.fcf_positive, 1)}/2</div>
      <p class="text-xs text-slate-400">${esc(f.formule)}</p>
-     ${tabel(['Boekjaar','Vrije kasstroom'], (f.fcf_per_jaar || []).map(r => [r.jaar, groot(r.waarde)]))}
+     ${tabel(['Boekjaar','Vrije kasstroom'], (f.fcf_per_jaar || []).map(r => [jaarLabel(r.jaar), groot(r.waarde)]))}
      <p class="text-xs text-slate-500">Elk jaar positief: ${jaNee(f.alle_jaren_positief)} ·
        goede cashconversie: ${jaNee(f.goede_cashconversie)}
        (per jaar: ${(f.cashconversie_per_jaar || []).map(v => pct(v, 0)).join(', ') || '—'})</p>
@@ -327,7 +332,7 @@ function bouwPiotroski(t) {
 function bouwMoat(t) {
   const m = t.moat || {}, d = m.drempels || {}, cyc = m.cyclus || {};
   const rijen = (m.roic || []).map((r, i) => [
-    r.jaar, pctRuw(r.pct),
+    jaarLabel(r.jaar), pctRuw(r.pct),
     m.brutomarge?.[i] ? pctRuw(m.brutomarge[i].pct) : '—',
     m.operationele_marge?.[i] ? pctRuw(m.operationele_marge[i].pct) : '—',
   ]);

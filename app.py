@@ -1689,16 +1689,21 @@ def api_trace(ticker: str):
         log.exception("trace-berekening mislukt voor %s", t)
         return jsonify({"error": f"berekening faalde: {e}"}), 500
 
-    # Normalisatie per grootheid, met de ruwe jaarwaarden en de grenzen erbij.
+    # Normalisatie per grootheid. Let op: dit móét over `calc_rows` gaan — de
+    # rijen waarover de motor werkelijk gerekend heeft, inclusief de TTM-rij als
+    # "boekjaar 0". Normaliseren over alleen de jaarrijen levert een andere
+    # uitkomst en dan legt de pagina een berekening uit die niet is gedaan.
+    calc_rows = calc.get("calc_rows") or annual
     velden = {
         "eps_diluted": "Winst per aandeel (verwaterd)",
         "ebitda": "EBITDA",
         "fcf": "Vrije kasstroom",
         "revenue": "Omzet",
     }
+    iqr = (cfg.get("valuation") or {}).get("outlier_iqr_multiplier", 3.0)
     normalisatie = {}
     for veld, label in velden.items():
-        spoor = normalizer.normalize_metric_trace(annual, veld)
+        spoor = normalizer.normalize_metric_trace(calc_rows, veld, iqr)
         spoor["label"] = label
         normalisatie[veld] = spoor
 
