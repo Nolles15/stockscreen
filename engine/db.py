@@ -7,7 +7,7 @@ import logging
 import os
 import json
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -171,10 +171,12 @@ def init_db() -> None:
                 FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
             )
         """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_price_history_ticker
-            ON price_history (ticker, date DESC)
-        """)
+        # Deze index was overbodig en is weer weggehaald. `PRIMARY KEY
+        # (ticker, date)` is al een btree op precies die twee kolommen, en
+        # Postgres leest een index net zo goed achterstevoren — de DESC voegde
+        # niets toe. Hij kostte wel ongeveer een derde van de voetafdruk van de
+        # tabel, wat bij miljoenen koersregels flink aantikt.
+        cur.execute("DROP INDEX IF EXISTS idx_price_history_ticker")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS calculated_scores (
                 ticker                  TEXT PRIMARY KEY,
@@ -520,6 +522,60 @@ def price_history_stats() -> dict:
         """)
         row = cur.fetchone()
     return dict(row) if row else {}
+
+
+def thin_price_history(dagelijks_tot_dagen: int = 730, dry_run: bool = False) -> dict:
+    """
+    Dun oude koersen uit: recent dagelijks, ouder wekelijks.
+
+    Waarom dit mag. De koersreeks dient één doel dat dagkoersen vereist — het
+    actuele beeld en een leesbare grafiek — en één doel dat ze niet vereist: de
+    cyclusvraag uit het moat-profiel, hoe diep ging dit aandeel onderuit en kwam
+    het terug. Een weekkoers laat een daling van 40% in 2022 net zo goed zien.
+    Bij ~2.800 tickers scheelt dat de helft van de tabel.
+
+    Bewaard blijft, per ticker:
+      - alles binnen `dagelijks_tot_dagen`;
+      - daarbuiten de laatste handelsdag van elke ISO-week;
+      - altijd de allereerste en allerlaatste waarneming, zodat het begin van de
+        reeks en de meest recente koers nooit sneuvelen.
+
+    Idempotent: een tweede run verwijdert niets meer.
+
+    Returns {"te_verwijderen"|"verwijderd": n, "grens": "YYYY-MM-DD"}
+    """
+    grens = (datetime.utcnow().date() - timedelta(days=dagelijks_tot_dagen)).isoformat()
+
+    # De te verwijderen rijen: ouder dan de grens, niet de weekafsluiter, en niet
+    # het eerste of laatste punt van de reeks. Alles in één query zodat er geen
+    # miljoen rijen door Python hoeven.
+    selectie = """
+        WITH gerangschikt AS (
+            SELECT ticker, date,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY ticker, to_char(date::date, 'IYYY-IW')
+                       ORDER BY date DESC
+                   ) AS plek_in_week,
+                   MIN(date) OVER (PARTITION BY ticker) AS eerste,
+                   MAX(date) OVER (PARTITION BY ticker) AS laatste
+            FROM price_history
+            WHERE date < %s
+        )
+        SELECT ticker, date FROM gerangschikt
+        WHERE plek_in_week > 1 AND date <> eerste AND date <> laatste
+    """
+
+    with _cursor() as cur:
+        if dry_run:
+            cur.execute(f"SELECT COUNT(*) AS n FROM ({selectie}) AS t", (grens,))
+            return {"dry_run": True, "te_verwijderen": cur.fetchone()["n"], "grens": grens}
+
+        cur.execute(f"""
+            DELETE FROM price_history p
+            USING ({selectie}) AS weg
+            WHERE p.ticker = weg.ticker AND p.date = weg.date
+        """, (grens,))
+        return {"dry_run": False, "verwijderd": cur.rowcount, "grens": grens}
 
 
 def tickers_needing_backfill(limit: int, min_start: str) -> list[str]:

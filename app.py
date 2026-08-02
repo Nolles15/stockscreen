@@ -98,6 +98,12 @@ _fundamentals_running = False
 
 STALE_HEAVY_DAYS = 6   # dagen zonder zware refresh → opnieuw ophalen bij next run
 
+# Tot hoe ver terug de koershistorie dagelijks bewaard blijft; daarbuiten houdt
+# de wekelijkse opruiming één koers per week over. Twee jaar dekt het actuele
+# beeld en een leesbare grafiek — de cyclusvraag uit het moat-profiel kijkt naar
+# dalingen over maanden en heeft aan weekkoersen genoeg.
+PRICE_HISTORY_DAGELIJKS_DAGEN = 730
+
 
 def _new_job() -> str:
     jid = str(uuid.uuid4())[:8]
@@ -639,6 +645,18 @@ def _run_weekly_tasks(cfg: dict) -> None:
         db.set_refresh_state("last_prune_at", datetime.now(timezone.utc).isoformat())
     except Exception:
         log.exception("Opschonen activity_log mislukt")
+
+    # Koershistorie verdunnen: buiten twee jaar volstaat één koers per week.
+    # Zonder dit groeit price_history door naar miljoenen regels terwijl het
+    # extra detail nergens gebruikt wordt — de cyclustest kijkt naar dalingen
+    # over maanden, niet over dagen.
+    try:
+        resultaat = db.thin_price_history(PRICE_HISTORY_DAGELIJKS_DAGEN)
+        db.set_refresh_state("last_thin_at", datetime.now(timezone.utc).isoformat())
+        db.log_activity("thin_price_history", None, "ok", resultaat)
+        log.info("Koershistorie verdund: %s regels weg", resultaat.get("verwijderd"))
+    except Exception:
+        log.exception("Verdunnen koershistorie mislukt")
 
 
 def _scheduler_loop(cfg: dict) -> None:
@@ -1820,6 +1838,81 @@ def api_recompute_markets():
     })
 
 
+@app.route("/api/price-history/<ticker>")
+def api_price_history(ticker: str):
+    """
+    De koersreeks voor de grafiek, uitgedund tot wat een grafiek kan tonen.
+
+    Query: ?period=1y|5y|max (default 5y) en ?punten=N (default 400).
+    Meer dan een paar honderd punten kan een grafiek van deze breedte niet
+    onderscheiden, en het scheelt aanzienlijk in de overdracht.
+    """
+    t, err = _validate_ticker(ticker)
+    if err:
+        return jsonify({"error": err}), 400
+
+    period = request.args.get("period", "5y")
+    dagen = {"1y": 366, "2y": 731, "5y": 1827, "max": 100000}.get(period, 1827)
+    try:
+        punten = max(50, min(int(request.args.get("punten", 400)), 2000))
+    except (TypeError, ValueError):
+        punten = 400
+
+    reeks = db.get_price_history(t)
+    if dagen < 100000:
+        vanaf = (datetime.utcnow().date() - timedelta(days=dagen)).isoformat()
+        reeks = [r for r in reeks if str(r["date"]) >= vanaf]
+
+    # Gelijkmatig uitdunnen, met het laatste punt er altijd bij: dat is de
+    # actuele koers en juist die mag niet wegvallen door een deelrest.
+    if len(reeks) > punten:
+        stap = len(reeks) / punten
+        gekozen = [reeks[int(i * stap)] for i in range(punten)]
+        if gekozen[-1] is not reeks[-1]:
+            gekozen.append(reeks[-1])
+        reeks = gekozen
+
+    scores = db.get_scores(t) or {}
+    return jsonify(_sanitize({
+        "ticker": t,
+        "punten": [{"datum": str(r["date"]), "koers": r["close"]} for r in reeks],
+        # De waardelijn hoort bij de grafiek: zonder die referentie zegt een
+        # koersverloop weinig over of het aandeel duur of goedkoop staat.
+        "waarde": {
+            "geschat": scores.get("combined_fv"),
+            "voorzichtig": scores.get("conservative_fv"),
+            "optimistisch": scores.get("optimistic_fv"),
+        },
+        "valuta": (db.get_stock(t) or {}).get("currency"),
+    }))
+
+
+@app.route("/api/price-history/thin", methods=["POST"])
+def api_thin_price_history():
+    """
+    Verdun de koershistorie handmatig. Body: {"dry_run": true} om eerst te zien
+    hoeveel regels zouden verdwijnen. Draait ook wekelijks vanzelf.
+    """
+    data = request.get_json(silent=True) or {}
+    dry_run = bool(data.get("dry_run"))
+    try:
+        dagen = int(data.get("dagelijks_tot_dagen") or PRICE_HISTORY_DAGELIJKS_DAGEN)
+    except (TypeError, ValueError):
+        return jsonify({"error": "dagelijks_tot_dagen moet een getal zijn"}), 400
+
+    try:
+        resultaat = db.thin_price_history(dagen, dry_run=dry_run)
+    except Exception as e:
+        log.exception("Verdunnen mislukt")
+        return jsonify({"error": str(e)}), 500
+
+    if not dry_run:
+        db.set_refresh_state("last_thin_at", datetime.now(timezone.utc).isoformat())
+        db.log_activity("thin_price_history", None, "ok", resultaat)
+    resultaat["stats"] = db.price_history_stats()
+    return jsonify(_sanitize(resultaat))
+
+
 @app.route("/api/price-history/stats")
 def api_price_history_stats():
     """Omvang van het koersarchief + hoeveel tickers er nog op wachten."""
@@ -2156,6 +2249,10 @@ def api_stock_detail(ticker):
             dq["issues"] = json.loads(dq["issues"])
         except (json.JSONDecodeError, TypeError):
             dq["issues"] = [dq["issues"]]
+    # De koersreeks wordt hier wél gebruikt om het moat-profiel te berekenen,
+    # maar gaat bewust níét mee in het antwoord: dat waren tot 3.650 regels die
+    # geen enkele pagina opvroeg, goed voor zo'n 40 KB per paginalading. De
+    # grafiek haalt zijn eigen, uitgedunde reeks op via /api/price-history/<T>.
     prijzen = db.get_price_history(t)
     return jsonify({
         "stock":  stock,
@@ -2164,7 +2261,6 @@ def api_stock_detail(ticker):
         "scores": scores,
         "data_quality": dq,
         "historical_multiples": hist,
-        "price_history": prijzen,
         # Het vijfde blok van de beslisboom: houdt het rendement stand, of is
         # dit aandeel goedkoop omdat het bedrijf zwak is? Dat onderscheid bepaalt
         # in de diepe analyses vrijwel het hele oordeel.

@@ -76,6 +76,28 @@
 <!-- Onderbouwing van het moat-blok; blijft verborgen tot er cijfers zijn. -->
 <div id="moat-cijfers" class="hidden mb-6"></div>
 
+<!-- Koersverloop met de geschatte waarde erdoorheen. De grafiek zelf zegt weinig;
+     het gaat om de verhouding tot die waardelijn — handelt dit aandeel er
+     structureel onder, of is het net weggezakt? -->
+<div id="koersgrafiek" class="hidden mb-6 rounded-xl border border-slate-800 bg-slate-900 p-4">
+  <div class="flex flex-wrap items-baseline gap-3 mb-3">
+    <h2 class="text-sm font-semibold text-slate-300">Koersverloop</h2>
+    <span id="grafiek-uitleg" class="text-xs text-slate-500"></span>
+    <div class="ml-auto flex gap-1 text-xs">
+      <button onclick="laadGrafiek('1y')" data-periode="1y" class="periode-knop px-2 py-1 rounded-md">1 jaar</button>
+      <button onclick="laadGrafiek('5y')" data-periode="5y" class="periode-knop px-2 py-1 rounded-md">5 jaar</button>
+      <button onclick="laadGrafiek('max')" data-periode="max" class="periode-knop px-2 py-1 rounded-md">alles</button>
+    </div>
+  </div>
+  <div id="grafiek-doel"></div>
+</div>
+
+<style>
+  .periode-knop { color: #94a3b8; border: 1px solid #334155; }
+  .periode-knop:hover { color: #e2e8f0; }
+  .periode-knop.actief { color: #7ee2a8; border-color: #1a7f4b; background: #0d3320; }
+</style>
+
 <!-- Handmatige koersinvoer (verborgen tot klik) -->
 <div id="manual-price-panel" class="hidden bg-slate-900 border border-yellow-700 rounded-xl p-4 mb-5">
   <h3 class="text-yellow-400 font-semibold text-sm mb-2">✏ Handmatige koers invoeren</h3>
@@ -825,6 +847,123 @@ fetch(`/api/stock/${TICKER}`)
   .then(r => r.ok ? r.json() : null)
   .then(d => { if (d) bouwBeslisboom(d); })
   .catch(() => {});
+
+// ---- Koersgrafiek ----------------------------------------------------------
+// Met de hand getekende SVG. Een grafiekbibliotheek erbij halen kost meer dan
+// het oplevert: dit is één pad, twee lijnen en een vlak.
+let _periode = '5y';
+
+// Koersen lopen van centen tot duizenden; twee decimalen bij een koers van
+// 4.200 maakt de as onleesbaar, geen decimalen bij een koers van 0,85 nutteloos.
+const fmt = (v) => Number(v).toLocaleString('nl-NL', {
+  minimumFractionDigits: Math.abs(v) >= 100 ? 0 : 2,
+  maximumFractionDigits: Math.abs(v) >= 100 ? 0 : 2,
+});
+
+async function laadGrafiek(periode) {
+  _periode = periode || _periode;
+  document.querySelectorAll('.periode-knop').forEach(b =>
+    b.classList.toggle('actief', b.dataset.periode === _periode));
+  try {
+    const res = await fetch(`/api/price-history/${TICKER}?period=${_periode}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d.punten || d.punten.length < 2) {
+      document.getElementById('grafiek-doel').innerHTML =
+        '<p class="text-xs text-slate-500 py-8 text-center">Nog te weinig koershistorie opgeslagen voor een grafiek.</p>';
+      document.getElementById('koersgrafiek').classList.remove('hidden');
+      return;
+    }
+    tekenGrafiek(d);
+    document.getElementById('koersgrafiek').classList.remove('hidden');
+  } catch (e) { /* grafiek is bijzaak; de rest van de pagina werkt gewoon */ }
+}
+
+function tekenGrafiek(d) {
+  const B = 900, H = 260, marge = { l: 52, r: 12, t: 12, b: 24 };
+  const bx = B - marge.l - marge.r, by = H - marge.t - marge.b;
+  const koersen = d.punten.map(p => p.koers);
+  const w = d.waarde || {};
+
+  // De waardelijn hoort in beeld te vallen, anders zegt de grafiek niets over
+  // duur of goedkoop. Maar bij een absurde schatting mag hij de koers niet
+  // platdrukken tot een streep: daarom begrenzen we op het dubbele van de
+  // koersrange.
+  const kMin = Math.min(...koersen), kMax = Math.max(...koersen);
+  const speling = (kMax - kMin) || kMax * 0.1 || 1;
+  const kandidaten = [kMin, kMax];
+  [w.geschat, w.voorzichtig, w.optimistisch].forEach(v => {
+    if (v && v > kMin - speling * 2 && v < kMax + speling * 2) kandidaten.push(v);
+  });
+  let lo = Math.min(...kandidaten), hi = Math.max(...kandidaten);
+  const pad = (hi - lo) * 0.08 || hi * 0.08 || 1;
+  lo -= pad; hi += pad;
+
+  const x = i => marge.l + (i / (d.punten.length - 1)) * bx;
+  const y = v => marge.t + by - ((v - lo) / (hi - lo)) * by;
+
+  const pad_d = d.punten.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.koers).toFixed(1)}`).join('');
+  const vlak = `${pad_d}L${x(d.punten.length - 1).toFixed(1)},${(marge.t + by).toFixed(1)}L${marge.l},${(marge.t + by).toFixed(1)}Z`;
+
+  // Bandbreedte tussen voorzichtig en optimistisch
+  let band = '';
+  if (w.voorzichtig && w.optimistisch && w.optimistisch > w.voorzichtig) {
+    const yTop = Math.max(marge.t, y(w.optimistisch));
+    const yBot = Math.min(marge.t + by, y(w.voorzichtig));
+    if (yBot > yTop) {
+      band = `<rect x="${marge.l}" y="${yTop.toFixed(1)}" width="${bx}" height="${(yBot - yTop).toFixed(1)}"
+              fill="#1a7f4b" opacity="0.10" />`;
+    }
+  }
+
+  let waardelijn = '', waardelabel = '';
+  if (w.geschat) {
+    const yv = y(w.geschat);
+    const zichtbaar = yv >= marge.t && yv <= marge.t + by;
+    if (zichtbaar) {
+      waardelijn = `<line x1="${marge.l}" y1="${yv.toFixed(1)}" x2="${B - marge.r}" y2="${yv.toFixed(1)}"
+                    stroke="#7ee2a8" stroke-width="1.5" stroke-dasharray="5 4" />`;
+      waardelabel = `<text x="${B - marge.r - 4}" y="${(yv - 5).toFixed(1)}" text-anchor="end"
+                     fill="#7ee2a8" font-size="11">geschatte waarde ${fmt(w.geschat)}</text>`;
+    } else {
+      // Buiten beeld: zeggen dát het buiten beeld valt, niet stilzwijgend weglaten.
+      waardelabel = `<text x="${marge.l}" y="${(marge.t + 12)}" fill="#7ee2a8" font-size="11">
+                     geschatte waarde ${fmt(w.geschat)} valt buiten dit bereik</text>`;
+    }
+  }
+
+  // Y-as: vijf stappen is genoeg om af te lezen zonder rommelig te worden.
+  let assen = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * (i / 4), yy = y(v);
+    assen += `<line x1="${marge.l}" y1="${yy.toFixed(1)}" x2="${B - marge.r}" y2="${yy.toFixed(1)}"
+              stroke="#1e293b" stroke-width="1" />
+              <text x="${marge.l - 6}" y="${(yy + 4).toFixed(1)}" text-anchor="end"
+              fill="#64748b" font-size="10">${fmt(v)}</text>`;
+  }
+  const eerste = d.punten[0].datum, laatste = d.punten[d.punten.length - 1].datum;
+
+  document.getElementById('grafiek-doel').innerHTML = `
+    <svg viewBox="0 0 ${B} ${H}" class="w-full" style="max-height:280px" role="img"
+         aria-label="Koersverloop van ${eerste} tot ${laatste}">
+      ${assen}${band}
+      <path d="${vlak}" fill="#3b82f6" opacity="0.08" />
+      <path d="${pad_d}" fill="none" stroke="#60a5fa" stroke-width="1.6" />
+      ${waardelijn}${waardelabel}
+      <text x="${marge.l}" y="${H - 6}" fill="#64748b" font-size="10">${eerste}</text>
+      <text x="${B - marge.r}" y="${H - 6}" text-anchor="end" fill="#64748b" font-size="10">${laatste}</text>
+    </svg>`;
+
+  const laatsteKoers = d.punten[d.punten.length - 1].koers;
+  const verschil = w.geschat ? ((w.geschat - laatsteKoers) / laatsteKoers) * 100 : null;
+  document.getElementById('grafiek-uitleg').textContent =
+    `${d.punten.length} koersen in ${d.valuta || ''}` +
+    (verschil !== null
+      ? ` · koers ligt ${Math.abs(verschil).toFixed(0)}% ${verschil > 0 ? 'onder' : 'boven'} de geschatte waarde`
+      : '');
+}
+
+laadGrafiek('5y');
 
 const FIELD_HINTS = {
   eps_diluted:        'Winst per aandeel (verwaterd) — per aandeel in lokale valuta',
