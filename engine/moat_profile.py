@@ -214,6 +214,19 @@ def bouw_profiel(annual: list[dict], price_history: list[dict] | None = None) ->
     profiel: dict = {
         "niveau": niveau,
         "kop": kop,
+        # De gehanteerde drempels reizen mee, zodat de methodepagina ze niet
+        # apart hoeft te kennen — anders ontstaat er een tweede plek waar ze
+        # staan, en die loopt gegarandeerd uit de pas.
+        "drempels": {
+            "belastingtarief": TAX_RATE,
+            "roic_groen": ROIC_GROEN,
+            "roic_zwak": ROIC_ZWAK,
+            "standvastig_groen": STABIEL_GROEN,
+            "standvastig_rood": STABIEL_ROOD,
+            "marge_erosie_pp": MARGE_EROSIE_PP,
+            "minimaal_jaren": MIN_JAREN,
+        },
+        "formule_roic": "EBIT × (1 − belastingtarief) / (eigen vermogen + schuld)",
         "roic": [{"jaar": j, "pct": round(w, 1)} for j, w in roic],
         "brutomarge": [{"jaar": j, "pct": round(w, 1)} for j, w in bruto],
         "operationele_marge": [{"jaar": j, "pct": round(w, 1)} for j, w in operationeel],

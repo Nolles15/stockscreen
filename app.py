@@ -22,6 +22,7 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for
 from engine import db
 from engine import data_quality
 from engine import markets
+from engine import normalizer
 from engine import moat_profile
 from engine import refresh
 from engine import remap_rules
@@ -1661,6 +1662,109 @@ def api_backfill_price_history():
 
     threading.Thread(target=_work, daemon=True).start()
     return jsonify({"started": True, "tickers": len(tickers), "period": period})
+
+
+@app.route("/api/trace/<ticker>")
+def api_trace(ticker: str):
+    """
+    De volledige rekenketen voor één aandeel: van jaarcijfer tot eindoordeel,
+    met alle tussenwaarden. Voedt de methodepagina.
+
+    Geeft terug wat de motoren zélf produceren — er wordt hier niets opnieuw
+    uitgerekend. Zou dat wel gebeuren, dan bestond er een tweede waarheid naast
+    de echte berekening, en dan legt de pagina iets uit wat niet klopt.
+    """
+    t, err = _validate_ticker(ticker)
+    if err:
+        return jsonify({"error": err}), 400
+    stock = db.get_stock(t)
+    if not stock:
+        return jsonify({"error": f"{t} staat niet in de database"}), 404
+
+    cfg = load_config()
+    annual = db.get_financials(t, "annual")
+    try:
+        calc = run_ticker(t, cfg)
+    except Exception as e:
+        log.exception("trace-berekening mislukt voor %s", t)
+        return jsonify({"error": f"berekening faalde: {e}"}), 500
+
+    # Normalisatie per grootheid, met de ruwe jaarwaarden en de grenzen erbij.
+    velden = {
+        "eps_diluted": "Winst per aandeel (verwaterd)",
+        "ebitda": "EBITDA",
+        "fcf": "Vrije kasstroom",
+        "revenue": "Omzet",
+    }
+    normalisatie = {}
+    for veld, label in velden.items():
+        spoor = normalizer.normalize_metric_trace(annual, veld)
+        spoor["label"] = label
+        normalisatie[veld] = spoor
+
+    market = db.get_market_data(t) or {}
+    dq = db.get_data_quality(t) or {}
+    if dq and isinstance(dq.get("issues"), str):
+        try:
+            dq["issues"] = json.loads(dq["issues"])
+        except (json.JSONDecodeError, TypeError):
+            dq["issues"] = [dq["issues"]]
+
+    sector_cfg = (cfg.get("sectors") or {}).get(stock.get("sector")) or {}
+
+    return jsonify(_sanitize({
+        "ticker": t,
+        "stock": stock,
+        "market": market,
+        "data_quality": dq,
+        "annual": annual,
+        "normalisatie": normalisatie,
+        "waardering": {
+            "combined_fv": calc.get("combined_fv"),
+            "conservative_fv": calc.get("conservative_fv"),
+            "base_fv": calc.get("base_fv"),
+            "optimistic_fv": calc.get("optimistic_fv"),
+            "multiples_fv": calc.get("multiples_fv"),
+            "graham_fv": calc.get("graham_fv"),
+            "perpetuity_fv": calc.get("perpetuity_fv"),
+            "fv_confidence": calc.get("fv_confidence"),
+            "fv_spread_pct": calc.get("fv_spread_pct"),
+            "fv_methods_used": calc.get("fv_methods_used"),
+            "fv_methods_dropped": calc.get("fv_methods_dropped"),
+            "detail": calc.get("fv_detail"),
+        },
+        "kwaliteit": {
+            "score": calc.get("quality_score"),
+            "breakdown": calc.get("quality_breakdown"),
+            "detail": calc.get("quality_detail"),
+        },
+        "piotroski": {
+            "score": calc.get("piotroski_score"),
+            "criteria": calc.get("piotroski_breakdown"),
+            "waarden": calc.get("piotroski_waarden"),
+        },
+        "moat": moat_profile.bouw_profiel(annual, db.get_price_history(t)),
+        "signaal": {
+            "signal": calc.get("signal"),
+            "margin_of_safety": calc.get("margin_of_safety"),
+            "warnings": calc.get("warnings"),
+            "below_quality_threshold": calc.get("below_quality_threshold"),
+        },
+        # De gebruikte instellingen, zodat elke drempel op de pagina uit de
+        # echte configuratie komt en niet uit de template.
+        "config": {
+            "screening": cfg.get("screening"),
+            "signals": cfg.get("signals"),
+            "valuation": cfg.get("valuation"),
+            "sector": {"naam": stock.get("sector"), "waarden": sector_cfg},
+        },
+    }))
+
+
+@app.route("/methode")
+def methode():
+    """Uitleg van elke berekening, met de doorrekening van een gekozen aandeel."""
+    return render_template("methode.html")
 
 
 @app.route("/api/stocks/recompute-markets", methods=["POST"])

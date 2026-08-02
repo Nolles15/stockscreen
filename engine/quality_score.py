@@ -55,9 +55,13 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
     }
     """
     criteria: dict[str, Optional[bool]] = {f"F{i}": None for i in range(1, 10)}
+    # Per test de twee getallen die vergeleken zijn. "F3 is onwaar" valt niet te
+    # controleren zonder te zien wélke twee ROA-waarden tegen elkaar stonden.
+    waarden: dict[str, dict] = {}
 
     if len(annual_rows) < 1:
-        return {"score": 0, "criteria": criteria, "sufficient_data": False}
+        return {"score": 0, "criteria": criteria, "waarden": waarden,
+                "known_criteria": 0, "sufficient_data": False}
 
     curr = annual_rows[0]
     prev = annual_rows[1] if len(annual_rows) >= 2 else None
@@ -71,9 +75,15 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
 
     # F1: ROA > 0
     criteria["F1"] = (roa_curr > 0) if roa_curr is not None else None
+    waarden["F1"] = {"omschrijving": "Rendement op activa is positief",
+                     "berekening": "nettowinst / totale activa",
+                     "waarde": roa_curr, "drempel": 0,
+                     "nettowinst": net_income_curr, "totale_activa": total_assets_curr}
 
     # F2: Operating cash flow > 0
     criteria["F2"] = (op_cf_curr > 0) if op_cf_curr is not None else None
+    waarden["F2"] = {"omschrijving": "Operationele kasstroom is positief",
+                     "waarde": op_cf_curr, "drempel": 0}
 
     # F3: ROA increasing
     if prev is not None:
@@ -82,11 +92,15 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
         roa_prev = (ni_prev / ta_prev) if (ni_prev is not None and ta_prev) else None
         if roa_curr is not None and roa_prev is not None:
             criteria["F3"] = roa_curr > roa_prev
+        waarden["F3"] = {"omschrijving": "Rendement op activa is gestegen",
+                         "dit_jaar": roa_curr, "vorig_jaar": roa_prev}
 
     # F4: Accruals (operating CF / total assets > ROA)
     if op_cf_curr is not None and total_assets_curr and roa_curr is not None:
         accrual_roa = op_cf_curr / total_assets_curr
         criteria["F4"] = accrual_roa > roa_curr
+        waarden["F4"] = {"omschrijving": "Kasstroom overtreft de boekwinst (winstkwaliteit)",
+                         "kasstroom_op_activa": accrual_roa, "rendement_op_activa": roa_curr}
 
     # ---- Leverage / Liquidity / Dilution ------------------------------------
 
@@ -100,6 +114,8 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
         lev_prev = (debt_prev / ta_prev) if (debt_prev is not None and ta_prev) else None
         if lev_curr is not None and lev_prev is not None:
             criteria["F5"] = lev_curr < lev_prev
+        waarden["F5"] = {"omschrijving": "Schuld ten opzichte van activa is gedaald",
+                         "dit_jaar": lev_curr, "vorig_jaar": lev_prev}
 
         # F6: Current ratio increasing
         ca_curr  = _val(curr, "current_assets")
@@ -110,12 +126,17 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
         cr_prev  = (ca_prev / cl_prev) if (ca_prev and cl_prev) else None
         if cr_curr is not None and cr_prev is not None:
             criteria["F6"] = cr_curr > cr_prev
+        waarden["F6"] = {"omschrijving": "Vlottende activa dekken de kortlopende schulden ruimer",
+                         "dit_jaar": cr_curr, "vorig_jaar": cr_prev}
 
         # F7: No dilution — shares outstanding not increased
         sh_curr = _val(curr, "shares_outstanding")
         sh_prev = _val(prev, "shares_outstanding")
         if sh_curr is not None and sh_prev is not None and sh_prev > 0:
             criteria["F7"] = sh_curr <= sh_prev * 1.02  # allow 2% rounding tolerance
+        waarden["F7"] = {"omschrijving": "Geen verwatering: aandelenaantal niet gestegen",
+                         "dit_jaar": sh_curr, "vorig_jaar": sh_prev,
+                         "toegestane_marge": "2% voor afrondingsverschillen"}
 
     # ---- Operating Efficiency -----------------------------------------------
 
@@ -129,6 +150,8 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
         gm_prev = (gp_prev / rev_prev) if (gp_prev and rev_prev) else None
         if gm_curr is not None and gm_prev is not None:
             criteria["F8"] = gm_curr > gm_prev
+        waarden["F8"] = {"omschrijving": "Brutomarge is verbeterd",
+                         "dit_jaar": gm_curr, "vorig_jaar": gm_prev}
 
         # F9: Asset turnover improving
         ta_curr_f9 = _val(curr, "total_assets")
@@ -139,6 +162,8 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
         at_prev = (rev_prev_f9 / ta_prev_f9) if (rev_prev_f9 and ta_prev_f9) else None
         if at_curr is not None and at_prev is not None:
             criteria["F9"] = at_curr > at_prev
+        waarden["F9"] = {"omschrijving": "Omzet per euro activa is gestegen",
+                         "dit_jaar": at_curr, "vorig_jaar": at_prev}
 
     # Score = count of True criteria (None = unknown, treated as 0)
     score = sum(1 for v in criteria.values() if v is True)
@@ -148,6 +173,7 @@ def piotroski_fscore(annual_rows: list[dict]) -> dict:
     return {
         "score":           score,
         "criteria":        {k: v for k, v in criteria.items()},
+        "waarden":         waarden,
         "known_criteria":  known,
         "sufficient_data": sufficient,
     }
@@ -170,6 +196,11 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
     """
     breakdown: dict[str, float] = {}
     warnings: list[str] = []
+    # `detail` legt vast wélke getallen tot welk oordeel leidden. Zonder die
+    # tussenwaarden is een criterium niet na te rekenen: je ziet dat er 1 punt
+    # is toegekend, maar niet welke ROE tegen welke drempel is gehouden. De
+    # methodepagina toont dit; de score zelf verandert er niet door.
+    detail: dict[str, dict] = {}
     rows = annual_rows[:5]
     n = len(rows)
 
@@ -183,8 +214,12 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
 
     no_bad_roe  = True
     no_bad_roic = True
+    roe_per_jaar: list[dict] = []
+    roic_per_jaar: list[dict] = []
     for r in rows:
         roe_yr = r.get("roe")
+        if roe_yr is not None:
+            roe_per_jaar.append({"jaar": r.get("fiscal_year"), "waarde": roe_yr})
         if roe_yr is not None and roe_yr < 0.08:
             no_bad_roe = False
         ebit       = r.get("ebit")
@@ -195,8 +230,21 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
         invested_capital = (equity or 0) + debt - excess_cash
         if ebit is not None and equity is not None and invested_capital > 0:
             roic_yr = (ebit * 0.75) / invested_capital
+            roic_per_jaar.append({
+                "jaar": r.get("fiscal_year"), "waarde": roic_yr,
+                "ebit": ebit, "geinvesteerd_kapitaal": invested_capital,
+            })
             if roic_yr < 0.08:
                 no_bad_roic = False
+
+    detail["profitability"] = {
+        "formule": "ROIC = EBIT × 0,75 / (eigen vermogen + schuld − overtollige kas)",
+        "drempels": {"gemiddelde": 0.12, "geen_jaar_onder": 0.08},
+        "gemiddelde_roe": avg_roe, "gemiddelde_roic": avg_roic,
+        "roe_boven_drempel": roe_ok, "roic_boven_drempel": roic_ok,
+        "geen_slecht_roe_jaar": no_bad_roe, "geen_slecht_roic_jaar": no_bad_roic,
+        "roe_per_jaar": roe_per_jaar, "roic_per_jaar": roic_per_jaar,
+    }
 
     if avg_roe is None or avg_roic is None:
         warnings.append("ROE or ROIC data incomplete — profitability criterion may be under-scored.")
@@ -247,6 +295,16 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
             ic_ok = True  # no interest = no debt burden
             warnings.append("Interest expense not found — assuming no debt burden for coverage check.")
 
+        detail["balance_sheet"] = {
+            "formule": "schuldratio = totale schuld / eigen vermogen · rentedekking = EBIT / rentelasten",
+            "drempels": {"schuldratio_onder": 0.5, "rentedekking_boven": 10},
+            "schuldratio_laatste_jaar": de_curr, "schuldratio_mediaan": de_avg,
+            "rentedekking_laatste_jaar": ic_curr, "rentedekking_mediaan": ic_avg,
+            "schuldratio_gehaald": de_ok, "rentedekking_gehaald": ic_ok,
+            "geen_rentelasten_gevonden": intexp is None or intexp == 0,
+            "toelichting": ("Getoetst op het laatste jaar óf de mediaan — één van beide volstaat."),
+        }
+
     if de_ok and ic_ok:
         breakdown["balance_sheet"] = 2.0
     elif de_ok or ic_ok:
@@ -261,6 +319,14 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
 
     eps_stable = (stddev_eps is not None and stddev_eps < 0.20)
     fcf_stable = (stddev_fcf is not None and stddev_fcf < 0.20)
+
+    detail["stability"] = {
+        "formule": "variatiecoëfficiënt = standaarddeviatie / gemiddelde, over de beschikbare boekjaren",
+        "drempel": 0.20,
+        "variatie_eps": stddev_eps, "variatie_fcf": stddev_fcf,
+        "eps_stabiel": eps_stable, "fcf_stabiel": fcf_stable,
+        "jaren_beschikbaar": n,
+    }
 
     if stddev_eps is None or stddev_fcf is None:
         if n < 2:
@@ -288,6 +354,18 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
         len(ocf_ebitda_ratios) >= 2
         and sum(1 for v in ocf_ebitda_ratios if v > 0.70) / len(ocf_ebitda_ratios) >= 0.75
     )
+
+    detail["fcf_positive"] = {
+        "formule": "vrije kasstroom per jaar > 0 · cashconversie = operationele kasstroom / EBITDA",
+        "drempels": {"cashconversie_boven": 0.70, "aandeel_jaren_dat_moet_slagen": 0.75,
+                     "minimaal_jaren": 3},
+        "fcf_per_jaar": [{"jaar": yr, "waarde": fcf} for fcf, yr in fcf_years],
+        "alle_jaren_positief": all(fcf > 0 for fcf, _ in fcf_years) if fcf_years else None,
+        "cashconversie_per_jaar": [round(v, 4) for v in ocf_ebitda_ratios],
+        "goede_cashconversie": good_cash_conversion,
+        "toelichting": ("Twee punten vereist positieve vrije kasstroom in élk jaar, minstens drie "
+                        "jaar data én goede cashconversie. Zonder dat laatste 1,5 punt."),
+    }
 
     if not fcf_years:
         warnings.append("No FCF data available — FCF quality criterion skipped.")
@@ -327,11 +405,19 @@ def quality_score(annual_rows: list[dict], normalized: dict) -> dict:
             f"Piotroski score based on limited data ({piotroski['known_criteria']}/9 criteria known)."
         )
 
+    detail["piotroski"] = {
+        "formule": "F-score van 0 tot 9; ≥7 geeft 2 punten, ≥5 geeft 1 punt",
+        "score": f_score,
+        "criteria_bekend": piotroski.get("known_criteria"),
+        "voldoende_data": sufficient,
+    }
+
     total = sum(breakdown.values())
     return {
         "total":          total,
         "max":            10,
         "breakdown":      breakdown,
+        "detail":         detail,
         "piotroski":      piotroski,
         "warnings":       warnings,
     }

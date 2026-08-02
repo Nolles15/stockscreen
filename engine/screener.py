@@ -407,6 +407,12 @@ def run_ticker(ticker: str, config: dict) -> dict:
         "quality_breakdown": q_result.get("breakdown"),
         "piotroski_score":  q_result.get("piotroski", {}).get("score"),
         "piotroski_breakdown": q_result.get("piotroski", {}).get("criteria"),
+        # Tussenwaarden voor de methodepagina: welke getallen leidden tot welk
+        # oordeel. Worden niet opgeslagen — `upsert_scores` neemt alleen de
+        # expliciet benoemde kolommen — maar reizen wel mee naar /api/trace.
+        "quality_detail":      q_result.get("detail"),
+        "piotroski_waarden":   q_result.get("piotroski", {}).get("waarden"),
+        "fv_detail":           fv_result.get("detail"),
         # Normalized metrics
         "normalized_eps":        normalized.get("normalized_eps"),
         "normalized_ebitda":     normalized.get("normalized_ebitda"),

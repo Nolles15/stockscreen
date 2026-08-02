@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+{% block title %}Methode — Stockscreener{% endblock %}
+
+{% block content %}
+<div class="mb-5">
+  <h1 class="text-2xl font-bold">Methode</h1>
+  <p class="text-slate-400 text-sm mt-1 max-w-3xl leading-relaxed">
+    Elke stap van jaarcijfer tot eindoordeel, met de getallen erbij. Kies een
+    aandeel en klap een stap open om de formule, de gehanteerde drempels en de
+    doorrekening te zien. Alle drempels komen uit de live configuratie — deze
+    pagina schrijft niets zelf voor.
+  </p>
+</div>
+
+<!-- Tickerkiezer -->
+<div class="flex flex-wrap items-end gap-3 mb-6 p-4 rounded-xl border border-slate-800 bg-slate-900">
+  <label class="text-sm">
+    <span class="block text-slate-400 mb-1">Doorrekenen voor</span>
+    <input id="ticker-invoer" list="ticker-lijst" value="ASML.AS"
+           class="bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 w-56 text-slate-100
+                  focus:outline-none focus:border-blue-500" />
+    <datalist id="ticker-lijst"></datalist>
+  </label>
+  <button onclick="laadTrace()"
+          class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md text-sm">
+    Doorrekenen
+  </button>
+  <button onclick="alleStappen(true)" class="text-slate-400 hover:text-slate-200 text-sm underline underline-offset-2">
+    alles openklappen
+  </button>
+  <button onclick="alleStappen(false)" class="text-slate-400 hover:text-slate-200 text-sm underline underline-offset-2">
+    alles dichtklappen
+  </button>
+  <span id="trace-status" class="text-xs text-slate-500 ml-auto"></span>
+</div>
+
+<div id="kop-aandeel" class="hidden mb-5 text-sm text-slate-300"></div>
+
+<div id="stappen" class="flex flex-col gap-3"></div>
+
+<script>
+const STAPPEN = [
+  { id: 'herkomst',    titel: '1 · Waar de cijfers vandaan komen' },
+  { id: 'poort',       titel: '2 · Wanneer er bewust niets berekend wordt' },
+  { id: 'normalisatie',titel: '3 · Normaliseren van de jaarcijfers' },
+  { id: 'waardering',  titel: '4 · Reële waarde per aandeel' },
+  { id: 'kwaliteit',   titel: '5 · Kwaliteitsscore (0–10)' },
+  { id: 'piotroski',   titel: '6 · Piotroski F-score (0–9)' },
+  { id: 'moat',        titel: '7 · Moat — houdt het rendement stand?' },
+  { id: 'signaal',     titel: '8 · Signaal en rangorde' },
+  { id: 'grenzen',     titel: '9 · Grenzen van deze methode' },
+];
+
+let _trace = null;
+
+// ---- opmaakhulpjes ---------------------------------------------------------
+const nf = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v))
+  ? '—' : Number(v).toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (v, d = 1) => (v === null || v === undefined) ? '—' : nf(v * 100, d) + '%';
+const pctRuw = (v, d = 1) => (v === null || v === undefined) ? '—' : nf(v, d) + '%';
+const groot = (v) => (v === null || v === undefined) ? '—'
+  : Math.abs(v) >= 1e9 ? nf(v / 1e9, 2) + ' mld'
+  : Math.abs(v) >= 1e6 ? nf(v / 1e6, 1) + ' mln'
+  : nf(v, 0);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const jaNee = (b) => b === true ? '<span class="text-emerald-400">ja</span>'
+  : b === false ? '<span class="text-rose-400">nee</span>'
+  : '<span class="text-slate-500">onbekend</span>';
+
+function tabel(koppen, rijen) {
+  if (!rijen.length) return '<p class="text-slate-500 text-xs">Geen gegevens.</p>';
+  return `<div class="overflow-x-auto rounded-lg border border-slate-800 my-2">
+    <table class="w-full text-xs">
+      <thead class="bg-slate-900 text-slate-400">
+        <tr>${koppen.map((k, i) =>
+          `<th class="px-3 py-1.5 ${i ? 'text-right' : 'text-left'} font-medium">${k}</th>`).join('')}</tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        ${rijen.map(r => `<tr>${r.map((c, i) =>
+          `<td class="px-3 py-1.5 ${i ? 'text-right tabular-nums' : ''}">${c}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+// Bovenlaag = uitleg in gewone taal. Onderlaag = formule, drempels, doorrekening.
+function stap(id, titel, uitleg, onderlaag) {
+  return `<section class="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden" data-stap="${id}">
+    <button onclick="klap('${id}')" class="w-full text-left px-5 py-4 hover:bg-slate-800/50 transition">
+      <div class="flex items-start gap-3">
+        <span class="text-slate-500 text-xs mt-1" id="pijl-${id}">▸</span>
+        <div class="flex-1">
+          <h2 class="font-semibold text-slate-200">${titel}</h2>
+          <p class="text-slate-400 text-sm mt-1 leading-relaxed max-w-3xl">${uitleg}</p>
+        </div>
+      </div>
+    </button>
+    <div id="body-${id}" class="hidden px-5 pb-5 pt-1 border-t border-slate-800">${onderlaag}</div>
+  </section>`;
+}
+
+function klap(id) {
+  const b = document.getElementById('body-' + id);
+  const p = document.getElementById('pijl-' + id);
+  const open = b.classList.toggle('hidden');
+  p.textContent = open ? '▸' : '▾';
+}
+
+function alleStappen(open) {
+  STAPPEN.forEach(s => {
+    const b = document.getElementById('body-' + s.id);
+    const p = document.getElementById('pijl-' + s.id);
+    if (!b) return;
+    b.classList.toggle('hidden', !open);
+    p.textContent = open ? '▾' : '▸';
+  });
+}
+
+function bron(bestand, functie) {
+  return `<p class="text-xs text-slate-600 mt-3">Code: <span class="font-mono">${bestand}</span>
+          → <span class="font-mono">${functie}</span></p>`;
+}
+
+// ---- de negen stappen ------------------------------------------------------
+
+function bouwHerkomst(t) {
+  const s = t.stock || {}, m = t.market || {}, dq = t.data_quality || {};
+  const rijen = (t.annual || []).map(a => [
+    a.fiscal_year, groot(a.revenue), groot(a.ebit), groot(a.net_income),
+    nf(a.eps_diluted), groot(a.fcf), groot(a.total_equity), groot(a.total_debt),
+  ]);
+  return stap('herkomst', STAPPEN[0].titel,
+    `Alle cijfers komen van Yahoo Finance, dat vijf boekjaren teruggeeft. Bedragen blijven
+     in de eigen valuta van het aandeel — er wordt niets omgerekend, want een wisselkoers
+     van vandaag over cijfers van drie jaar geleden leggen maakt het niet nauwkeuriger.
+     Handmatig ingevoerde correcties overschrijven de opgehaalde waarde en zijn per veld
+     en per jaar terug te zien op de aandeelpagina.`,
+    `<p class="text-sm text-slate-300 mb-1">${esc(s.name)} · ${esc(s.sector)} ·
+       noteert in ${esc(s.currency)}, rapporteert in ${esc(s.financial_currency || s.currency)}</p>
+     <p class="text-xs text-slate-500 mb-2">Laatste koers ${nf(m.price)} ${esc(s.currency)} ·
+       ${dq.years_available ?? '?'} boekjaren beschikbaar · laatst gecontroleerd ${esc((dq.last_checked || '').slice(0,10))}</p>
+     ${tabel(['Boekjaar','Omzet','EBIT','Nettowinst','WPA','Vrije kasstroom','Eigen verm.','Schuld'], rijen)}
+     <p class="text-xs text-slate-500">Dit zijn de ruwe cijfers waar alles hieronder op rust.
+       Elk bedrag in ${esc(s.financial_currency || s.currency)}.</p>
+     ${bron('engine/data_fetcher.py', 'fetch_and_store()')}`);
+}
+
+function bouwPoort(t) {
+  const dq = t.data_quality || {};
+  const issues = (dq.issues || []).map(i => `<li>${esc(i)}</li>`).join('');
+  return stap('poort', STAPPEN[1].titel,
+    `Als de cijfers niet deugen wordt er géén waarde berekend. Dat is een bewuste keuze:
+     een fair value op halve of foute data ziet er net zo overtuigend uit als een goede,
+     en is daarmee gevaarlijker dan helemaal geen uitkomst.`,
+    `<p class="text-sm text-slate-300">Status voor dit aandeel:
+       <strong>${esc(dq.data_status || 'onbekend')}</strong> ·
+       ${nf(dq.completeness_pct, 0)}% van de benodigde velden gevuld</p>
+     ${issues ? `<ul class="text-xs text-slate-400 list-disc ml-5 mt-2">${issues}</ul>`
+              : '<p class="text-xs text-slate-500 mt-2">Geen bijzonderheden gemeld.</p>'}
+     <p class="text-xs text-slate-400 mt-3">Bij status <span class="font-mono">bad</span> of
+       <span class="font-mono">missing</span> stopt de berekening. Het dashboard toont dan
+       één van drie redenen: geen data, een databug, of geen waardering mogelijk wegens
+       structureel verlies.</p>
+     ${bron('engine/data_quality.py', 'evaluate() / classify_signal_reason()')}`);
+}
+
+function bouwNormalisatie(t) {
+  const n = t.normalisatie || {};
+  const blokken = Object.values(n).map(v => {
+    const rijen = (v.per_jaar || []).map(p => [
+      p.jaar,
+      p.waarde === null || p.waarde === undefined ? '—' : groot(p.waarde),
+      (v.afgevallen || []).includes(p.waarde)
+        ? '<span class="text-rose-400">afgevallen</span>'
+        : (p.waarde === null || p.waarde === undefined ? '<span class="text-slate-600">geen data</span>'
+                                                       : '<span class="text-slate-500">meegeteld</span>'),
+    ]);
+    return `<div class="mb-4">
+      <div class="text-sm font-medium text-slate-200 mb-1">${esc(v.label)}
+        <span class="text-slate-500 font-normal">→ uitkomst ${groot(v.uitkomst)}</span></div>
+      ${tabel(['Boekjaar','Waarde','Status'], rijen)}
+      <p class="text-xs text-slate-500">${esc(v.toelichting)}</p>
+    </div>`;
+  }).join('');
+  return stap('normalisatie', STAPPEN[2].titel,
+    `Eén uitzonderlijk jaar mag de waardering niet bepalen. Daarom wordt per grootheid
+     gekeken naar vijf boekjaren, worden extreme uitschieters verwijderd, en wordt de
+     mediaan genomen — niet het gemiddelde, want dat laat zich juist wél meetrekken door
+     een uitschieter.`,
+    `<p class="text-xs text-slate-400 mb-3">Uitschieters vallen af buiten
+       Q1 − 3×IQR en Q3 + 3×IQR, waarbij IQR het verschil tussen het derde en eerste
+       kwartiel is. Bij minder dan drie waarnemingen wordt die stap overgeslagen.</p>
+     ${blokken}
+     ${bron('engine/normalizer.py', 'winsorize() / normalize_metric()')}`);
+}
+
+function bouwWaardering(t) {
+  const w = t.waardering || {}, d = w.detail || {}, mult = d.multiples || {};
+  const cfg = (t.config || {}).valuation || {};
+  const sec = (t.config || {}).sector || {};
+  const methodeRijen = [
+    ['Koers-winstverhouding', nf(mult.pe_fv)],
+    ['Ondernemingswaarde / EBITDA', nf(mult.ev_ebitda_fv)],
+    ['Koers-boekwaarde', nf(mult.pb_fv)],
+    ['Ondernemingswaarde / vrije kasstroom', nf(mult.ev_fcf_fv)],
+  ];
+  const gedropt = (w.fv_methods_dropped || []).map(r => `<li>${esc(r)}</li>`).join('');
+  return stap('waardering', STAPPEN[3].titel,
+    `De reële waarde is een gewogen mengsel van drie invalshoeken: wat vergelijkbare
+     bedrijven kosten (multiples), de formule van Benjamin Graham, en de contante waarde
+     van een eeuwigdurende kasstroom. Geen van drieën is op zichzelf betrouwbaar; het
+     mengsel dempt hun individuele zwakke plekken.`,
+    `<p class="text-sm text-slate-200 font-medium mb-1">Stap 4a — vier multiples</p>
+     <p class="text-xs text-slate-400 mb-2">Elke multiple is een mengsel van 65% de eigen
+       historie van dit aandeel en 35% het sectorgemiddelde. Sector
+       <span class="font-mono">${esc(sec.naam)}</span>:
+       ${Object.entries(sec.waarden || {}).map(([k, v]) => `${esc(k)} ${nf(v, 1)}`).join(' · ') || 'geen sectorwaarden'}</p>
+     ${tabel(['Methode','Uitkomst per aandeel'], methodeRijen)}
+     <p class="text-xs text-slate-500">Gemiddelde van de bruikbare multiples:
+       <strong>${nf(mult.avg_fv)}</strong> · ${mult.n_methods ?? 0} gebruikt,
+       ${mult.n_dropped ?? 0} afgevallen</p>
+
+     <p class="text-sm text-slate-200 font-medium mt-4 mb-1">Stap 4b — Graham en perpetuity</p>
+     ${tabel(['Methode','Uitkomst'], [
+       ['Graham: WPA × (8,5 + 2g) × (4,4 / obligatierente)', nf(w.graham_fv)],
+       ['Perpetuity: eigenaarswinst per aandeel / (r − g)', nf(w.perpetuity_fv)],
+     ])}
+
+     <p class="text-sm text-slate-200 font-medium mt-4 mb-1">Stap 4c — filteren en mengen</p>
+     <p class="text-xs text-slate-400">Methodes die meer dan 3× of minder dan 0,33× van de
+       mediaan afwijken vallen af — één doorgeslagen methode mag de uitkomst niet bepalen.</p>
+     ${gedropt ? `<ul class="text-xs text-rose-300 list-disc ml-5 my-2">${gedropt}</ul>`
+               : '<p class="text-xs text-slate-500 my-1">Er is niets afgevallen.</p>'}
+     <p class="text-xs text-slate-400">Mengverhouding:
+       ${nf((cfg.multiples_weight ?? 0.6) * 100, 0)}% multiples en
+       ${nf((cfg.dcf_weight ?? 0.4) * 100, 0)}% het gemiddelde van Graham en perpetuity.</p>
+     ${tabel(['Uitkomst','Waarde per aandeel'], [
+       ['Voorzichtig', nf(w.conservative_fv)],
+       ['<strong>Basis — dit is de gebruikte reële waarde</strong>', '<strong>' + nf(w.combined_fv) + '</strong>'],
+       ['Optimistisch', nf(w.optimistic_fv)],
+     ])}
+     <p class="text-xs text-slate-500">Vertrouwen <strong>${esc(w.fv_confidence)}</strong>,
+       afgeleid van de spreiding tussen de methodes (${pctRuw(w.fv_spread_pct)}) en het aantal
+       dat overbleef (${w.fv_methods_used ?? 0}).</p>
+     ${bron('engine/valuation.py', 'combined_fair_value()')}`);
+}
+
+function bouwKwaliteit(t) {
+  const k = t.kwaliteit || {}, det = k.detail || {}, bd = k.breakdown || {};
+  const p = det.profitability || {}, b = det.balance_sheet || {},
+        st = det.stability || {}, f = det.fcf_positive || {};
+  const roicRijen = (p.roic_per_jaar || []).map(r =>
+    [r.jaar, pct(r.waarde), groot(r.ebit), groot(r.geinvesteerd_kapitaal)]);
+  return stap('kwaliteit', STAPPEN[4].titel,
+    `Vijf criteria van elk maximaal twee punten. Deze score bepaalt niet de waarde, maar wél
+     of een koopsignaal wordt afgegeven: een goedkoop aandeel van een zwak bedrijf is geen
+     koopje. De drempel voor koopsignalen staat op
+     ${nf(((t.config || {}).screening || {}).min_quality_score, 0)} van de 10.`,
+    `<p class="text-sm text-slate-200 mb-2">Totaal:
+       <strong>${nf(k.score, 1)} / 10</strong></p>
+
+     <div class="text-sm font-medium text-slate-200 mt-3">1 · Winstgevendheid — ${nf(bd.profitability, 1)}/2</div>
+     <p class="text-xs text-slate-400">${esc(p.formule)}. Drempels: gemiddelde boven
+       ${pct(p.drempels?.gemiddelde)}, geen enkel jaar onder ${pct(p.drempels?.geen_jaar_onder)}.</p>
+     ${tabel(['Boekjaar','Rendement op kapitaal','EBIT','Geïnvesteerd kapitaal'], roicRijen)}
+     <p class="text-xs text-slate-500">Gemiddeld rendement op eigen vermogen ${pct(p.gemiddelde_roe)}
+       (drempel gehaald: ${jaNee(p.roe_boven_drempel)}) · op geïnvesteerd kapitaal
+       ${pct(p.gemiddelde_roic)} (${jaNee(p.roic_boven_drempel)}) · geen zwak jaar:
+       ${jaNee(p.geen_slecht_roe_jaar && p.geen_slecht_roic_jaar)}</p>
+
+     <div class="text-sm font-medium text-slate-200 mt-4">2 · Balans — ${nf(bd.balance_sheet, 1)}/2</div>
+     <p class="text-xs text-slate-400">${esc(b.formule)}</p>
+     ${tabel(['Maatstaf','Laatste jaar','Mediaan','Drempel','Gehaald'], [
+       ['Schuld / eigen vermogen', nf(b.schuldratio_laatste_jaar), nf(b.schuldratio_mediaan),
+        '&lt; ' + nf(b.drempels?.schuldratio_onder, 1), jaNee(b.schuldratio_gehaald)],
+       ['Rentedekking', nf(b.rentedekking_laatste_jaar), nf(b.rentedekking_mediaan),
+        '&gt; ' + nf(b.drempels?.rentedekking_boven, 0), jaNee(b.rentedekking_gehaald)],
+     ])}
+     ${b.geen_rentelasten_gevonden ? '<p class="text-xs text-amber-400">Geen rentelasten gevonden — dan geldt de rentedekking als gehaald.</p>' : ''}
+
+     <div class="text-sm font-medium text-slate-200 mt-4">3 · Stabiliteit — ${nf(bd.stability, 1)}/2</div>
+     <p class="text-xs text-slate-400">${esc(st.formule)}. Drempel: onder ${pct(st.drempel)}.</p>
+     ${tabel(['Maatstaf','Variatie','Stabiel'], [
+       ['Winst per aandeel', pct(st.variatie_eps), jaNee(st.eps_stabiel)],
+       ['Vrije kasstroom', pct(st.variatie_fcf), jaNee(st.fcf_stabiel)],
+     ])}
+
+     <div class="text-sm font-medium text-slate-200 mt-4">4 · Vrije kasstroom — ${nf(bd.fcf_positive, 1)}/2</div>
+     <p class="text-xs text-slate-400">${esc(f.formule)}</p>
+     ${tabel(['Boekjaar','Vrije kasstroom'], (f.fcf_per_jaar || []).map(r => [r.jaar, groot(r.waarde)]))}
+     <p class="text-xs text-slate-500">Elk jaar positief: ${jaNee(f.alle_jaren_positief)} ·
+       goede cashconversie: ${jaNee(f.goede_cashconversie)}
+       (per jaar: ${(f.cashconversie_per_jaar || []).map(v => pct(v, 0)).join(', ') || '—'})</p>
+     <p class="text-xs text-slate-400">${esc(f.toelichting)}</p>
+
+     <div class="text-sm font-medium text-slate-200 mt-4">5 · Piotroski — ${nf(bd.piotroski, 1)}/2</div>
+     <p class="text-xs text-slate-400">Zie stap 6 voor de negen onderliggende tests.</p>
+     ${bron('engine/quality_score.py', 'quality_score()')}`);
+}
+
+function bouwPiotroski(t) {
+  const p = t.piotroski || {}, w = p.waarden || {}, c = p.criteria || {};
+  const rijen = Object.keys(w).sort().map(k => {
+    const v = w[k];
+    let vergelijking = '—';
+    if (v.dit_jaar !== undefined) {
+      vergelijking = `${nf(v.dit_jaar, 4)} tegen ${nf(v.vorig_jaar, 4)}`;
+    } else if (v.kasstroom_op_activa !== undefined) {
+      vergelijking = `${nf(v.kasstroom_op_activa, 4)} tegen ${nf(v.rendement_op_activa, 4)}`;
+    } else if (v.waarde !== undefined) {
+      vergelijking = `${groot(v.waarde)} tegen ${nf(v.drempel, 0)}`;
+    }
+    return [`<span class="font-mono text-slate-500">${k}</span> ${esc(v.omschrijving)}`,
+            vergelijking, jaNee(c[k])];
+  });
+  return stap('piotroski', STAPPEN[5].titel,
+    `Negen boekhoudkundige controles van Joseph Piotroski, elk goed voor één punt. Ze kijken
+     niet naar de prijs maar naar de richting: wordt dit bedrijf financieel sterker of
+     zwakker dan vorig jaar? Hieronder staan per test de twee getallen die vergeleken zijn.`,
+    `<p class="text-sm text-slate-200 mb-2">Score: <strong>${nf(p.score, 0)} / 9</strong></p>
+     ${tabel(['Test','Vergelijking','Geslaagd'], rijen)}
+     <p class="text-xs text-slate-500">Een test zonder gegevens telt als niet geslaagd, maar
+       wordt niet als fout gerekend — de score meldt dan hoeveel tests bekend waren.</p>
+     ${bron('engine/quality_score.py', 'piotroski_fscore()')}`);
+}
+
+function bouwMoat(t) {
+  const m = t.moat || {}, d = m.drempels || {}, cyc = m.cyclus || {};
+  const rijen = (m.roic || []).map((r, i) => [
+    r.jaar, pctRuw(r.pct),
+    m.brutomarge?.[i] ? pctRuw(m.brutomarge[i].pct) : '—',
+    m.operationele_marge?.[i] ? pctRuw(m.operationele_marge[i].pct) : '—',
+  ]);
+  return stap('moat', STAPPEN[6].titel,
+    `Een hoog rendement zegt weinig als het bij de eerste tegenwind wegvalt. Deze stap kijkt
+     of het rendement standhoudt en of de marges overeind blijven — de cijfermatige
+     vingerafdruk van een concurrentievoordeel. Het bewijst geen moat, het maakt er een
+     aanwijzing voor zichtbaar.`,
+    `<p class="text-sm text-slate-200 mb-1">Oordeel: <strong>${esc(m.kop)}</strong>
+       (${esc(m.niveau)})</p>
+     <p class="text-xs text-slate-400 mb-2">${esc(m.formule_roic)}, met een belastingtarief van
+       ${pct(d.belastingtarief, 0)}.</p>
+     ${tabel(['Boekjaar','Rendement op kapitaal','Brutomarge','Operationele marge'], rijen)}
+     <p class="text-xs text-slate-500">Mediaan ${pctRuw(m.roic_mediaan)} · laagste jaar
+       ${pctRuw(m.roic_laagste)} · standvastigheid ${nf(m.roic_standvastig, 2)}
+       (laagste gedeeld door mediaan)</p>
+     <p class="text-xs text-slate-400 mt-2">Groen vereist een mediaan van minstens
+       ${pctRuw(d.roic_groen, 0)} én een standvastigheid van ${nf(d.standvastig_groen, 2)} of hoger.
+       Rood volgt bij standvastigheid onder ${nf(d.standvastig_rood, 2)}, een mediaan onder
+       ${pctRuw(d.roic_zwak, 0)}, of een brutomarge die ${nf(Math.abs(d.marge_erosie_pp), 0)}
+       procentpunt of meer wegzakt. Een reeks die vanaf een zwak eerste jaar opklimt geldt
+       niet als instorting, maar levert ook geen groen op.</p>
+     <p class="text-xs text-slate-500 mt-2">Cyclustest:
+       ${cyc.beschikbaar
+         ? `koershistorie vanaf ${esc(cyc.vanaf)}, zwaarste terugval ${pctRuw(cyc.diepste_terugval_pct, 0)}
+            op ${esc(cyc.diepste_terugval_datum)}, nu ${pctRuw(cyc.onder_top_pct, 0)} ten opzichte van de
+            hoogste slotkoers.`
+         : 'nog geen koershistorie opgeslagen voor dit aandeel.'}</p>
+     ${bron('engine/moat_profile.py', 'bouw_profiel()')}`);
+}
+
+function bouwSignaal(t) {
+  const s = t.signaal || {}, sig = (t.config || {}).signals || {};
+  const scr = (t.config || {}).screening || {};
+  const rijen = Object.entries(sig).map(([k, v]) => [esc(k), nf(v * 100, 0) + '% van de reële waarde']);
+  return stap('signaal', STAPPEN[7].titel,
+    `Het signaal vergelijkt de koers met de reële waarde, en de rangorde zet aandelen
+     onderling op volgorde. Dat tweede is bewust anders opgebouwd: een absoluut signaal hangt
+     af van hoe goed de waardering gekalibreerd is, een onderlinge rangorde veel minder.`,
+    `<p class="text-sm text-slate-200 mb-1">Voor dit aandeel:
+       <strong>${esc(s.signal)}</strong> · korting ${pctRuw(s.margin_of_safety, 0)}</p>
+     ${tabel(['Drempel','Waarde'], rijen)}
+     <p class="text-xs text-slate-400 mt-2">Een koopsignaal vereist daarnaast een
+       kwaliteitsscore van minstens ${nf(scr.min_quality_score, 0)} van de 10.
+       ${s.below_quality_threshold ? '<span class="text-amber-400">Dit aandeel haalt die drempel niet.</span>' : ''}</p>
+     <p class="text-xs text-slate-400 mt-2"><strong>Verkoop betekent hier uitsluitend "te duur"</strong>,
+       niet dat het bedrijf slecht is. Het dashboard herberekent het signaal live uit de
+       actuele koers en de opgeslagen reële waarde, omdat koersen vaker ververst worden dan
+       jaarcijfers — anders zie je kortingen die al dagen niet meer kloppen.</p>
+     <p class="text-xs text-slate-400 mt-2">De rangorde op het Kansen-tabblad weegt de
+       positie op korting voor de helft mee, de kwaliteitsscore voor 30% en het vertrouwen in
+       de waardering voor 20%.</p>
+     ${bron('engine/screener.py', 'determine_signal() · app.py → _add_rank_scores()')}`);
+}
+
+function bouwGrenzen(t) {
+  return stap('grenzen', STAPPEN[8].titel,
+    `Wat deze screener niet is en niet kan. Dit hoort bij de uitkomst: wie de grenzen niet
+     kent, leest de cijfers preciezer dan ze zijn.`,
+    `<ul class="text-sm text-slate-300 list-disc ml-5 space-y-2">
+       <li><strong>Vijf boekjaren.</strong> Dat is wat de bron levert. Je ziet dus geen enkele
+           recessie in de cijfers; de cyclustest op de koershistorie vangt dat deels op.</li>
+       <li><strong>De bron is een aggregator</strong>, geen jaarverslag. Goed genoeg om
+           kandidaten te vinden, niet om een investeringsbeslissing op te baseren.</li>
+       <li><strong>Geen valutaomrekening.</strong> Alles staat in de eigen valuta. Bij een
+           aandeel dat in een andere valuta noteert dan het rapporteert, wordt gewaarschuwd.</li>
+       <li><strong>Dubbele noteringen</strong> van hetzelfde bedrijf kunnen los in de lijst
+           staan; bekende gevallen zijn handmatig gekoppeld.</li>
+       <li><strong>Verlieslatende groeibedrijven</strong> zijn met deze modellen niet te
+           waarderen. Ze worden apart getoond, niet gerangschikt.</li>
+       <li><strong>Dit is geen beleggingsadvies.</strong> Het is een zoekmachine die
+           kandidaten aandraagt voor eigen onderzoek.</li>
+     </ul>`);
+}
+
+// ---- laden -----------------------------------------------------------------
+async function laadTrace() {
+  const ticker = document.getElementById('ticker-invoer').value.trim().toUpperCase();
+  if (!ticker) return;
+  const status = document.getElementById('trace-status');
+  status.textContent = 'berekenen…';
+  try {
+    const res = await fetch(`/api/trace/${encodeURIComponent(ticker)}`);
+    const data = await res.json();
+    if (!res.ok) { status.textContent = data.error || `fout ${res.status}`; return; }
+    _trace = data;
+    const s = data.stock || {};
+    document.getElementById('kop-aandeel').innerHTML =
+      `Doorgerekend voor <strong>${esc(s.name || ticker)}</strong>
+       <span class="font-mono text-slate-500">${esc(data.ticker)}</span>`;
+    document.getElementById('kop-aandeel').classList.remove('hidden');
+    render();
+    status.textContent = '';
+  } catch (e) {
+    status.textContent = 'niet gelukt: ' + e.message;
+  }
+}
+
+function render() {
+  const open = new Set(STAPPEN.filter(s => {
+    const b = document.getElementById('body-' + s.id);
+    return b && !b.classList.contains('hidden');
+  }).map(s => s.id));
+
+  document.getElementById('stappen').innerHTML = [
+    bouwHerkomst(_trace), bouwPoort(_trace), bouwNormalisatie(_trace),
+    bouwWaardering(_trace), bouwKwaliteit(_trace), bouwPiotroski(_trace),
+    bouwMoat(_trace), bouwSignaal(_trace), bouwGrenzen(_trace),
+  ].join('');
+
+  // Openstaande stappen open houden na het herladen van een ander aandeel.
+  open.forEach(id => klap(id));
+}
+
+async function vulTickerlijst() {
+  try {
+    const res = await fetch('/api/dashboard');
+    const rows = await res.json();
+    document.getElementById('ticker-lijst').innerHTML = rows
+      .map(r => `<option value="${esc(r.ticker)}">${esc(r.name || '')}</option>`).join('');
+  } catch (e) { /* de kiezer werkt ook zonder suggesties */ }
+}
+
+document.getElementById('ticker-invoer').addEventListener('keydown', e => {
+  if (e.key === 'Enter') laadTrace();
+});
+
+vulTickerlijst();
+laadTrace();
+</script>
+{% endblock %}

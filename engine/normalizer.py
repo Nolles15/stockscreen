@@ -54,6 +54,69 @@ def normalize_metric(annual_rows: list[dict], field: str, iqr_multiplier: float 
     return statistics.median(cleaned)
 
 
+def normalize_metric_trace(annual_rows: list[dict], field: str,
+                           iqr_multiplier: float = 3.0) -> dict:
+    """
+    Zelfde berekening als `normalize_metric`, maar met het rekenwerk erbij.
+
+    Bedoeld voor de methodepagina: zonder de ruwe jaarwaarden, de
+    winsorisatiegrenzen en wat er afviel is een genormaliseerd cijfer niet na te
+    rekenen — je ziet alleen de uitkomst. Deze functie voegt niets toe aan het
+    oordeel; ze legt vast wat er gebeurde.
+    """
+    rijen = annual_rows[:5]
+    per_jaar = [{"jaar": r.get("fiscal_year"), "waarde": r.get(field)} for r in rijen]
+    waarden = [r.get(field) for r in rijen]
+    waarden = [v for v in waarden if v is not None and not (isinstance(v, float) and np.isnan(v))]
+
+    trace = {
+        "veld": field,
+        "per_jaar": per_jaar,
+        "bruikbare_waarden": waarden,
+        "iqr_factor": iqr_multiplier,
+        "ondergrens": None, "bovengrens": None,
+        "q1": None, "q3": None, "iqr": None,
+        "afgevallen": [],
+        "gebruikt": [],
+        "uitkomst": None,
+        "toelichting": "",
+    }
+    if not waarden:
+        trace["toelichting"] = "Geen bruikbare jaarwaarden — geen genormaliseerd cijfer."
+        return trace
+
+    if len(waarden) < 3:
+        trace["gebruikt"] = list(waarden)
+        trace["uitkomst"] = statistics.median(waarden)
+        trace["toelichting"] = (
+            "Minder dan drie waarnemingen: winsorisatie wordt overgeslagen, "
+            "de mediaan gaat over alle beschikbare jaren.")
+        return trace
+
+    arr = np.array(waarden, dtype=float)
+    q1, q3 = float(np.percentile(arr, 25)), float(np.percentile(arr, 75))
+    iqr = q3 - q1
+    onder, boven = q1 - iqr_multiplier * iqr, q3 + iqr_multiplier * iqr
+    schoon = [v for v in waarden if onder <= v <= boven]
+    if not schoon:
+        schoon = list(waarden)
+        trace["toelichting"] = ("Alle waarden vielen buiten de grenzen; dan gebruiken we ze "
+                                "alsnog allemaal in plaats van niets over te houden.")
+    trace.update({
+        "q1": q1, "q3": q3, "iqr": iqr,
+        "ondergrens": onder, "bovengrens": boven,
+        "afgevallen": [v for v in waarden if v not in schoon],
+        "gebruikt": schoon,
+        "uitkomst": statistics.median(schoon),
+    })
+    if not trace["toelichting"]:
+        trace["toelichting"] = (
+            f"Grenzen: Q1 − {iqr_multiplier}×IQR = {onder:,.2f} en "
+            f"Q3 + {iqr_multiplier}×IQR = {boven:,.2f}. "
+            f"{len(trace['afgevallen'])} van {len(waarden)} waarden vielen af.")
+    return trace
+
+
 def normalize_all(annual_rows: list[dict], iqr_multiplier: float = 3.0) -> dict:
     """
     Compute all normalized metrics needed for valuation.
