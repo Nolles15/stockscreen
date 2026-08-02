@@ -867,9 +867,15 @@ fetch(`/api/stock/${TICKER}`)
 // het oplevert: dit is één pad, twee lijnen en een vlak.
 let _periode = '5y';
 
+// NIET `fmt` noemen: base.html declareert al een globale `function fmt(...)`,
+// en scriptblokken in dezelfde pagina delen één globale scope. Een tweede
+// declaratie geeft "Identifier 'fmt' has already been declared" — een
+// SyntaxError die het héle blok van deze pagina onuitgevoerd laat, inclusief de
+// beslisboom. Vandaar een eigen naam.
+//
 // Koersen lopen van centen tot duizenden; twee decimalen bij een koers van
 // 4.200 maakt de as onleesbaar, geen decimalen bij een koers van 0,85 nutteloos.
-const fmt = (v) => Number(v).toLocaleString('nl-NL', {
+const fmtAs = (v) => Number(v).toLocaleString('nl-NL', {
   minimumFractionDigits: Math.abs(v) >= 100 ? 0 : 2,
   maximumFractionDigits: Math.abs(v) >= 100 ? 0 : 2,
 });
@@ -938,11 +944,11 @@ function tekenGrafiek(d) {
       waardelijn = `<line x1="${marge.l}" y1="${yv.toFixed(1)}" x2="${B - marge.r}" y2="${yv.toFixed(1)}"
                     stroke="#7ee2a8" stroke-width="1.5" stroke-dasharray="5 4" />`;
       waardelabel = `<text x="${B - marge.r - 4}" y="${(yv - 5).toFixed(1)}" text-anchor="end"
-                     fill="#7ee2a8" font-size="11">geschatte waarde ${fmt(w.geschat)}</text>`;
+                     fill="#7ee2a8" font-size="11">geschatte waarde ${fmtAs(w.geschat)}</text>`;
     } else {
       // Buiten beeld: zeggen dát het buiten beeld valt, niet stilzwijgend weglaten.
       waardelabel = `<text x="${marge.l}" y="${(marge.t + 12)}" fill="#7ee2a8" font-size="11">
-                     geschatte waarde ${fmt(w.geschat)} valt buiten dit bereik</text>`;
+                     geschatte waarde ${fmtAs(w.geschat)} valt buiten dit bereik</text>`;
     }
   }
 
@@ -953,7 +959,7 @@ function tekenGrafiek(d) {
     assen += `<line x1="${marge.l}" y1="${yy.toFixed(1)}" x2="${B - marge.r}" y2="${yy.toFixed(1)}"
               stroke="#1e293b" stroke-width="1" />
               <text x="${marge.l - 6}" y="${(yy + 4).toFixed(1)}" text-anchor="end"
-              fill="#64748b" font-size="10">${fmt(v)}</text>`;
+              fill="#64748b" font-size="10">${fmtAs(v)}</text>`;
   }
   const eerste = d.punten[0].datum, laatste = d.punten[d.punten.length - 1].datum;
 
