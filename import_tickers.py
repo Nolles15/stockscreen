@@ -54,18 +54,13 @@ from pathlib import Path
 
 import requests
 
+# Yahoo-suffix -> (valuta, market-code). Gedeeld met de fetcher: die tabel stond
+# hier eerder los, en een tweede, kleinere kopie in data_fetcher zorgde ervoor
+# dat 1.062 Europese aandelen als "US" in de database belandden.
+from engine.markets import SUFFIX_INFO
+
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 APP_URL = "https://stockscreen-janco.fly.dev"
-
-# Yahoo-suffix -> (valuta, market-code zoals in de stocks-tabel)
-SUFFIX_INFO = {
-    "AS": ("EUR", "NL"), "BR": ("EUR", "BE"), "PA": ("EUR", "FR"),
-    "MI": ("EUR", "IT"),
-    "LS": ("EUR", "PT"), "IR": ("EUR", "IE"), "OL": ("NOK", "NO"),
-    "DE": ("EUR", "DE"), "ST": ("SEK", "SE"), "CO": ("DKK", "DK"),
-    "HE": ("EUR", "FI"), "IC": ("ISK", "IS"), "WA": ("PLN", "PL"),
-    "TL": ("EUR", "EE"), "RG": ("EUR", "LV"), "VS": ("EUR", "LT"),
-}
 
 # ISIN-landprefix -> Yahoo-suffix van de thuismarkt. Bij dezelfde ISIN op
 # meerdere beurzen in één batch wint de notering in het thuisland (daar heeft

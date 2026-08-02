@@ -21,6 +21,7 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from engine import db
 from engine import data_quality
+from engine import markets
 from engine import moat_profile
 from engine import refresh
 from engine import remap_rules
@@ -1660,6 +1661,54 @@ def api_backfill_price_history():
 
     threading.Thread(target=_work, daemon=True).start()
     return jsonify({"started": True, "tickers": len(tickers), "period": period})
+
+
+@app.route("/api/stocks/recompute-markets", methods=["POST"])
+def api_recompute_markets():
+    """
+    Herbereken `stocks.market` uit het beurssuffix. Body: {"dry_run": true} om
+    eerst te zien wat er zou veranderen.
+
+    Nodig omdat de landdetectie tot 2026-08-01 maar acht beurzen kende en al het
+    overige op "US" zette. Na de uitbreiding naar 27 landen stonden daardoor
+    ruim duizend Europese aandelen als Amerikaans in de database. Een fetch
+    herstelt dat vanzelf, maar pas als elke ticker weer aan de beurt is geweest
+    — bij 250 per nacht duurt dat een dag of elf.
+
+    Draai dit ook nadat er een beurs aan `engine/markets.py` is toegevoegd.
+    """
+    data = request.get_json(silent=True) or {}
+    dry_run = bool(data.get("dry_run"))
+
+    wijzigingen = []
+    for stock in db.get_all_stocks():
+        ticker = stock.get("ticker")
+        hoort = markets.land_van(ticker)
+        if stock.get("market") != hoort:
+            wijzigingen.append({"ticker": ticker, "van": stock.get("market"), "naar": hoort})
+
+    if not dry_run:
+        for w in wijzigingen:
+            try:
+                db.upsert_stock(w["ticker"], market=w["naar"])
+            except Exception:
+                log.exception("Herberekenen markt mislukt voor %s", w["ticker"])
+        if wijzigingen:
+            db.log_activity("recompute_markets", None, "ok", {"gewijzigd": len(wijzigingen)})
+
+    # Samenvatting per overgang; de volledige lijst is bij duizend rijen alleen
+    # maar ruis.
+    per_overgang: dict[str, int] = {}
+    for w in wijzigingen:
+        sleutel = f"{w['van']} -> {w['naar']}"
+        per_overgang[sleutel] = per_overgang.get(sleutel, 0) + 1
+
+    return jsonify({
+        "dry_run": dry_run,
+        "gewijzigd": len(wijzigingen),
+        "per_overgang": dict(sorted(per_overgang.items(), key=lambda kv: -kv[1])),
+        "voorbeeld": wijzigingen[:10],
+    })
 
 
 @app.route("/api/price-history/stats")

@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from . import db, data_quality
+from . import db, data_quality, markets
 
 log = logging.getLogger(__name__)
 
@@ -548,16 +548,13 @@ def _fetch_ttm_row(t: "yf.Ticker", info: dict) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def _detect_market(ticker: str) -> str:
-    t = ticker.upper()
-    if t.endswith(".WA"):  return "PL"
-    if t.endswith(".ST"):  return "SE"
-    if t.endswith(".BR"):  return "BE"
-    if t.endswith(".AS"):  return "NL"
-    if t.endswith(".OL"):  return "NO"
-    if t.endswith(".DE"):  return "DE"
-    if t.endswith(".FI"):  return "FI"
-    if t.endswith(".L"):   return "UK"
-    return "US"
+    """Landcode uit het beurssuffix — zie engine/markets.py voor de tabel.
+
+    Stond hier eerder als een reeks if-statements met acht beurzen en `return
+    "US"` als vangnet. Na de uitbreiding naar 27 landen stonden daardoor 1.062
+    aandelen als Amerikaans in de database.
+    """
+    return markets.land_van(ticker)
 
 
 def _match_col_index(df: pd.DataFrame, year: int) -> int:
