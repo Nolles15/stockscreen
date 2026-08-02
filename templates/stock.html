@@ -754,8 +754,12 @@ function bouwBeslisboom(d) {
   const wRegels = [];
   if (s.fv_methods_used)
     wRegels.push(`Gebaseerd op ${s.fv_methods_used} van de drie methodes`);
-  if ((s.fv_methods_dropped || []).length)
-    wRegels.push(`Buiten beschouwing gelaten omdat de uitkomst te ver afweek: ${s.fv_methods_dropped.join(', ')}`);
+  // Defensief: dit veld staat als JSON-tekst in de database. De server ontleedt
+  // het inmiddels, maar één niet-ontlede waarde mag nooit meer de hele
+  // beslisboom omleggen — dat is precies wat hier gebeurde.
+  const gedropt = Array.isArray(s.fv_methods_dropped) ? s.fv_methods_dropped : [];
+  if (gedropt.length)
+    wRegels.push(`Buiten beschouwing gelaten omdat de uitkomst te ver afweek: ${gedropt.join(', ')}`);
   if (s.conservative_fv && s.optimistic_fv)
     wRegels.push(`Bandbreedte ${Number(s.conservative_fv).toFixed(2)} tot ${Number(s.optimistic_fv).toFixed(2)}`);
   if (conf)
@@ -843,10 +847,20 @@ function toonMoatCijfers(m) {
   doel.classList.remove('hidden');
 }
 
+// Fouten hier niet stilzwijgend inslikken. Er stond `.catch(() => {})`, en dat
+// verborg een TypeError in bouwBeslisboom: de beslisboom bleef leeg zonder dat
+// er ergens iets van te zien was. Nu blijft er in elk geval iets op het scherm
+// staan waaraan je ziet dát er iets misging.
 fetch(`/api/stock/${TICKER}`)
-  .then(r => r.ok ? r.json() : null)
+  .then(r => r.ok ? r.json() : Promise.reject(new Error(`server gaf ${r.status}`)))
   .then(d => { if (d) bouwBeslisboom(d); })
-  .catch(() => {});
+  .catch(e => {
+    console.error('Beslisboom kon niet worden opgebouwd:', e);
+    document.getElementById('beslisboom').innerHTML =
+      `<div class="col-span-full rounded-xl border border-rose-800 bg-rose-950/40 p-4 text-sm text-rose-200">
+         De beoordeling kon niet worden opgebouwd: ${e.message}
+       </div>`;
+  });
 
 // ---- Koersgrafiek ----------------------------------------------------------
 // Met de hand getekende SVG. Een grafiekbibliotheek erbij halen kost meer dan

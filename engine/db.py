@@ -630,6 +630,23 @@ def upsert_scores(ticker: str, **fields) -> None:
         cur.execute(sql, list(fields.values()))
 
 
+# Kolommen in `calculated_scores` die als JSON-tekst zijn opgeslagen en dus
+# ontleed moeten worden voordat ze de frontend in gaan.
+#
+# `fv_methods_dropped` ontbrak hier, met een venijnig gevolg: de beslisboom op de
+# aandeelpagina kreeg de tekst "[]" in plaats van een lege lijst. Een tekst van
+# twee tekens is niet leeg, dus de code kwam in de tak die `.join()` aanroept —
+# en dat bestaat niet op een string. Die fout brak de héle beslisboom, voor élk
+# aandeel, en werd opgeslokt door een lege `.catch()` in de pagina. Daarom stond
+# er sinds de bouw ervan nooit één blok op het scherm.
+#
+# Voeg hier elke nieuwe JSON-kolom aan toe, anders herhaalt dit zich.
+JSON_SCORE_KOLOMMEN = (
+    "quality_breakdown", "piotroski_breakdown", "warnings",
+    "hist_relative", "fv_methods_dropped",
+)
+
+
 def get_scores(ticker: str) -> dict | None:
     with _cursor() as cur:
         cur.execute("SELECT * FROM calculated_scores WHERE ticker=%s", (ticker,))
@@ -637,7 +654,7 @@ def get_scores(ticker: str) -> dict | None:
     if not row:
         return None
     result = dict(row)
-    for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative"):
+    for key in JSON_SCORE_KOLOMMEN:
         if result.get(key):
             try:
                 result[key] = json.loads(result[key])
@@ -653,7 +670,7 @@ def get_all_scores() -> list[dict]:
     results = []
     for row in rows:
         r = dict(row)
-        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative"):
+        for key in JSON_SCORE_KOLOMMEN:
             if r.get(key):
                 try:
                     r[key] = json.loads(r[key])
