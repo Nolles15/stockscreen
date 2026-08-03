@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 import yaml
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
+from engine import analyses as analyses_mod
 from engine import db
 from engine import data_quality
 from engine import markets
@@ -190,6 +191,90 @@ def stock_detail(ticker):
 def settings():
     cfg = load_config()
     return render_template("settings.html", config=cfg)
+
+
+@app.template_filter("pct")
+def _filter_pct(waarde) -> str:
+    """Percentage in Nederlandse notatie met teken: 195.3 -> '+195,3%'."""
+    if waarde is None:
+        return "—"
+    tekst = f"{waarde:+.1f}"
+    if tekst.endswith(".0"):
+        tekst = tekst[:-2]
+    return tekst.replace(".", ",") + "%"
+
+
+def _verrijk_met_actuele_koers(analyse: dict) -> dict:
+    """Zet de live koers uit de screener naast de koers van de peildatum.
+
+    De cijfers in een rapport (fair value, upside, oordeel) horen bij de
+    koers op de peildatum en blijven dus staan zoals ze zijn. Maar een
+    analyse van april naast een koers van vandaag is voor de lezer het
+    interessantst, dus tonen we allebei: wat het aandeel deed sinds de
+    analyse, en wat de upside op de actuele koers zou zijn.
+
+    De koppeling loopt via het Yahoo-symbool uit de rapport-metadata
+    (WKL -> WKL.AS). Zit de ticker niet in de screener of hapert de
+    database, dan blijven de velden leeg en toont de pagina alleen de
+    peildatum-koers — de analyse zelf heeft de database niet nodig.
+    """
+    analyse = dict(analyse)
+    analyse["nu_koers"] = None
+    analyse["nu_verschil_pct"] = None
+    analyse["nu_upside_pct"] = None
+    analyse["nu_datum"] = None
+
+    symbool = analyse.get("yahoo_symbol")
+    if not symbool:
+        return analyse
+
+    try:
+        market = db.get_market_data(symbool)
+    except Exception:
+        log.warning("actuele koers ophalen mislukt voor %s", symbool, exc_info=True)
+        return analyse
+
+    prijs = (market or {}).get("price")
+    if not prijs or prijs <= 0:
+        return analyse
+
+    analyse["nu_koers"] = prijs
+    analyse["nu_datum"] = (market or {}).get("last_updated")
+
+    peil = analyse.get("koers_getal")
+    if peil:
+        analyse["nu_verschil_pct"] = round((prijs / peil - 1) * 100, 1)
+
+    fv = analyse.get("fair_value_getal")
+    if fv:
+        analyse["nu_upside_pct"] = round((fv / prijs - 1) * 100, 1)
+
+    return analyse
+
+
+@app.route("/analyses")
+def analyses_overzicht():
+    """Overzicht van de fundamentele analyses uit analyses/*.md."""
+    analyses = [_verrijk_met_actuele_koers(a) for a in analyses_mod.get_all_summaries()]
+    return render_template(
+        "analyses.html",
+        analyses=analyses,
+        logo_token=analyses_mod.LOGO_DEV_TOKEN,
+        config=load_config(),
+    )
+
+
+@app.route("/analyses/<ticker>")
+def analyse_detail(ticker):
+    analyse = analyses_mod.get_analyse(ticker)
+    if not analyse:
+        return "Analyse niet gevonden", 404
+    return render_template(
+        "analyse_detail.html",
+        a=_verrijk_met_actuele_koers(analyse),
+        logo_token=analyses_mod.LOGO_DEV_TOKEN,
+        config=load_config(),
+    )
 
 
 # ---------------------------------------------------------------------------
