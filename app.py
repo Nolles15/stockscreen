@@ -388,6 +388,14 @@ def _effective_signal(price, fv, q_score, row, cfg):
     oordeel" naast "179"). Dat soort verschil ondermijnt het vertrouwen in elk
     ander getal op de pagina.
     """
+    # De data-kwaliteitspoort gaat vóór het live herrekenen. De screener zet een
+    # 'bad'-ticker bewust op INSUFFICIENT DATA, maar liet daarbij de oude
+    # combined_fv staan — en dan rekende deze functie daar vrolijk een vers
+    # HOLD uit. Zo stond er een rood "cijfers t/m 2022" naast een oordeel dat
+    # de motor al had ingetrokken.
+    if (row or {}).get("data_status") in ("bad", "missing"):
+        return "INSUFFICIENT DATA"
+
     fv_price_ratio = _fv_price_ratio(price, fv)
     fv_ratio_oob = _fv_ratio_oob(fv_price_ratio)
     if price and fv and fv > 0 and q_score is not None and not fv_ratio_oob:
