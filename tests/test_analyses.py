@@ -109,6 +109,21 @@ def _app(market_data=None, db_kapot=False) -> Flask:
             config=config(),
         )
 
+    @app.route("/tussenchecks")
+    def tussenchecks():
+        return render_template(
+            "tussenchecks.html",
+            checks=analyses_mod.get_alle_tussenchecks(),
+            config=config(),
+        )
+
+    @app.route("/tussenchecks/<ticker>")
+    def tussencheck(ticker):
+        c = analyses_mod.get_tussencheck(ticker)
+        if not c:
+            return "Tussencheck niet gevonden", 404
+        return render_template("tussencheck_detail.html", c=c, config=config())
+
     return app
 
 
@@ -204,6 +219,59 @@ def test_database_storing_sloopt_de_pagina_niet():
     c = _app(db_kapot=True).test_client()
     for pad in ("/analyses", "/analyses/WKL"):
         assert c.get(pad).status_code == 200, pad
+
+
+def test_tussenchecks_hebben_kop_en_oordeel():
+    """Kop, oordeel en de meta-regel (datum, koers, beurswaarde, beurs)."""
+    checks = analyses_mod.get_alle_tussenchecks()
+    assert checks, "geen tussenchecks gevonden in tussenchecks/"
+    for c in checks:
+        assert c["oordeel"] in ("VERDIEPEN", "TWIJFEL", "OVERSLAAN"), f"{c['ticker']}: {c['oordeel']}"
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", c["datum"] or ""), f"{c['ticker']}: datum {c['datum']}"
+        assert c["koers"], f"{c['ticker']}: koers ontbreekt"
+        assert c["beurswaarde"], f"{c['ticker']}: beurswaarde ontbreekt"
+        assert c["naam"] != c["ticker"], f"{c['ticker']}: bedrijfsnaam niet geparst"
+
+
+def test_tussencheck_toont_alle_secties_inclusief_voorspelling():
+    """Anders dan bij een analyse wordt hier niets weggefilterd; de
+    voorspelling blijft staan omdat die de methode toetsbaar maakt."""
+    for samenvatting in analyses_mod.get_alle_tussenchecks():
+        c = analyses_mod.get_tussencheck(samenvatting["ticker"])
+        labels = [s["label"] for s in c["secties"]]
+        assert len(labels) >= 4, f"{c['ticker']}: {labels}"
+        assert labels[0] == "Waarom", f"{c['ticker']}: begint met {labels[0]}"
+        assert "Voorspelling" in labels, f"{c['ticker']}: geen voorspelling"
+
+
+def test_tussencheck_paginas_renderen():
+    c = _app().test_client()
+    r = c.get("/tussenchecks")
+    html = r.get_data(as_text=True)
+    aantal = len(analyses_mod.get_alle_tussenchecks())
+    assert r.status_code == 200
+    assert html.count('class="check-kaart"') == aantal
+    assert "geen analyses" in html.lower(), "het onderscheid met een analyse hoort op de pagina te staan"
+
+    for samenvatting in analyses_mod.get_alle_tussenchecks():
+        r = c.get(f"/tussenchecks/{samenvatting['ticker']}")
+        assert r.status_code == 200, samenvatting["ticker"]
+        assert "Beslisdocument, geen analyse" in r.get_data(as_text=True)
+
+    assert c.get("/tussenchecks/sfg").status_code == 200, "hoofdletterongevoelig"
+    assert c.get("/tussenchecks/ZZZ").status_code == 404
+
+
+def test_analyses_en_tussenchecks_delen_de_cache_zonder_botsing():
+    """Beide sets worden op volledig pad gecachet; een ticker die in
+    allebei voorkomt mag niet het verkeerde document opleveren."""
+    analyse = analyses_mod.get_analyse("WKL")
+    check = analyses_mod.get_tussencheck("SFG")
+    assert analyse["ticker"] == "WKL" and len(analyse["secties"]) == 15
+    assert check["ticker"] == "SFG" and check["oordeel"] == "OVERSLAAN"
+    # Nogmaals, nu uit de cache.
+    assert analyses_mod.get_analyse("WKL")["naam"] == analyse["naam"]
+    assert analyses_mod.get_tussencheck("SFG")["naam"] == check["naam"]
 
 
 def test_geen_nieuwe_globals_in_de_gedeelde_js_scope():

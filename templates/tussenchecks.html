@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Tussenchecks{% endblock %}
+
+{% block content %}
+<style>
+  /* Oordeel-badges op dezelfde tokens als de signal-badges in base.html */
+  .oordeel {
+    display: inline-block;
+    padding: 2px 10px; border-radius: 20px;
+    font-weight: 700; font-size: 11px; letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+  .oordeel-VERDIEPEN { background: var(--buy-bg);  color: var(--buy);  border: 1px solid var(--buy-border); }
+  .oordeel-TWIJFEL   { background: var(--hold-bg); color: var(--hold); border: 1px solid var(--hold-border); }
+  .oordeel-OVERSLAAN { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass-border); }
+  .oordeel-onbekend  { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+
+  .check-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+  .check-kaart {
+    display: block; text-decoration: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+  }
+  .check-kaart:hover {
+    box-shadow: var(--shadow);
+    border-color: #CFCFCD;
+    transform: translateY(-2px);
+  }
+  .kaart-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .initiaal {
+    width: 44px; height: 44px; flex-shrink: 0;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #fff;
+  }
+  .kaart-naam   { font-size: 14px; font-weight: 700; color: var(--text-1); line-height: 1.3; }
+  .kaart-ticker { font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.4px; margin-top: 2px; }
+  .kaart-cijfers {
+    display: flex; gap: 18px; margin-top: 14px;
+    padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .cijfer-label  { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .cijfer-waarde { font-size: 13px; font-weight: 700; color: var(--text-1); margin-top: 2px; }
+  .kaart-voet { margin-top: 10px; font-size: 10px; color: var(--text-3); }
+  .kaart-voet .doorgediept { color: var(--buy); font-weight: 700; }
+
+  .page-head  { margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 800; color: var(--text-1); letter-spacing: -0.4px; }
+  .page-sub   { font-size: 13px; color: var(--text-2); margin-top: 6px; max-width: 680px; line-height: 1.6; }
+
+  /* Wat een tussencheck wél en niet is — voorkomt dat een lezer dit
+     aanziet voor een volledige analyse. */
+  .kader {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--text-3);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px; margin-bottom: 24px;
+    font-size: 12.5px; color: var(--text-2); line-height: 1.65;
+    max-width: 680px;
+  }
+  .kader a { color: var(--text-1); text-decoration: underline; text-underline-offset: 2px; }
+
+  @media (max-width: 640px) { .check-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div style="max-width: 1320px; margin: 0 auto; padding: 32px;">
+  <div class="page-head">
+    <h1 class="page-title">Tussenchecks</h1>
+    <p class="page-sub">
+      De stap tussen de screener en een volledige analyse. Eén vraag: verdient dit
+      aandeel diepgravend onderzoek? De uitkomst is VERDIEPEN, TWIJFEL of OVERSLAAN.
+    </p>
+  </div>
+
+  <div class="kader">
+    <strong>Dit zijn geen analyses.</strong> Een tussencheck leunt op cijfers uit de
+    screener (Yahoo) plus beperkt webonderzoek, en kijkt vooral naar de
+    concurrentiepositie — niet naar de prijs. Een volledige analyse eist bronnen van
+    hogere kwaliteit en gaat veel verder. Het oordeel hier gaat dus over
+    onderzoekstijd, niet over kopen of verkopen.
+    Voor de uitgewerkte rapporten: <a href="/analyses">Analyses</a>.
+  </div>
+
+  {% if checks %}
+  <div class="check-grid">
+    {% for c in checks %}
+    <a class="check-kaart" href="/tussenchecks/{{ c.ticker }}">
+      <div class="kaart-top">
+        <div class="initiaal" style="background: hsl({{ c.hue }}, 42%, 42%);">{{ c.initiaal }}</div>
+        <div style="min-width: 0; flex: 1;">
+          <div class="kaart-naam">{{ c.naam }}</div>
+          <div class="kaart-ticker">{{ c.ticker }}{% if c.beurs %} · {{ c.beurs.split('(')[0].strip() }}{% endif %}</div>
+        </div>
+        <span class="oordeel oordeel-{{ c.oordeel or 'onbekend' }}">{{ c.oordeel or '—' }}</span>
+      </div>
+
+      <div class="kaart-cijfers">
+        <div>
+          <div class="cijfer-label">Koers</div>
+          <div class="cijfer-waarde">{{ c.koers or '—' }}</div>
+        </div>
+        <div>
+          <div class="cijfer-label">Beurswaarde</div>
+          <div class="cijfer-waarde">{{ c.beurswaarde.split('(')[0].strip() if c.beurswaarde else '—' }}</div>
+        </div>
+      </div>
+
+      <div class="kaart-voet">
+        Bekeken op {{ c.datum or 'onbekend' }}
+        {%- if c.heeft_analyse %} · <span class="doorgediept">volledig uitgediept</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; text-align: center;">
+    <div style="font-size: 14px; color: var(--text-2);">
+      Nog geen tussenchecks. Draai <code>python scripts/sync_analyses.py</code> om ze op te halen.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

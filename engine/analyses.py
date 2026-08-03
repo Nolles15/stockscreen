@@ -1,6 +1,16 @@
 """
-analyses.py — leest de fundamentele-analyse rapporten uit analyses/ en
-rendert ze naar HTML voor /analyses en /analyses/<ticker>.
+analyses.py — leest de rapporten uit analyses/ en tussenchecks/ en rendert
+ze naar HTML voor /analyses en /tussenchecks.
+
+Twee soorten documenten, allebei markdown uit de aandelenanalyse-pipeline:
+
+- **analyses/** — volledige fundamentele analyses, 50-90 KB, vijftien
+  genummerde secties plus interne pipeline-administratie die eruit gefilterd
+  wordt.
+- **tussenchecks/** — beslisdocumenten van vóór zo'n analyse (verdient dit
+  aandeel diepgravend onderzoek?), 5-7 KB, ongenummerde secties die allemaal
+  getoond worden. Ze leunen op screenerdata van aggregator-kwaliteit en zijn
+  nadrukkelijk geen analyse; de pagina zegt dat er ook bij.
 
 De rapporten zijn de research-MD's uit de aandelenanalyse-pipeline
 (stage 1). Ze zijn bewust de bron, niet de analyse-JSON's: de MD is
@@ -30,9 +40,9 @@ import threading
 
 import markdown
 
-ANALYSES_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "analyses"
-)
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ANALYSES_DIR = os.path.join(_REPO, "analyses")
+TUSSENCHECKS_DIR = os.path.join(_REPO, "tussenchecks")
 
 # Publishable token (zelfde als het aandelenanalyse-platform gebruikt);
 # mag client-side staan. Override via env als hij ooit geroteerd wordt.
@@ -251,40 +261,140 @@ def _parse_bestand(pad: str) -> dict:
     return analyse
 
 
-def _laad(bestandsnaam: str) -> dict | None:
-    pad = os.path.join(ANALYSES_DIR, bestandsnaam)
+def _laad(map_pad: str, bestandsnaam: str, parser) -> dict | None:
+    """Geparst document uit de cache, of opnieuw parsen als het bestand
+    veranderde. De sleutel is het volledige pad, zodat analyses en
+    tussenchecks dezelfde cache kunnen delen."""
+    pad = os.path.join(map_pad, bestandsnaam)
     try:
         mtime = os.path.getmtime(pad)
     except OSError:
         return None
 
-    gecachet = _cache.get(bestandsnaam)
+    gecachet = _cache.get(pad)
     if gecachet and gecachet[0] == mtime:
         return gecachet[1]
 
-    analyse = _parse_bestand(pad)
+    document = parser(pad)
     with _cache_lock:
-        _cache[bestandsnaam] = (mtime, analyse)
-    return analyse
+        _cache[pad] = (mtime, document)
+    return document
 
 
-# ---------------------------------------------------------------------------
-# publieke API
-# ---------------------------------------------------------------------------
-
-
-def _bestanden() -> list[str]:
-    if not os.path.isdir(ANALYSES_DIR):
+def _bestanden(map_pad: str) -> list[str]:
+    if not os.path.isdir(map_pad):
         return []
-    return sorted(f for f in os.listdir(ANALYSES_DIR) if f.endswith(".md"))
+    return sorted(f for f in os.listdir(map_pad) if f.endswith(".md"))
+
+
+# ---------------------------------------------------------------------------
+# tussenchecks
+# ---------------------------------------------------------------------------
+#
+# Een tussencheck beantwoordt één vraag vóór de volledige analyse: verdient dit
+# aandeel diepgravend onderzoek? Kortere documenten met een andere kop dan een
+# analyse, en zonder genummerde secties — hier worden juist álle H2's getoond,
+# want er staat niets interns in.
+
+
+def _parse_tussencheck(pad: str) -> dict:
+    tekst = open(pad, encoding="utf-8").read()
+    ticker_uit_naam = os.path.splitext(os.path.basename(pad))[0]
+
+    ticker, naam = ticker_uit_naam, ticker_uit_naam
+    m = re.search(r"^#\s*Tussencheck:\s*(.+?)\s+[—–-]\s+(.+)$", tekst, flags=re.M)
+    if m:
+        ticker, naam = m.group(1).strip(), m.group(2).strip()
+
+    oordeel = None
+    m = re.search(r"\*\*Oordeel:\s*(VERDIEPEN|TWIJFEL|OVERSLAAN)", tekst)
+    if m:
+        oordeel = m.group(1)
+
+    # Metaregel: 'Datum: … · Koers … · Beurswaarde … · <beurs>'.
+    # De eerste drie dragen een label, wat overblijft is de beurs.
+    datum = koers = beurswaarde = beurs = None
+    m = re.search(r"^Datum:.*$", tekst, flags=re.M)
+    if m:
+        overig = []
+        for deel in (d.strip() for d in m.group(0).split("·")):
+            if deel.startswith("Datum:"):
+                d = re.search(r"\d{4}-\d{2}-\d{2}", deel)
+                datum = d.group(0) if d else deel.removeprefix("Datum:").strip()
+            elif deel.startswith("Koers"):
+                koers = deel.removeprefix("Koers").strip(": ").strip()
+            elif deel.startswith("Beurswaarde"):
+                beurswaarde = deel.removeprefix("Beurswaarde").strip(": ").strip()
+            elif deel:
+                overig.append(deel)
+        beurs = " · ".join(overig) or None
+
+    secties = []
+    for nr, (titel, inhoud) in enumerate(_split_secties(tekst), start=1):
+        html = markdown.markdown(
+            f"## {titel}\n\n{inhoud}",
+            extensions=["tables", "fenced_code", "sane_lists"],
+        )
+        secties.append({"id": f"sectie-{nr}", "label": _kort(titel), "nr": nr, "html": html})
+
+    return {
+        "ticker": ticker,
+        "bestand_ticker": ticker_uit_naam,
+        "naam": naam,
+        "oordeel": oordeel,
+        "datum": datum,
+        "koers": koers,
+        "beurswaarde": beurswaarde,
+        "beurs": beurs,
+        "initiaal": (ticker_uit_naam[:1] or "?").upper(),
+        "hue": sum(ord(c) for c in ticker_uit_naam) % 360,
+        "secties": secties,
+    }
+
+
+def get_alle_tussenchecks() -> list[dict]:
+    """Kaartgegevens van alle tussenchecks, nieuwste datum eerst.
+
+    Markeert per tussencheck of er inmiddels een volledige analyse bestaat, zodat
+    de pagina daarnaar kan doorlinken zodra een VERDIEPEN is uitgediept.
+    """
+    met_analyse = {a["ticker"].upper() for a in get_all_summaries()}
+    checks = []
+    for bestand in _bestanden(TUSSENCHECKS_DIR):
+        check = _laad(TUSSENCHECKS_DIR, bestand, _parse_tussencheck)
+        if not check:
+            continue
+        kaart = {k: v for k, v in check.items() if k != "secties"}
+        kaart["heeft_analyse"] = check["ticker"].upper() in met_analyse
+        checks.append(kaart)
+    return sorted(checks, key=lambda c: c.get("datum") or "", reverse=True)
+
+
+def get_tussencheck(ticker: str) -> dict | None:
+    """Volledige tussencheck op ticker, hoofdletterongevoelig."""
+    gezocht = (ticker or "").strip().upper()
+    for bestand in _bestanden(TUSSENCHECKS_DIR):
+        check = _laad(TUSSENCHECKS_DIR, bestand, _parse_tussencheck)
+        if not check:
+            continue
+        if gezocht in (check["ticker"].upper(), check["bestand_ticker"].upper()):
+            check = dict(check)
+            check["heeft_analyse"] = get_analyse(check["ticker"]) is not None
+            return check
+    return None
+
+
+# ---------------------------------------------------------------------------
+# publieke API — analyses
+# ---------------------------------------------------------------------------
 
 
 def get_all_summaries() -> list[dict]:
     """Kaartgegevens van alle analyses, nieuwste peildatum eerst.
     Zonder de gerenderde secties — die zijn alleen voor de detailpagina."""
     analyses = []
-    for bestand in _bestanden():
-        analyse = _laad(bestand)
+    for bestand in _bestanden(ANALYSES_DIR):
+        analyse = _laad(ANALYSES_DIR, bestand, _parse_bestand)
         if analyse:
             analyses.append({k: v for k, v in analyse.items() if k != "secties"})
     return sorted(analyses, key=lambda a: a.get("peildatum") or "", reverse=True)
@@ -297,8 +407,8 @@ def get_analyse(ticker: str) -> dict | None:
     URL-parameter — zo kan een verzonnen ticker nooit een pad worden.
     """
     gezocht = (ticker or "").strip().upper()
-    for bestand in _bestanden():
-        analyse = _laad(bestand)
+    for bestand in _bestanden(ANALYSES_DIR):
+        analyse = _laad(ANALYSES_DIR, bestand, _parse_bestand)
         if not analyse:
             continue
         if gezocht in (analyse["ticker"].upper(), analyse["bestand_ticker"].upper()):

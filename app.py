@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import yaml
-from flask import Flask, jsonify, render_template, request, redirect, url_for
+from flask import Flask, jsonify, render_template, request
 
 from engine import analyses as analyses_mod
 from engine import db
@@ -32,7 +32,7 @@ from engine.data_fetcher import (
     fetch_market_only,
     fetch_all_tickers,
 )
-from engine.screener import run_ticker, run_all, determine_signal
+from engine.screener import run_ticker, determine_signal
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -288,6 +288,26 @@ def analyse_detail(ticker):
         logo_token=analyses_mod.LOGO_DEV_TOKEN,
         config=load_config(),
     )
+
+
+@app.route("/tussenchecks")
+def tussenchecks_overzicht():
+    """Beslisdocumenten van vóór een volledige analyse."""
+    return render_template(
+        "tussenchecks.html",
+        checks=analyses_mod.get_alle_tussenchecks(),
+        config=load_config(),
+    )
+
+
+@app.route("/tussenchecks/<ticker>")
+def tussencheck_detail(ticker):
+    # Geen koppeling met de screener: een tussencheck bevat geen
+    # Yahoo-symbool, dus er is niets om een live koers aan te hangen.
+    check = analyses_mod.get_tussencheck(ticker)
+    if not check:
+        return "Tussencheck niet gevonden", 404
+    return render_template("tussencheck_detail.html", c=check, config=load_config())
 
 
 # ---------------------------------------------------------------------------
