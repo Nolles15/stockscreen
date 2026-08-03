@@ -19,6 +19,25 @@
   <a href="/" class="text-slate-400 hover:text-white text-sm">← Terug naar dashboard</a>
 </div>
 
+{# Verouderde jaarcijfers: bovenaan, vóór het oordeel en de korting. Onderaan
+   tussen de waarschuwingen las niemand het, en het raakt de kern van elk cijfer
+   op deze pagina. #}
+{% if fy_lag %}
+<div class="rounded-xl p-4 mb-6 border
+  {% if fy_lag >= 2 %}bg-red-950/40 border-red-800{% else %}bg-orange-950/40 border-orange-800{% endif %}">
+  <h3 class="font-semibold text-sm mb-1 {% if fy_lag >= 2 %}text-red-300{% else %}text-orange-300{% endif %}">
+    ⚠ De jaarcijfers lopen {{ fy_lag }} boekjaar{{ 'ren' if fy_lag > 1 }} achter
+  </h3>
+  <p class="text-sm leading-relaxed {% if fy_lag >= 2 %}text-red-200/80{% else %}text-orange-200/80{% endif %}">
+    Het nieuwste jaarverslag in de database is <strong>FY{{ latest_fy }}</strong>, terwijl
+    FY{{ verwacht_fy }} verwacht mag worden. Alles op deze pagina — geschatte waarde, korting,
+    kwaliteit, oordeel — rust op die oudere winstbasis, terwijl de koers hierboven van vandaag is.
+    Yahoo Finance levert dit boekjaar niet aan; opnieuw ophalen verandert daar niets aan.
+    Wil je hier toch op bouwen, voer FY{{ verwacht_fy }} dan handmatig in vanuit het jaarverslag.
+  </p>
+</div>
+{% endif %}
+
 <!-- Header -->
 <div class="flex items-start justify-between flex-wrap gap-4 mb-6">
   <div>

@@ -176,11 +176,19 @@ def stock_detail(ticker):
     # Set van "field:jaar" strings voor snelle lookup in template (gele cellen)
     override_set = {f"{f}:{y}" for (f, y) in overrides}
 
+    # Verouderde jaarcijfers horen bovenaan te staan, niet onderaan tussen de
+    # waarschuwingen: de koers rechtsboven is van vandaag en de winstbasis niet.
+    latest_fy = annual[0].get("fiscal_year") if annual else None
+    fy_lag = data_quality.boekjaar_achterstand(latest_fy)
+
     return render_template(
         "stock.html",
         ticker=ticker,
         stock=stock,
         annual=annual,
+        latest_fy=latest_fy,
+        fy_lag=fy_lag,
+        verwacht_fy=data_quality.verwacht_boekjaar(),
         ttm=ttm_list[0] if ttm_list else None,
         market=market,
         scores=scores,
@@ -286,6 +294,9 @@ def api_dashboard():
             "last_calculated":      r.get("last_calculated"),
             "warnings":             r.get("warnings") or [],
             "latest_fiscal_year":   r.get("latest_fy"),
+            # Hoeveel boekjaren het jaarverslag achterloopt. Server-side berekend
+            # zodat het dashboard de kalenderregel niet nog eens nabouwt.
+            "fy_lag":               data_quality.boekjaar_achterstand(r.get("latest_fy")),
             "hist_relative":        r.get("hist_relative") or {},
             "is_new":               days_since_added is not None and days_since_added <= new_days,
             "days_since_added":     days_since_added,
@@ -1506,6 +1517,7 @@ def api_data_quality():
             "completeness_pct":       dq.get("completeness_pct"),
             "years_available":        dq.get("years_available"),
             "latest_fy":              dq.get("latest_fy"),
+            "fy_lag":                 data_quality.boekjaar_achterstand(dq.get("latest_fy")),
             "freshness_days":         dq.get("freshness_days"),
             "fetch_success":          dq.get("fetch_success"),
             "consecutive_failures":   dq.get("consecutive_failures") or 0,
@@ -2133,11 +2145,17 @@ def api_data_quality_recompute():
         market = db.get_market_data(t)
         fetch_succeeded = bool(annual) or bool((market or {}).get("price"))
 
+        # De datum van de laatste échte fetch staat op de jaarrijen zelf. Die
+        # meegeven kost niets en maakt het verschil voor de tekst bij verouderde
+        # jaarcijfers: recent opgehaald en tóch oud betekent dat de bron het
+        # boekjaar niet heeft — dan is "klik Refresh" een verkeerd advies.
+        fetched_date = (annual[0].get("fetched_date") if annual else None)
+
         dq = data_quality.evaluate(
             t, annual, market, s,
             fetch_success=fetch_succeeded,
             prev_consecutive_failures=prev.get("consecutive_failures") or 0,
-            fetched_date=None,
+            fetched_date=fetched_date,
         )
         # Een recompute is geen fetch → tracking-velden niet vervalsen.
         dq["consecutive_failures"] = prev.get("consecutive_failures") or 0

@@ -47,6 +47,11 @@ _MIN_COMPLETENESS_OK      = 80.0   # >= 80% + geen blockers → ok
 _MIN_COMPLETENESS_WARNING = 50.0   # 50-80% → warning
 _STALE_DAYS = 120                  # > 120 dagen zonder verse data → warning
 
+# Een ophaalronde die niets nieuwers oplevert dan wat er al stond, terwijl hij
+# wél recent draaide, bewijst dat de bron het boekjaar niet heeft. Dan is
+# "klik Refresh" een leugen en moet er iets anders staan.
+_VERSE_FETCH_DAGEN = 30
+
 # Instrumenten waarvoor de fundamentele FV-pipeline niet werkt (geen
 # inkomstenstroom / eigen vermogen per aandeel). Deze worden als 'missing'
 # gemarkeerd zodat de screener ze overslaat — alleen common stock is zinvol.
@@ -69,6 +74,26 @@ _SPLIT_EPS_RATIO = 3.0
 _SPLIT_EPS_MIN_ABS = 0.30          # kleinste EPS in het paar moet ≥ dit (native ccy)
 _SPLIT_CLEAN_FACTORS = (2.0, 3.0, 4.0, 5.0, 10.0)
 _SPLIT_FACTOR_TOL = 0.06           # ratio moet binnen 6% van een split-getal liggen
+
+
+def verwacht_boekjaar(vandaag: date | None = None) -> int:
+    """Welk boekjaar hoort er uiterlijk vandaag in de database te staan.
+
+    Een boekjaar dat in december eindigt wordt in het voorjaar gepubliceerd, een
+    gebroken boekjaar loopt daar hooguit een half jaar op achter. Vanaf juli mag
+    je dus van élk bedrijf het vorige kalenderjaar verwachten. In de eerste helft
+    van het jaar is die eis te streng — dan is FY(vorig jaar) voor een deel van
+    de bedrijven nog niet uit en zou de halve database onterecht geel kleuren.
+    """
+    d = vandaag or date.today()
+    return d.year - 1 if d.month >= 7 else d.year - 2
+
+
+def boekjaar_achterstand(latest_fy: int | None, vandaag: date | None = None) -> int:
+    """Hoeveel boekjaren loopt het nieuwste jaarverslag achter. 0 = bij."""
+    if not latest_fy:
+        return 0
+    return max(0, verwacht_boekjaar(vandaag) - int(latest_fy))
 
 
 def _clean_split_factor(ratio: float) -> float | None:
@@ -317,6 +342,27 @@ def evaluate(
         except (ValueError, TypeError):
             pass
 
+    # 4b. Verouderde jaarcijfers — het gat tussen het nieuwste boekjaar en de
+    # kalender. Dit is iets ánders dan completeness_pct (die telt hoe goed de
+    # opgeslagen jaren gevuld zijn) en iets anders dan freshness_days (die telt
+    # wanneer we Yahoo voor het laatst gebeld hebben). Zonder deze controle
+    # kreeg een aandeel met jaarcijfers uit FY2024 in augustus 2026 nog altijd
+    # "100% compleet, 0 dagen oud" — groen, terwijl de koers van vandaag tegen
+    # winst van anderhalf jaar terug werd afgezet.
+    fy_achterstand = boekjaar_achterstand(latest_fy)
+    if fy_achterstand:
+        vers_opgehaald = freshness_days is not None and freshness_days <= _VERSE_FETCH_DAGEN
+        staart = (
+            f"De laatste ophaalronde was {freshness_days} dagen geleden en leverde niets nieuwers op — "
+            f"Yahoo heeft dit boekjaar niet. Alleen handmatig invoeren helpt."
+            if vers_opgehaald else
+            "Een refresh kan nieuwere cijfers opleveren."
+        )
+        issues.append(
+            f"Jaarcijfers lopen {fy_achterstand} jaar achter: nieuwste is FY{latest_fy}, "
+            f"verwacht FY{verwacht_boekjaar()}. {staart}"
+        )
+
     # 5. Afgeleide status
     #
     # Harde blockers = data is écht onbruikbaar (geen jaren, geen koers, omzet ≤0,
@@ -353,6 +399,16 @@ def evaluate(
         status = "warning" if len(issues) > 1 else "ok"
     else:
         status = "ok"
+
+    # Verouderde jaarcijfers zetten de status expliciet, níet via de
+    # issues-heuristiek hierboven: die laat één losse melding nog als 'ok' door,
+    # en dan zou dit precies zo onzichtbaar blijven als het was. Twee jaar of
+    # meer achterstand betekent dat de waardering op een verouderde winstbasis
+    # rust terwijl de koers van vandaag is — dat is geen waarschuwing meer.
+    if fy_achterstand >= 2:
+        status = "bad"
+    elif fy_achterstand == 1 and status == "ok":
+        status = "warning"
 
     if fail_note:
         issues.insert(0, fail_note)
@@ -395,6 +451,7 @@ _BLOCKER_FINGERPRINTS: tuple[tuple[str, str], ...] = (
     ("no_data",              "gaf geen data terug"),
     ("no_years",             "Geen jaarcijfers gevonden"),
     ("no_price",             "Geen koers beschikbaar"),
+    ("verouderde_cijfers",   "Jaarcijfers lopen"),
     ("negative_equity",      "Eigen vermogen"),
     ("negative_revenue",     "Omzet FY"),
     ("unit_mismatch_severe", "Market cap SEVERE mismatch"),
@@ -475,14 +532,16 @@ def classify_blockers(issues: list[str] | None, data_status: str | None) -> dict
 # ---------------------------------------------------------------------------
 
 _REASON_LABELS = {
-    "geen_data": "GEEN DATA",
-    "databug":   "DATABUG",
-    "geen_fv":   "GEEN FV (VERLIES)",
+    "geen_data":  "GEEN DATA",
+    "databug":    "DATABUG",
+    "geen_fv":    "GEEN FV (VERLIES)",
+    "verouderd":  "CIJFERS VEROUDERD",
 }
 _REASON_COLORS = {
-    "geen_data": "slate",
-    "databug":   "purple",
-    "geen_fv":   "amber",
+    "geen_data":  "slate",
+    "databug":    "purple",
+    "geen_fv":    "amber",
+    "verouderd":  "orange",
 }
 
 # primary_blocker (uit classify_blockers) → reden-bucket
@@ -492,6 +551,7 @@ _BLOCKER_TO_REASON = {
     "no_years":             "geen_data",
     "no_price":             "geen_data",
     "low_completeness":     "geen_data",
+    "verouderde_cijfers":   "verouderd",
     "unit_mismatch_severe": "databug",
     "negative_revenue":     "databug",
     "negative_equity":      "geen_fv",   # insolvent = verlies-gedreven

@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Optional
 
 from . import db
+from . import data_quality
 from .normalizer import normalize_all, historical_median_multiple
 from .quality_score import quality_score as calc_quality
 from .valuation import combined_fair_value
@@ -210,13 +211,17 @@ def run_ticker(ticker: str, config: dict) -> dict:
             f"Only {len(annual_rows)} year(s) of data — minimum {min_years} required for reliable scoring."
         )
 
-    # Controle op verouderde jaarcijfers (bijv. FY2024 terwijl het 2026 is)
-    current_year = datetime.utcnow().year
+    # Controle op verouderde jaarcijfers (bijv. FY2024 terwijl het 2026 is).
+    # De regel zelf staat in data_quality zodat de waarschuwing hier en het
+    # gele/rode label op het dashboard niet uit elkaar kunnen lopen.
     if annual_rows:
         latest_fy = annual_rows[0].get("fiscal_year") or 0
-        if latest_fy < current_year - 1:
+        achterstand = data_quality.boekjaar_achterstand(latest_fy)
+        if achterstand:
             warnings.append(
-                f"Recentste jaarcijfers in DB: FY{latest_fy} — FY{current_year - 1} mogelijk al beschikbaar. Klik Refresh."
+                f"Jaarcijfers lopen {achterstand} jaar achter: nieuwste is FY{latest_fy}, "
+                f"verwacht FY{data_quality.verwacht_boekjaar()}. De koers is van vandaag, "
+                f"de winstbasis niet — lees de waardering met dat in het hoofd."
             )
 
     # Data freshness check: waarschuw als laatste fetch > 90 dagen geleden is

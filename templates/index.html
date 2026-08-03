@@ -396,7 +396,12 @@ function eenRegelUitleg(r) {
     const m = Math.round(r.margin_of_safety);
     delen.push(m >= 0 ? `${m}% onder geschatte waarde` : `${-m}% erboven`);
   }
-  if (r.data_status === 'ok') delen.push('cijfers compleet');
+  // Verouderde jaarcijfers gaan vóór op de completeness-mededeling: "cijfers
+  // compleet" naast een boekjaar van twee jaar terug is precies de tegenstrijdigheid
+  // die dit label moest oplossen.
+  if (r.fy_lag >= 2) delen.push(`⚠ cijfers uit ${r.latest_fiscal_year}, ${r.fy_lag} jaar oud`);
+  else if (r.fy_lag === 1) delen.push(`⚠ nieuwste cijfers zijn van ${r.latest_fiscal_year}`);
+  else if (r.data_status === 'ok') delen.push('cijfers compleet');
   else if (r.data_status === 'warning') delen.push('cijfers deels compleet');
   return delen.join(' · ');
 }
@@ -434,7 +439,7 @@ function renderFocus(tab) {
     const sterKleur = pins.includes(r.ticker) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400';
     const cel = `<td class="px-3 py-2"><button onclick="togglePin('${r.ticker}', event)"
         class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button></td>
-      <td class="px-3 py-2"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a></td>
+      <td class="px-3 py-2 whitespace-nowrap"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>${boekjaarBadge(r)}</td>
       <td class="px-3 py-2 text-slate-300">${r.name || ''}</td>`;
 
     if (tab.id === 'geenoordeel') {
@@ -690,6 +695,26 @@ function confidenceBadge(r) {
   return `<span class="ml-1 ${color} cursor-help text-xs" title="${title.replace(/"/g,"'")}">◆</span>`;
 }
 
+// Verouderde jaarcijfers moeten opvallen, niet uit te pluizen zijn. Een aandeel
+// kan er piekfijn uitzien — 100% gevulde velden, vandaag opgehaald — en toch
+// gewaardeerd worden op winst van twee jaar terug, want de koers is wél van
+// vandaag. Daarom een geschreven label naast de ticker en niet alleen een stip.
+// `fy_lag` komt van de server (data_quality.boekjaar_achterstand) zodat de
+// kalenderregel hier niet nog een derde keer wordt nagebouwd.
+function boekjaarBadge(r) {
+  const lag = r.fy_lag || 0;
+  if (!lag) return '';
+  const fy = r.latest_fiscal_year;
+  const kleur = lag >= 2
+    ? 'bg-red-500/20 text-red-300 ring-1 ring-red-500/40'
+    : 'bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40';
+  const title = `De nieuwste jaarcijfers zijn FY${fy} — ${lag} boekjaar${lag > 1 ? 'ren' : ''} achter. `
+              + `De koers hiernaast is van vandaag, de winstbasis niet. `
+              + `Yahoo levert dit boekjaar niet aan; een refresh verandert daar niets aan.`;
+  return ` <span class="ml-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${kleur} cursor-help whitespace-nowrap"
+    title="${title.replace(/"/g, "'")}">⚠ cijfers t/m ${fy}</span>`;
+}
+
 function dataQualityBadge(r) {
   // Kleine gekleurde stip naast de ticker. Geen stip bij status 'ok' — alleen opvallen als er iets is.
   const status = r.data_status;
@@ -740,10 +765,9 @@ function rowHtml(r) {
     : '—';
   const fcfClass = r.normalized_fcf_m < 0 ? 'text-red-400' : 'text-slate-300';
 
-  const curYear = new Date().getFullYear();
   const fy = r.latest_fiscal_year;
   const fyCell = fy
-    ? `<span class="text-xs font-mono px-1.5 py-0.5 rounded ${fy < curYear - 1 ? 'bg-red-100 text-red-700' : fy < curYear ? 'bg-yellow-100 text-yellow-700' : 'text-slate-400'}" title="Recentste jaarcijfers in DB: FY${fy}">${fy}</span>`
+    ? `<span class="text-xs font-mono px-1.5 py-0.5 rounded ${r.fy_lag >= 2 ? 'bg-red-100 text-red-700' : r.fy_lag === 1 ? 'bg-orange-100 text-orange-700' : 'text-slate-400'}" title="Recentste jaarcijfers in de database: FY${fy}">${fy}</span>`
     : '—';
 
   const newBadge = r.is_new
@@ -767,7 +791,7 @@ function rowHtml(r) {
 
   return `<tr class="hover:bg-slate-800/40 transition ${rowBorder}">
     <td class="px-3 py-2.5 font-mono font-semibold">
-      <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${dqBadge}${newBadge}${hrBadge}${warn}
+      <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${dqBadge}${boekjaarBadge(r)}${newBadge}${hrBadge}${warn}
     </td>
     <td class="px-3 py-2.5 text-slate-300 max-w-[160px] truncate" title="${r.name||''}">${r.name||'—'}</td>
     <td class="px-3 py-2.5 text-right">${fmtMoney(r.price, r.currency)}</td>
