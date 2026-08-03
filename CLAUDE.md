@@ -72,6 +72,18 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
   **Controleer JS daarom altijd samengevoegd met `base.html`, nooit per bestand.** `node --check` op één sjabloon vindt deze fout niet; los van elkaar zijn beide bestanden geldig. Bestaande globals in `base.html`: `fmt`, `fmtMoney`, `fmtBig`, `fmtBigMoney`, `currencySymbol`, `CURRENCY_SYMBOLS`.
 - **Vang fouten in de UI zichtbaar af.** Een `.catch(() => {})` rond het opbouwen van een pagina laat bij een fout een lege plek achter zonder enig spoor. De beslisboom stond daardoor sinds fase 3 leeg zonder dat iemand het merkte — de tweede oorzaak daarvan (`fv_methods_dropped` als onontlede JSON-tekst) was pas te vinden nadat de melding zichtbaar werd gemaakt.
 - **Machine draait op UTC, beurzen op Amsterdamse tijd.** De scheduler rekent expliciet om via `ZoneInfo("Europe/Amsterdam")`; vergelijk nooit direct met `datetime.utcnow()`.
+- **De analyse-rapporten moeten in `analyses/` op de repo-root staan, niet in `data/`.** `.dockerignore` sluit `data/`, `scripts/` en `docs/` uit van de build-context. Een rapport in `data/analyses/` werkt lokaal perfect en ontbreekt in productie zonder enige foutmelding — de pagina toont dan simpelweg nul analyses.
+- **Rapporten mengen Europese en Amerikaanse getalnotatie.** `1.239,40` (ASML) staat naast `93.79` (NVDA). Wie de punt blind als decimaalteken leest, maakt van ASML's koers 1,239 en krijgt een upside van +114476%. `engine/analyses.py:_parse_getal` handelt dit af: komma wint altijd als decimaalteken, een punt met precies drie cijfers erachter is een duizendtalscheiding.
+
+## Analyses-pagina (`/analyses`)
+
+Toont de fundamentele analyses uit de aandelenanalyse-pipeline; publiek, geen afscherming.
+
+- **Bron zijn de markdown-rapporten**, niet de analyse-JSON's. De MD is altijd de nieuwste versie; een JSON loopt achter tot stage 2 draait. `engine/analyses.py` parseert kop, `## Metadata` en `## 1. Executive summary`, rendert per sectie naar HTML en cachet op mtime.
+- **Alleen genummerde secties (1 t/m 15) worden getoond.** Alles zonder nummer is pipeline-administratie: bronnen-inventaris, metadata-blok, afrondingschecklist, opmerkingen voor Claude Code. Filteren op "heeft een nummer" houdt ook toekomstige interne secties buiten de pagina; een blacklist van titels zou dat niet doen.
+- **Nieuwe of bijgewerkte analyse publiceren:** `python scripts/sync_analyses.py` (mirror vanuit `C:\Users\janco\aandelenanalyse\research`), dan committen en `fly deploy --remote-only --depot=false`.
+- **De koers in de header komt uit twee bronnen.** De peildatum-koers hoort bij het rapport en blijft staan zoals hij is — fair value, upside en oordeel zijn daarop gebaseerd en worden niet herrekend. Daarnaast zet `_verrijk_met_actuele_koers` in app.py de live koers uit `market_data` (gekoppeld via het Yahoo-symbool uit de rapport-metadata) plus de upside op die koers. Zit een ticker niet in de screener of hapert de database, dan vallen die velden weg en toont de pagina alleen de peildatum-cijfers; de analyse zelf heeft de database niet nodig.
+- **Parser-wijzigingen: draai de rendertest.** `engine/analyses.py` leest met de hand geschreven rapporten waarin de bullets in vorm variëren, dus elk veld faalt afzonderlijk naar een streepje. De geparseerde scorekaart-totalen horen exact overeen te komen met die in de JSON's van de aandelenanalyse-repo — dat is de goedkoopste kruisvalidatie dat de parser nog klopt.
 
 ## Huidige plan / status
 
