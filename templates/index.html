@@ -31,17 +31,26 @@
   </div>
 </div>
 
-<!-- Landenfilter. Staat boven de tabbladen omdat hij op álle tabbladen werkt:
-     "alleen Nederland" hoort ook te gelden voor Kansen en Groeiers. -->
+<!-- Land- en sectorfilter. Staan boven de tabbladen omdat ze op álle tabbladen
+     werken: "alleen Nederland" hoort ook te gelden voor Kansen en Groeiers.
+     De filterbalk onder "Alles" heeft zijn eigen sectorkeuze; die werkt alleen
+     op die ene tabel en blijft ongemoeid. -->
 <div class="flex flex-wrap items-center gap-2 mb-3 text-sm">
   <label for="filter-land" class="text-slate-400">Land</label>
   <select id="filter-land" onchange="kiesLand(this.value)"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-500">
     <option value="">Alle landen</option>
   </select>
-  <button id="land-wis" onclick="kiesLand('')"
+
+  <label for="filter-industrie" class="text-slate-400 ml-2">Sector</label>
+  <select id="filter-industrie" onchange="kiesSector(this.value)"
+    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-500">
+    <option value="">Alle sectoren</option>
+  </select>
+
+  <button id="filter-wis" onclick="wisFilters()"
     class="text-slate-400 hover:text-slate-200 underline underline-offset-2 hidden">
-    toon alle landen
+    toon alles
   </button>
 </div>
 
@@ -58,11 +67,6 @@
   <select id="filter-market" onchange="renderTable()"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alle markten</option>
-  </select>
-
-  <select id="filter-sector" onchange="renderTable()"
-    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
-    <option value="">Alle sectoren</option>
   </select>
 
   <select id="filter-signal" onchange="renderTable()"
@@ -265,19 +269,33 @@ const LAND_PER_SUFFIX = {
   AX: 'Australië',      TO: 'Canada',
 };
 
-const LAND_KEY = 'stockscreen.land';
-let _actiefLand = localStorage.getItem(LAND_KEY) || '';
+const LAND_KEY   = 'stockscreen.land';
+const SECTOR_KEY = 'stockscreen.sector';
+let _actiefLand   = localStorage.getItem(LAND_KEY) || '';
+let _actieveSector = localStorage.getItem(SECTOR_KEY) || '';
 
 function landVan(ticker) {
   if (!ticker.includes('.')) return 'Verenigde Staten';
   return LAND_PER_SUFFIX[ticker.split('.').pop()] || 'Overig';
 }
 
+function sectorVan(r) {
+  return r.sector || 'Onbekend';
+}
+
+// Land eerst, want het sectorlijstje wordt binnen het gekozen land geteld: je
+// wilt zien welke sectoren er in Finland te vinden zijn, niet wereldwijd.
+function rijenNaLand() {
+  if (!_actiefLand) return _allRows;
+  return _allRows.filter(r => landVan(r.ticker) === _actiefLand);
+}
+
 // Alle tabbladen kijken hierdoorheen, zodat "alleen Nederland" ook geldt voor
 // Kansen en Groeiers en niet alleen voor de grote tabel.
 function zichtbareRijen() {
-  if (!_actiefLand) return _allRows;
-  return _allRows.filter(r => landVan(r.ticker) === _actiefLand);
+  const rijen = rijenNaLand();
+  if (!_actieveSector) return rijen;
+  return rijen.filter(r => sectorVan(r) === _actieveSector);
 }
 
 function vulLandFilter() {
@@ -298,9 +316,62 @@ function vulLandFilter() {
   if (sel.value !== _actiefLand) _actiefLand = sel.value;
 }
 
+function vulSectorFilter() {
+  const sel = document.getElementById('filter-industrie');
+  if (!sel) return;
+  const basis = rijenNaLand();
+  const telling = {};
+  basis.forEach(r => {
+    const s = sectorVan(r);
+    telling[s] = (telling[s] || 0) + 1;
+  });
+  const sectoren = Object.keys(telling).sort((a, b) => a.localeCompare(b, 'nl'));
+  // Sectornamen komen uit de database (Yahoo), dus wél ontsnappen.
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  sel.innerHTML =
+    `<option value="">Alle sectoren (${basis.length})</option>` +
+    sectoren.map(s => `<option value="${esc(s)}">${esc(s)} (${telling[s]})</option>`).join('');
+  // Een sector die in dit land niet voorkomt zou een lege lijst opleveren zonder
+  // dat je ziet waarom; dan liever de sectorkeuze laten vallen.
+  sel.value = sectoren.includes(_actieveSector) ? _actieveSector : '';
+  if (sel.value !== _actieveSector) {
+    _actieveSector = sel.value;
+    localStorage.setItem(SECTOR_KEY, _actieveSector);
+  }
+}
+
 function kiesLand(waarde) {
   _actiefLand = waarde;
   localStorage.setItem(LAND_KEY, waarde);
+  vulSectorFilter();   // andere landen, andere sectoren
+  renderTabs();
+  renderActiveTab();
+}
+
+function kiesSector(waarde) {
+  _actieveSector = waarde;
+  localStorage.setItem(SECTOR_KEY, waarde);
+  renderTabs();
+  renderActiveTab();
+}
+
+// Zichtbaar maken dát er gefilterd is; anders leest een korte lijst als
+// "er zijn geen kansen" terwijl je naar één sector in één land kijkt.
+function actieveFilterTekst() {
+  if (_actiefLand && _actieveSector) return `in ${_actiefLand}, sector ${_actieveSector}`;
+  if (_actiefLand)   return `in ${_actiefLand}`;
+  if (_actieveSector) return `in sector ${_actieveSector}`;
+  return '';
+}
+
+function wisFilters() {
+  _actiefLand = '';
+  _actieveSector = '';
+  localStorage.setItem(LAND_KEY, '');
+  localStorage.setItem(SECTOR_KEY, '');
+  vulLandFilter();
+  vulSectorFilter();
   renderTabs();
   renderActiveTab();
 }
@@ -374,8 +445,8 @@ function renderActiveTab() {
 
   // Zichtbaar maken dát er gefilterd is; anders lijkt een korte lijst al gauw
   // op "er zijn geen kansen" terwijl je naar één land kijkt.
-  const wis = document.getElementById('land-wis');
-  if (wis) wis.classList.toggle('hidden', !_actiefLand);
+  const wis = document.getElementById('filter-wis');
+  if (wis) wis.classList.toggle('hidden', !_actiefLand && !_actieveSector);
   const isAlles = tab.id === 'alles';
 
   document.getElementById('filterbalk').classList.toggle('hidden', !isAlles);
@@ -467,8 +538,8 @@ function renderFocus(tab) {
       <td class="px-3 py-2 text-right text-xs text-slate-500">${eenRegelUitleg(r)}</td></tr>`;
   }).join('');
 
-  const totaal = _actiefLand
-    ? `${zichtbareRijen().length} in ${_actiefLand} · ${_allRows.length} in totaal`
+  const totaal = actieveFilterTekst()
+    ? `${zichtbareRijen().length} ${actieveFilterTekst()} · ${_allRows.length} in totaal`
     : `${_allRows.length} in totaal`;
   document.getElementById('row-count').textContent = `${rows.length} aandelen · van ${totaal}`;
 }
@@ -489,8 +560,8 @@ async function loadDashboard() {
     _allRows = await res.json();
     console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
     vulLandFilter();
+    vulSectorFilter();
     populateMarketFilter();
-    populateSectorFilter();
     renderTabs();
     renderActiveTab();
   } catch (e) {
@@ -507,17 +578,8 @@ function populateMarketFilter() {
     markets.map(m => `<option${m === current ? ' selected' : ''}>${m}</option>`).join('');
 }
 
-function populateSectorFilter() {
-  const sel = document.getElementById('filter-sector');
-  const current = sel.value;
-  const sectors = [...new Set(_allRows.map(r => r.sector).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">Alle sectoren</option>' +
-    sectors.map(s => `<option${s === current ? ' selected' : ''}>${s}</option>`).join('');
-}
-
 function renderTable() {
   const mktFilter    = document.getElementById('filter-market').value;
-  const secFilter    = document.getElementById('filter-sector').value;
   const sigFilter    = document.getElementById('filter-signal').value;
   const showAll      = document.getElementById('filter-showall').checked;
   const hideNoData   = document.getElementById('filter-hidenodata').checked;
@@ -526,7 +588,6 @@ function renderTable() {
 
   let rows = zichtbareRijen().filter(r => {
     if (mktFilter && r.market !== mktFilter) return false;
-    if (secFilter && r.sector !== secFilter) return false;
     if (sigFilter) {
       if (sigFilter === 'reason:growth') {
         if (!r.is_growth_lossmaker) return false;
@@ -568,8 +629,8 @@ function renderTable() {
   }
   _visibleRows = rows;
   tbody.innerHTML = htmlParts.join('');
-  document.getElementById('row-count').textContent = _actiefLand
-    ? `${rows.length} van ${zichtbareRijen().length} aandelen in ${_actiefLand} weergegeven`
+  document.getElementById('row-count').textContent = actieveFilterTekst()
+    ? `${rows.length} van ${zichtbareRijen().length} aandelen ${actieveFilterTekst()} weergegeven`
     : `${rows.length} van ${_allRows.length} aandelen weergegeven`;
 
   updateSortIndicators();
