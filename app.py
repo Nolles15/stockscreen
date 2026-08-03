@@ -153,7 +153,7 @@ def stock_detail(ticker):
         reverse=True,
     )
     for ov_yr in override_only_years:
-        annual.append({"fiscal_year": ov_yr})
+        annual.append(db.lege_jaarrij(ov_yr))
     if override_only_years:
         annual.sort(key=lambda r: r.get("fiscal_year") or 0, reverse=True)
 

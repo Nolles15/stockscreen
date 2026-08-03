@@ -196,7 +196,7 @@ def run_ticker(ticker: str, config: dict) -> dict:
         reverse=True,
     )
     for ov_yr in override_only_years:
-        annual_rows.append({"fiscal_year": ov_yr})
+        annual_rows.append(db.lege_jaarrij(ov_yr))
     if override_only_years:
         annual_rows.sort(key=lambda r: r.get("fiscal_year") or 0, reverse=True)
         warnings.append(

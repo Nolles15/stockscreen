@@ -647,6 +647,31 @@ JSON_SCORE_KOLOMMEN = (
 )
 
 
+# De cijferkolommen van `financials`, in de volgorde van het schema hierboven.
+#
+# Nodig voor rijen die niet uit de database komen maar ter plekke worden
+# samengesteld: een boekjaar dat uitsluitend uit handmatige overrides bestaat.
+# Zo'n rij had alleen `fiscal_year` en dus ontbraken alle andere sleutels. In
+# Jinja is een ontbrekende sleutel `Undefined`, en `Undefined is not none` is
+# waar — de opmaakmacro liep dan door naar `val | abs` en de hele aandeelpagina
+# gaf een 500. Bouw zo'n rij daarom altijd met álle velden op None.
+FINANCIAL_VELDEN = (
+    "revenue", "ebit", "ebitda", "net_income", "eps_diluted",
+    "operating_cf", "capex", "fcf", "total_assets", "total_equity",
+    "total_debt", "current_assets", "current_liabilities", "net_ppe",
+    "book_value_ps", "roe", "gross_profit", "interest_expense",
+    "shares_outstanding", "net_cash", "inventory", "fetched_date",
+)
+
+
+def lege_jaarrij(fiscal_year: int) -> dict:
+    """Een jaarrij met alle velden aanwezig en leeg — zie FINANCIAL_VELDEN."""
+    rij: dict = {veld: None for veld in FINANCIAL_VELDEN}
+    rij["fiscal_year"] = fiscal_year
+    rij["period_type"] = "annual"
+    return rij
+
+
 def get_scores(ticker: str) -> dict | None:
     with _cursor() as cur:
         cur.execute("SELECT * FROM calculated_scores WHERE ticker=%s", (ticker,))
