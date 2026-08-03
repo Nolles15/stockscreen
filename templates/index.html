@@ -472,6 +472,7 @@ function eenRegelUitleg(r) {
   // die dit label moest oplossen.
   if (r.fy_lag >= 2) delen.push(`⚠ cijfers uit ${r.latest_fiscal_year}, ${r.fy_lag} jaar oud`);
   else if (r.fy_lag === 1) delen.push(`⚠ nieuwste cijfers zijn van ${r.latest_fiscal_year}`);
+  else if (r.latest_fy_handmatig) delen.push(`✎ ${r.latest_fiscal_year} handmatig ingevoerd`);
   else if (r.data_status === 'ok') delen.push('cijfers compleet');
   else if (r.data_status === 'warning') delen.push('cijfers deels compleet');
   return delen.join(' · ');
@@ -764,8 +765,20 @@ function confidenceBadge(r) {
 // kalenderregel hier niet nog een derde keer wordt nagebouwd.
 function boekjaarBadge(r) {
   const lag = r.fy_lag || 0;
-  if (!lag) return '';
   const fy = r.latest_fiscal_year;
+
+  // Bij de tijd, maar het nieuwste jaar komt uit jouw eigen invoer: geen
+  // waarschuwing, wel vermelden. Wie de cijfers narekent moet weten dat dit
+  // jaar niet uit de databron komt maar uit het jaarverslag is overgetikt.
+  if (!lag && r.latest_fy_handmatig) {
+    const t = `FY${fy} is handmatig ingevoerd — Yahoo Finance levert dit boekjaar niet aan. `
+            + `Op de aandeelpagina staat per cel welke waarde met de hand is gezet.`;
+    return ` <span class="ml-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300
+      ring-1 ring-sky-500/40 cursor-help whitespace-nowrap"
+      title="${t.replace(/"/g, "'")}">✎ FY${fy} handmatig</span>`;
+  }
+  if (!lag) return '';
+
   const kleur = lag >= 2
     ? 'bg-red-500/20 text-red-300 ring-1 ring-red-500/40'
     : 'bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40';

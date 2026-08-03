@@ -672,6 +672,40 @@ def lege_jaarrij(fiscal_year: int) -> dict:
     return rij
 
 
+def jaarrijen_met_overrides(ticker: str) -> tuple[list[dict], list[int]]:
+    """De jaarcijfers zoals ze na handmatige correcties gelden.
+
+    Handmatig ingevoerde cijfers staan in een eigen tabel en niet in
+    `financials`. Wie alleen die laatste leest, mist ze — en dat liep uit
+    elkaar: de aandeelpagina en de screener telden een handmatig FY2025 wél
+    mee, het dashboard en de datakwaliteit niet. Op het dashboard bleef daardoor
+    "cijfers t/m 2024" staan naast een boekjaar dat er gewoon was.
+
+    Geeft terug: (rijen nieuwste-eerst, jaren die alleen handmatig bestaan).
+    """
+    rijen = get_financials(ticker, "annual")
+    overrides = get_overrides(ticker)
+
+    bestaande = {r.get("fiscal_year") for r in rijen}
+    alleen_handmatig = sorted(
+        {jr for (_, jr) in overrides if jr is not None and jr not in bestaande},
+        reverse=True,
+    )
+    for jr in alleen_handmatig:
+        rijen.append(lege_jaarrij(jr))
+    if alleen_handmatig:
+        rijen.sort(key=lambda r: r.get("fiscal_year") or 0, reverse=True)
+
+    # Een override zonder jaartal geldt voor élk jaar; dat is de bestaande afspraak.
+    for rij in rijen:
+        jaar = rij.get("fiscal_year")
+        for (veld, ov_jaar), entry in overrides.items():
+            if ov_jaar == jaar or ov_jaar is None:
+                rij[veld] = entry["value"]
+
+    return rijen, alleen_handmatig
+
+
 def get_scores(ticker: str) -> dict | None:
     with _cursor() as cur:
         cur.execute("SELECT * FROM calculated_scores WHERE ticker=%s", (ticker,))
@@ -869,7 +903,7 @@ def get_dashboard_data() -> list[dict]:
             c.fv_confidence, c.fv_spread_pct, c.fv_methods_used,
             c.fv_methods_dropped, c.revenue_cagr,
             c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
-            fy.latest_fy,
+            fy.latest_fy, fy.laatste_yahoo,
             dq.completeness_pct, dq.years_available, dq.freshness_days,
             dq.fetch_success, dq.consecutive_failures, dq.data_status,
             dq.issues as data_issues, dq.last_checked as dq_last_checked
@@ -877,9 +911,23 @@ def get_dashboard_data() -> list[dict]:
         LEFT JOIN market_data m ON s.ticker = m.ticker
         LEFT JOIN calculated_scores c ON s.ticker = c.ticker
         LEFT JOIN (
-            SELECT ticker, MAX(fiscal_year) as latest_fy
-            FROM financials
-            WHERE period_type='annual'
+            -- Het nieuwste boekjaar is het nieuwste dat we kénnen, of dat nu van
+            -- Yahoo komt of met de hand is ingevoerd. `laatste_yahoo` blijft er
+            -- apart bij staan zodat het dashboard kan zeggen dát een jaar
+            -- handmatig is in plaats van het stilzwijgend mee te tellen.
+            SELECT
+                ticker,
+                MAX(fiscal_year)                                  AS latest_fy,
+                MAX(fiscal_year) FILTER (WHERE bron = 'yahoo')    AS laatste_yahoo
+            FROM (
+                SELECT ticker, fiscal_year, 'yahoo' AS bron
+                FROM financials
+                WHERE period_type='annual' AND fiscal_year IS NOT NULL
+                UNION ALL
+                SELECT ticker, fiscal_year, 'handmatig' AS bron
+                FROM overrides
+                WHERE fiscal_year IS NOT NULL
+            ) alle_jaren
             GROUP BY ticker
         ) fy ON s.ticker = fy.ticker
         LEFT JOIN data_quality dq ON s.ticker = dq.ticker

@@ -174,7 +174,6 @@ def run_ticker(ticker: str, config: dict) -> dict:
     """
     warnings: list[str] = []
 
-    annual_rows = db.get_financials(ticker, "annual")
     ttm_rows    = db.get_financials(ticker, "ttm")
     market_data = db.get_market_data(ticker)
     stock_info  = db.get_stock(ticker)
@@ -189,16 +188,9 @@ def run_ticker(ticker: str, config: dict) -> dict:
     # Load overrides early so we can synthesize rows for manually-entered years
     overrides = db.get_overrides(ticker)
 
-    # Synthesize annual rows for years that only exist in overrides (no Yahoo Finance data)
-    existing_fy_set = {row.get("fiscal_year") for row in annual_rows}
-    override_only_years = sorted(
-        {ov_yr for (_, ov_yr) in overrides if ov_yr is not None and ov_yr not in existing_fy_set},
-        reverse=True,
-    )
-    for ov_yr in override_only_years:
-        annual_rows.append(db.lege_jaarrij(ov_yr))
+    # Jaren die alleen als handmatige invoer bestaan krijgen hier hun rij.
+    annual_rows, override_only_years = db.jaarrijen_met_overrides(ticker)
     if override_only_years:
-        annual_rows.sort(key=lambda r: r.get("fiscal_year") or 0, reverse=True)
         warnings.append(
             f"Jaarcijfers voor {', '.join(f'FY{y}' for y in override_only_years)} zijn uitsluitend handmatig ingevoerd — "
             f"geen Yahoo Finance-data beschikbaar."
@@ -284,11 +276,7 @@ def run_ticker(ticker: str, config: dict) -> dict:
             f"controleer of de overrides nog kloppen en verwijder ze indien Yahoo Finance nu de juiste cijfers heeft."
         )
 
-    for row in annual_rows:
-        yr = row.get("fiscal_year")
-        for (field, ov_yr), entry in overrides.items():
-            if ov_yr == yr or ov_yr is None:
-                row[field] = entry["value"]
+    # De overrides zijn al toegepast door db.jaarrijen_met_overrides() hierboven.
 
     # Prepend TTM row (fiscal_year=0) as "year 0" if available and more recent than latest annual
     ttm_row = ttm_rows[0] if ttm_rows else None

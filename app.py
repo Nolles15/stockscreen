@@ -139,30 +139,17 @@ def stock_detail(ticker):
     stock   = db.get_stock(ticker)
     if not stock:
         return "Stock not found", 404
-    annual    = db.get_financials(ticker, "annual")
     ttm_list  = db.get_financials(ticker, "ttm")
     market    = db.get_market_data(ticker)
     scores    = db.get_scores(ticker)
     overrides = db.get_overrides(ticker)
     hist_mult = db.get_historical_multiples(ticker)
 
-    # Voeg synthetische rijen toe voor jaren die alleen in overrides voorkomen (geen Yahoo Finance-data)
-    existing_fy_set = {row.get("fiscal_year") for row in annual}
-    override_only_years = sorted(
-        {ov_yr for (_, ov_yr) in overrides if ov_yr is not None and ov_yr not in existing_fy_set},
-        reverse=True,
-    )
-    for ov_yr in override_only_years:
-        annual.append(db.lege_jaarrij(ov_yr))
-    if override_only_years:
-        annual.sort(key=lambda r: r.get("fiscal_year") or 0, reverse=True)
+    # Zelfde samenvoeging als de screener gebruikt — één functie, geen tweede
+    # kopie die stilletjes uit de pas kan gaan lopen.
+    annual, override_only_years = db.jaarrijen_met_overrides(ticker)
 
-    # Pas overrides toe op alle rijen (inclusief synthetische)
     for row in annual:
-        yr = row.get("fiscal_year")
-        for (field, ov_yr), entry in overrides.items():
-            if ov_yr == yr or ov_yr is None:
-                row[field] = entry["value"]
         # Bereken ROE als het ontbreekt maar net_income + total_equity bekend zijn
         if not row.get("roe") and row.get("net_income") and row.get("total_equity") and row["total_equity"] > 0:
             row["roe"] = row["net_income"] / row["total_equity"]
@@ -297,6 +284,12 @@ def api_dashboard():
             # Hoeveel boekjaren het jaarverslag achterloopt. Server-side berekend
             # zodat het dashboard de kalenderregel niet nog eens nabouwt.
             "fy_lag":               data_quality.boekjaar_achterstand(r.get("latest_fy")),
+            # Staat het nieuwste boekjaar er alleen omdat het met de hand is
+            # ingevoerd? Dan is het geen achterstand, maar wel iets om te weten.
+            "latest_fy_handmatig":  bool(
+                r.get("latest_fy") is not None
+                and (r.get("laatste_yahoo") is None or r["latest_fy"] > r["laatste_yahoo"])
+            ),
             "hist_relative":        r.get("hist_relative") or {},
             "is_new":               days_since_added is not None and days_since_added <= new_days,
             "days_since_added":     days_since_added,
@@ -2155,7 +2148,7 @@ def api_data_quality_recompute():
     for s in stocks:
         t = s["ticker"]
         prev = prev_map.get(t, {})
-        annual = db.get_financials(t, "annual")
+        annual, _ = db.jaarrijen_met_overrides(t)   # zoals de fetch hem ook evalueert
         market = db.get_market_data(t)
         fetch_succeeded = bool(annual) or bool((market or {}).get("price"))
 

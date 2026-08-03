@@ -656,7 +656,10 @@ def fetch_and_store(ticker: str, count_failure: bool = True) -> list[str]:
         prev_dq = db.get_data_quality(ticker) or {}
         prev_fails = prev_dq.get("consecutive_failures") or 0
 
-        annual_persisted = db.get_financials(ticker, "annual")
+        # Mét handmatige correcties: anders zou de datakwaliteit een boekjaar dat
+        # jij zelf hebt ingevoerd niet zien en het aandeel als verouderd blijven
+        # bestempelen, terwijl de screener het wél meetelt.
+        annual_persisted, _ = db.jaarrijen_met_overrides(ticker)
         market_persisted = db.get_market_data(ticker)
         stock_persisted  = db.get_stock(ticker)
 
