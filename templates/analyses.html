@@ -113,11 +113,7 @@
         <div>
           <div class="cijfer-label">{% if a.nu_koers %}Koers nu{% else %}Koers{% endif %}</div>
           <div class="cijfer-waarde">
-            {%- if a.nu_koers -%}
-              {{ a.valuta }} {{ ('%.2f'|format(a.nu_koers))|replace('.', ',') }}
-            {%- else -%}
-              {{ a.koers or '—' }}
-            {%- endif -%}
+            {%- if a.nu_koers -%}{{ a.valuta }} {{ a.nu_koers|bedrag }}{%- else -%}{{ a.koers or '—' }}{%- endif -%}
           </div>
         </div>
         <div>

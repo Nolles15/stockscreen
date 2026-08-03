@@ -204,6 +204,19 @@ def _filter_pct(waarde) -> str:
     return tekst.replace(".", ",") + "%"
 
 
+@app.template_filter("bedrag")
+def _filter_bedrag(waarde) -> str:
+    """Bedrag in Nederlandse notatie: 1419.6 -> '1.419,60'.
+
+    Zo staat de live koers in dezelfde opmaak als de koers die uit het
+    rapport komt ('1.239,40'), die er in de header direct naast staat.
+    """
+    if waarde is None:
+        return "—"
+    heel, _, decimalen = f"{waarde:,.2f}".partition(".")
+    return heel.replace(",", ".") + "," + decimalen
+
+
 def _verrijk_met_actuele_koers(analyse: dict) -> dict:
     """Zet de live koers uit de screener naast de koers van de peildatum.
 

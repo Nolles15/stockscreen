@@ -201,9 +201,7 @@
       <div class="nu-cijfers">
         <div>
           <div class="cijfer-label">Koers nu</div>
-          <div class="cijfer-waarde">
-            {{ a.valuta }} {{ ('%.2f'|format(a.nu_koers))|replace('.', ',') }}
-          </div>
+          <div class="cijfer-waarde">{{ a.valuta }} {{ a.nu_koers|bedrag }}</div>
         </div>
         {% if a.nu_verschil_pct is not none %}
         <div>
