@@ -1409,6 +1409,12 @@ VALID_OVERRIDE_FIELDS = {
     "operating_cf", "total_equity", "total_debt", "shares_outstanding",
     "book_value_ps", "roe", "interest_expense", "capex", "ebit",
     "total_assets", "current_assets", "current_liabilities", "gross_profit",
+    # net_cash hoort hier omdat de waardering hem gebruikt voor de brug van
+    # bedrijfswaarde naar waarde per aandeel: `net_debt_ps = -net_cash / shares`
+    # in valuation.py. Ontbreekt hij op de nieuwste jaarrij, dan leest die code
+    # nettoschuld = 0 en valt de geschatte waarde te hoog uit — bij een
+    # handmatig ingevoerd boekjaar dus stilzwijgend fout.
+    "net_cash", "inventory", "net_ppe",
 }
 
 @app.route("/api/overrides/<ticker>", methods=["POST"])
