@@ -11,7 +11,7 @@ Dutch-language stock screener voor Europese small/mid-caps. Flask + PostgreSQL (
 | **DB** | Neon PostgreSQL, Frankfurt |
 | **GitHub** | github.com/Nolles15/stockscreen (branch `main`) |
 | **Local dev** | `DATABASE_URL="..." python app.py` → http://localhost:5001 |
-| **Deploy** | `fly deploy --remote-only` (vanuit de repo-root) — **bij TLS-fout op de depot.dev-builder** (`x509: certificate signed by unknown authority`): voeg `--depot=false` toe zodat Fly's eigen remote-builder wordt gebruikt. |
+| **Deploy** | `fly deploy --remote-only --depot=false` (vanuit de repo-root). **Neem `--depot=false` meteen mee**: de TLS-onderschepping op dit netwerk blokkeert de depot.dev-builder (`x509: certificate signed by unknown authority`), maar fly meldt dat pas ná ruim tien minuten stil wachten op een builder die hij nooit kan bereiken. Met Fly's eigen builder is een deploy klaar in ~40 seconden. |
 
 ## Kritieke operationele feiten
 
@@ -58,6 +58,9 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **Negatief eigen vermogen** — P/B-methode geeft absurde waarden. Outlier-filter vangt het op maar houd `fv_methods_dropped` in de gaten.
 - **yfinance is flaky** — retry-logic in `_yf_retry` (3 pogingen, exponential backoff 2s/4s/8s, 3× langer bij 429). Rate-limits in bulk: 3 workers max in `fetch_all_tickers`.
 - **INSUFFICIENT DATA** na refresh — betekent echt: Yahoo gaf niks terug. Categoriseer via `/api/data-quality` endpoint.
+- **"Compleet" zegt niets over wélk jaar** — `completeness_pct` telt de vulgraad van de opgeslagen jaren, `freshness_days` telt wanneer we Yahoo belden. Geen van beide merkt dat het nieuwste boekjaar van twee jaar terug is. Daarvoor is `data_quality.verwacht_boekjaar()` / `boekjaar_achterstand()` — de enige plek waar die kalenderregel staat. Screener, dashboard, Kansen en de detailpagina lezen daaruit; bouw hem nergens na.
+- **Yahoo levert voor sommige tickers structureel één boekjaar te weinig** — yfinance krijgt maximaal 4 jaarkolommen en bij ~3% van de tickers eindigen die een jaar te vroeg (o.a. LASTIK.HE, COLO-B.CO, AMBU-B.CO, KWS.DE, geverifieerd met verse fetches op 2026-08-03). Opnieuw ophalen helpt niet; alleen handmatige overrides. Zeg dus nooit "klik Refresh" als `freshness_days` klein is.
+- **Live herrekenen mag de data-poort niet omzeilen** — `_effective_signal` in app.py rekent het signaal opnieuw uit tegen de verse koers. Het keek alleen niet naar `data_status`, terwijl de screener een 'bad'-ticker wél op INSUFFICIENT DATA zet maar de oude `combined_fv` laat staan. Resultaat: 19 afgekeurde aandelen met een vers HOLD/SELL erop. Elke afleiding die de motor overdoet moet dezelfde poorten passeren.
 - **ETFs** — screener werkt niet voor ETFs (bv. BFIT). Deactiveer met `active=0`.
 - **Fly auto-stop UIT** — `fly.toml` heeft `auto_stop_machines = false` + `min_machines_running = 1`. Dat is expres en sinds fase 1 essentieel: de scheduler draait ín het proces, dus een slapende machine betekent geen verversing.
 - **Secrets via de Fly-website blijven op "Staged"** — de draaiende app pakt ze dan niet op. Altijd afsluiten met `fly secrets deploy -a stockscreen-janco`. Via `fly secrets set` gebeurt dat automatisch.
