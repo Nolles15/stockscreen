@@ -135,14 +135,27 @@ def _parse_bedrag(waarde: str | None, valuta: str | None) -> str | None:
 
 
 def _parse_getal(waarde: str | None) -> float | None:
+    """Getal uit een bullet, met zowel Europese als Amerikaanse notatie.
+
+    De rapporten mengen beide: '1.239,40' (EUR, punt = duizendtal) naast
+    '93.79' (USD, punt = decimaal). Een punt zonder komma is ambigu; drie
+    cijfers erachter betekent duizendtal ('1.215' = 1215), anders decimaal.
+    """
     waarde = _schoon(waarde)
     if not waarde:
         return None
-    m = re.search(r"[-+]?\d+(?:[.,]\d+)?", waarde)
+    m = re.search(r"[-+]?\d[\d.,]*", waarde)
     if not m:
         return None
+    getal = m.group(0).rstrip(".,")
+
+    if "," in getal:
+        getal = getal.replace(".", "").replace(",", ".")
+    elif re.search(r"\.\d{3}$", getal):
+        getal = getal.replace(".", "")
+
     try:
-        return float(m.group(0).replace(",", "."))
+        return float(getal)
     except ValueError:
         return None
 
