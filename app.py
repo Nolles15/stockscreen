@@ -290,6 +290,183 @@ def analyse_detail(ticker):
     )
 
 
+def _routekaart(ticker: str) -> tuple[dict | None, str | None]:
+    """Bepaalt waar een ticker staat in de pijplijn en wat de volgende stap is.
+
+    De pijplijn is: tussencheck (verdient dit onderzoek?) -> stage 1 research in
+    cowork -> stage 2 in Claude Code -> publiceren op deze site. Elke stap staat
+    in een andere omgeving en vraagt een andere tekst; die staan hier bij elkaar
+    zodat je ze niet hoeft te onthouden.
+    """
+    ticker = (ticker or "").strip().upper()
+    if not ticker:
+        return None, None
+
+    stock = db.get_stock(ticker)
+    if not stock:
+        # Misschien is de korte ticker ingevuld terwijl de screener het
+        # Yahoo-symbool gebruikt (RBT -> RBT.PA).
+        kandidaten = [s for s in db.get_all_stocks()
+                      if (s.get("ticker") or "").split(".")[0] == ticker]
+        if len(kandidaten) == 1:
+            stock = kandidaten[0]
+            ticker = stock["ticker"]
+        elif len(kandidaten) > 1:
+            lijst = ", ".join(s["ticker"] for s in kandidaten)
+            return None, f"Meerdere noteringen gevonden voor '{ticker}': {lijst}. Vul het volledige symbool in."
+
+    if not stock:
+        return None, (f"'{ticker}' staat niet in de screener. Voeg hem eerst toe op het "
+                      f"dashboard, of controleer het Yahoo-symbool (bijvoorbeeld RBT.PA).")
+
+    kort = ticker.split(".")[0]
+    naam = stock.get("name") or ticker
+    market = db.get_market_data(ticker) or {}
+    scores = db.get_scores(ticker) or {}
+    kwaliteit = db.get_data_quality(ticker) or {}
+
+    # Andere noteringen van hetzelfde bedrijf, met een afwijkende koers/winst.
+    # Dat is het Robertet-patroon: groepscijfers aan een kleine aandelenklasse.
+    noteringen, dubbel = [], False
+    if naam:
+        for s in db.get_all_stocks():
+            if s.get("ticker") == ticker or (s.get("name") or "") != naam:
+                continue
+            m = db.get_market_data(s["ticker"]) or {}
+            sc = db.get_scores(s["ticker"]) or {}
+            noteringen.append({
+                "ticker": s["ticker"], "price": m.get("price"),
+                "currency": s.get("currency"), "signal": sc.get("signal"),
+                "pe": round(m["price"] / sc["normalized_eps"], 1)
+                      if m.get("price") and sc.get("normalized_eps") else None,
+            })
+    if noteringen:
+        eigen_pe = (round(market["price"] / scores["normalized_eps"], 1)
+                    if market.get("price") and scores.get("normalized_eps") else None)
+        alle_pe = [n["pe"] for n in noteringen if n["pe"]] + ([eigen_pe] if eigen_pe else [])
+        if len(alle_pe) > 1 and max(alle_pe) / min(alle_pe) >= 1.5:
+            dubbel = True
+            noteringen.insert(0, {"ticker": ticker, "price": market.get("price"),
+                                  "currency": stock.get("currency"),
+                                  "signal": scores.get("signal"), "pe": eigen_pe})
+
+    # Waar staan we? De gesynchroniseerde mappen zijn de bron van waarheid:
+    # wat hier ligt, staat ook op de site.
+    tussencheck = analyses_mod.get_tussencheck(kort)
+    analyse = analyses_mod.get_analyse(kort)
+
+    stappen = []
+
+    if tussencheck:
+        stappen.append({
+            "status": "klaar",
+            "titel": f"Tussencheck gedaan — {tussencheck.get('oordeel') or 'onbekend'}",
+            "uitleg": f"Bekeken op {tussencheck.get('datum') or 'onbekende datum'}.",
+            "link": f"/tussenchecks/{tussencheck['ticker']}", "link_tekst": "Lees de tussencheck",
+        })
+    else:
+        stappen.append({
+            "status": "klaar" if analyse else "nu",
+            "titel": "Tussencheck: verdient dit onderzoek?",
+            "uitleg": ("Overgeslagen omdat er al een volledige analyse ligt."
+                       if analyse else
+                       "Kost een paar minuten. Kijkt naar de concurrentiepositie, niet naar de prijs."),
+            "waar": None if analyse else "In Claude Code",
+            "plak": None if analyse else f"Doe een tussencheck op {ticker}",
+        })
+
+    overslaan = tussencheck and tussencheck.get("oordeel") == "OVERSLAAN"
+
+    if analyse:
+        stappen.append({
+            "status": "klaar",
+            "titel": f"Volledige analyse — {analyse.get('oordeel') or 'onbekend'}",
+            "uitleg": f"Peildatum {analyse.get('peildatum') or 'onbekend'}, "
+                      f"scorekaart {analyse.get('score') if analyse.get('score') is not None else '—'}/45.",
+            "link": f"/analyses/{analyse['ticker']}", "link_tekst": "Lees de analyse",
+        })
+        stappen.append({
+            "status": "nu",
+            "titel": "Bijwerken wanneer de cijfers verouderen",
+            "uitleg": "Een nieuwe peildatum betekent stage 1 opnieuw in cowork, daarna stage 2. "
+                      "Publiceren gaat met het commando hieronder.",
+            "waar": "In de terminal",
+            "plak": "cd C:\\Users\\janco\\stockscreen && python scripts/sync_analyses.py && "
+                    "fly deploy --remote-only --depot=false",
+        })
+    elif overslaan:
+        stappen.append({
+            "status": "klaar",
+            "titel": "Geen volledige analyse",
+            "uitleg": "De tussencheck kwam op OVERSLAAN. Zet hem op je volglijst en kijk "
+                      "opnieuw als de koers of de situatie wezenlijk verandert.",
+        })
+    else:
+        stappen.append({
+            "status": "nu" if tussencheck else "wacht",
+            "titel": "Stage 1: research schrijven",
+            "uitleg": "Cowork doet het bronnenonderzoek en schrijft research/[TICKER].md. "
+                      "Dit is het langste stuk.",
+            "waar": "In Claude cowork",
+            "plak": f"Doe fundamentele analyse van {naam} ({kort}, {ticker}).",
+        })
+        stappen.append({
+            "status": "wacht",
+            "titel": "Stage 2: omzetten en publiceren",
+            "uitleg": "Zet de research om naar JSON, draait alle controles en zet hem op "
+                      "aandelenanalyse. Daarna verschijnt hij ook hier.",
+            "waar": "In Claude Code",
+            "plak": f"Run stage 2 voor {kort}.",
+        })
+
+    data_waarschuwing = None
+    status = kwaliteit.get("data_status")
+    if status in ("bad", "missing"):
+        data_waarschuwing = (f"De screener beoordeelt de data als '{status}'. Daar valt geen "
+                             f"analyse op te bouwen; eerst de cijfers op orde brengen.")
+    elif kwaliteit.get("issues"):
+        data_waarschuwing = " ".join(kwaliteit["issues"])[:400]
+
+    mos = scores.get("margin_of_safety")
+    return {
+        "ticker": ticker, "kort": kort, "naam": naam,
+        "koers": (f"{stock.get('currency') or ''} {market['price']}".strip()
+                  if market.get("price") else "—"),
+        "signal": scores.get("signal"),
+        "mos": f"{mos:+.0f}%".replace("+", "+") if isinstance(mos, (int, float)) else "—",
+        "moat": _moat_niveau(ticker),
+        "stappen": stappen,
+        "dubbele_notering": dubbel,
+        "noteringen": noteringen,
+        "beste_notering": max(noteringen, key=lambda n: n["pe"] or 0)["ticker"] if dubbel else None,
+        "data_waarschuwing": data_waarschuwing,
+    }, None
+
+
+def _moat_niveau(ticker: str) -> str | None:
+    """Alleen het niveau (groen/geel/rood) uit het moat-profiel.
+
+    Zelfde bron als de detailpagina en de tussencheck-skill; hier is de rest
+    van dat object niet nodig.
+    """
+    try:
+        annual, _ = db.jaarrijen_met_overrides(ticker)
+        profiel = moat_profile.bouw_profiel(annual, db.get_price_history(ticker))
+        return (profiel or {}).get("niveau")
+    except Exception:
+        log.warning("moat-profiel bouwen mislukt voor %s", ticker, exc_info=True)
+        return None
+
+
+@app.route("/start")
+def start():
+    """Ticker in, volgende stap uit — zodat je de route niet hoeft te onthouden."""
+    ingevoerd = request.args.get("ticker", "")
+    resultaat, fout = _routekaart(ingevoerd) if ingevoerd else (None, None)
+    return render_template("start.html", r=resultaat, fout=fout,
+                           ingevoerd=ingevoerd, config=load_config())
+
+
 @app.route("/tussenchecks")
 def tussenchecks_overzicht():
     """Beslisdocumenten van vóór een volledige analyse."""

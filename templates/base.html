@@ -298,6 +298,7 @@
       <!-- Intern sub-nav -->
       <div class="nav-internal">
         <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+        <a href="/start" {% if request.path.startswith('/start') %}class="active"{% endif %}>Wat nu?</a>
         <a href="/triage" {% if request.path == '/triage' %}class="active"{% endif %}>Triage</a>
         <a href="/analyses" {% if request.path.startswith('/analyses') %}class="active"{% endif %}>Analyses</a>
         <a href="/tussenchecks" {% if request.path.startswith('/tussenchecks') %}class="active"{% endif %}>Tussenchecks</a>
