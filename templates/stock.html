@@ -103,18 +103,56 @@
     <h2 class="text-sm font-semibold text-slate-300">Koersverloop</h2>
     <span id="grafiek-uitleg" class="text-xs text-slate-500"></span>
     <div class="ml-auto flex gap-1 text-xs">
-      <button onclick="laadGrafiek('1y')" data-periode="1y" class="periode-knop px-2 py-1 rounded-md">1 jaar</button>
-      <button onclick="laadGrafiek('5y')" data-periode="5y" class="periode-knop px-2 py-1 rounded-md">5 jaar</button>
-      <button onclick="laadGrafiek('max')" data-periode="max" class="periode-knop px-2 py-1 rounded-md">alles</button>
+      <button onclick="laadGrafiek('1y')" data-periode="1y" class="periode-knop">1 jaar</button>
+      <button onclick="laadGrafiek('5y')" data-periode="5y" class="periode-knop">5 jaar</button>
+      <button onclick="laadGrafiek('max')" data-periode="max" class="periode-knop">alles</button>
     </div>
   </div>
-  <div id="grafiek-doel"></div>
+
+  <!-- Kerncijfers boven het plotvlak: elk getal dat de tooltip toont is zo ook
+       zonder muis bereikbaar. Een tooltip mag nooit de enige weg naar een
+       waarde zijn. -->
+  <div id="grafiek-cijfers" class="hidden flex flex-wrap gap-6 mb-3"></div>
+
+  <!-- De tooltip staat binnen dit vlak, zodat hij relatief aan de SVG
+       gepositioneerd kan worden. -->
+  <div id="grafiek-doel" style="position: relative;">
+    <div id="grafiek-svg"></div>
+    <div id="grafiek-tooltip" class="grafiek-tooltip"></div>
+  </div>
 </div>
 
 <style>
-  .periode-knop { color: #94a3b8; border: 1px solid #334155; }
-  .periode-knop:hover { color: #e2e8f0; }
-  .periode-knop.actief { color: #7ee2a8; border-color: #1a7f4b; background: #0d3320; }
+  /* Grafiekkleuren. De koerslijn is slot 1 uit het gevalideerde palet; het
+     groen is de --buy-token die de site ook voor koopsignalen gebruikt, zodat
+     de grafiek dezelfde taal spreekt als de badges. Beide zijn samen getoetst
+     op kleurenblindheid en contrast tegen de witte kaart. */
+  #koersgrafiek { --reeks: #2a78d6; --waarde: var(--buy); }
+
+  .periode-knop {
+    padding: 4px 10px; border-radius: 8px;
+    font-weight: 600; color: var(--text-2);
+    border: 1px solid var(--border); background: var(--surface);
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .periode-knop:hover { color: var(--text-1); border-color: var(--text-3); }
+  .periode-knop.actief { color: #fff; background: var(--text-1); border-color: var(--text-1); }
+
+  .grafiek-tooltip {
+    position: absolute; display: none; pointer-events: none; z-index: 20;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 11px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.10);
+    font-size: 11px; line-height: 1.45;
+  }
+  .tt-koers { font-size: 14px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .tt-datum { color: var(--text-3); margin-top: 1px; }
+  .tt-verschil {
+    margin-top: 5px; padding-top: 5px;
+    border-top: 1px solid var(--border); font-weight: 700;
+  }
+  .grafiek-cijfer-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; }
+  .grafiek-cijfer-waarde { font-size: 18px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
 </style>
 
 <!-- Handmatige koersinvoer (verborgen tot klik) -->
@@ -908,8 +946,10 @@ async function laadGrafiek(periode) {
     if (!res.ok) return;
     const d = await res.json();
     if (!d.punten || d.punten.length < 2) {
-      document.getElementById('grafiek-doel').innerHTML =
+      document.getElementById('grafiek-svg').innerHTML =
         '<p class="text-xs text-slate-500 py-8 text-center">Nog te weinig koershistorie opgeslagen voor een grafiek.</p>';
+      document.getElementById('grafiek-cijfers').classList.add('hidden');
+      document.getElementById('grafiek-uitleg').textContent = '';
       document.getElementById('koersgrafiek').classList.remove('hidden');
       return;
     }
@@ -919,7 +959,7 @@ async function laadGrafiek(periode) {
 }
 
 function tekenGrafiek(d) {
-  const B = 900, H = 260, marge = { l: 52, r: 12, t: 12, b: 24 };
+  const B = 900, H = 300, marge = { l: 50, r: 16, t: 16, b: 30 };
   const bx = B - marge.l - marge.r, by = H - marge.t - marge.b;
   const koersen = d.punten.map(p => p.koers);
   const w = d.waarde || {};
@@ -951,7 +991,7 @@ function tekenGrafiek(d) {
     const yBot = Math.min(marge.t + by, y(w.voorzichtig));
     if (yBot > yTop) {
       band = `<rect x="${marge.l}" y="${yTop.toFixed(1)}" width="${bx}" height="${(yBot - yTop).toFixed(1)}"
-              fill="#1a7f4b" opacity="0.10" />`;
+              fill="var(--waarde)" opacity="0.07" />`;
     }
   }
 
@@ -961,45 +1001,187 @@ function tekenGrafiek(d) {
     const zichtbaar = yv >= marge.t && yv <= marge.t + by;
     if (zichtbaar) {
       waardelijn = `<line x1="${marge.l}" y1="${yv.toFixed(1)}" x2="${B - marge.r}" y2="${yv.toFixed(1)}"
-                    stroke="#7ee2a8" stroke-width="1.5" stroke-dasharray="5 4" />`;
-      waardelabel = `<text x="${B - marge.r - 4}" y="${(yv - 5).toFixed(1)}" text-anchor="end"
-                     fill="#7ee2a8" font-size="11">geschatte waarde ${fmtAs(w.geschat)}</text>`;
+                    stroke="var(--waarde)" stroke-width="1.5" stroke-dasharray="6 4" />`;
+      waardelabel = `<text x="${B - marge.r - 5}" y="${(yv - 7).toFixed(1)}" text-anchor="end"
+                     fill="var(--waarde)" font-size="11" font-weight="700">geschatte waarde ${fmtAs(w.geschat)}</text>`;
     } else {
       // Buiten beeld: zeggen dát het buiten beeld valt, niet stilzwijgend weglaten.
-      waardelabel = `<text x="${marge.l}" y="${(marge.t + 12)}" fill="#7ee2a8" font-size="11">
+      waardelabel = `<text x="${marge.l}" y="${(marge.t + 12)}" fill="var(--waarde)" font-size="11" font-weight="700">
                      geschatte waarde ${fmtAs(w.geschat)} valt buiten dit bereik</text>`;
     }
   }
 
   // Y-as: vijf stappen is genoeg om af te lezen zonder rommelig te worden.
+  // Hairlines in de randkleur — het raster hoort recessief te zijn.
   let assen = '';
   for (let i = 0; i <= 4; i++) {
     const v = lo + (hi - lo) * (i / 4), yy = y(v);
     assen += `<line x1="${marge.l}" y1="${yy.toFixed(1)}" x2="${B - marge.r}" y2="${yy.toFixed(1)}"
-              stroke="#1e293b" stroke-width="1" />
-              <text x="${marge.l - 6}" y="${(yy + 4).toFixed(1)}" text-anchor="end"
-              fill="#64748b" font-size="10">${fmtAs(v)}</text>`;
+              stroke="var(--border)" stroke-width="1" />
+              <text x="${marge.l - 8}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end"
+              fill="var(--text-3)" font-size="10">${fmtAs(v)}</text>`;
   }
-  const eerste = d.punten[0].datum, laatste = d.punten[d.punten.length - 1].datum;
 
-  document.getElementById('grafiek-doel').innerHTML = `
-    <svg viewBox="0 0 ${B} ${H}" class="w-full" style="max-height:280px" role="img"
-         aria-label="Koersverloop van ${eerste} tot ${laatste}">
+  // Tijdas: een label op het punt waar het jaartal wisselt. Bij korte periodes
+  // valt er niets te wisselen, dan blijven begin- en einddatum over.
+  let tijdas = '', vorigJaar = null, laatsteX = -999;
+  d.punten.forEach((p, i) => {
+    const jaar = String(p.datum).slice(0, 4);
+    if (vorigJaar === null) { vorigJaar = jaar; return; }
+    if (jaar !== vorigJaar) {
+      vorigJaar = jaar;
+      const px = x(i);
+      if (px - laatsteX > 46) {          // labels niet op elkaar laten vallen
+        laatsteX = px;
+        tijdas += `<text x="${px.toFixed(1)}" y="${H - 9}" text-anchor="middle"
+                   fill="var(--text-3)" font-size="10">${jaar}</text>`;
+      }
+    }
+  });
+  const eerste = d.punten[0].datum, laatste = d.punten[d.punten.length - 1].datum;
+  if (!tijdas) {
+    tijdas = `<text x="${marge.l}" y="${H - 9}" fill="var(--text-3)" font-size="10">${eerste}</text>
+              <text x="${B - marge.r}" y="${H - 9}" text-anchor="end" fill="var(--text-3)" font-size="10">${laatste}</text>`;
+  }
+
+  const laatstePunt = d.punten[d.punten.length - 1];
+  const samenvatting = _grafiekSamenvatting(d, w);
+
+  document.getElementById('grafiek-svg').innerHTML = `
+    <svg viewBox="0 0 ${B} ${H}" class="w-full" style="max-height:320px;display:block" role="img"
+         aria-label="${samenvatting}">
+      <defs>
+        <linearGradient id="grafiek-verloop" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--reeks)" stop-opacity="0.16" />
+          <stop offset="100%" stop-color="var(--reeks)" stop-opacity="0" />
+        </linearGradient>
+      </defs>
       ${assen}${band}
-      <path d="${vlak}" fill="#3b82f6" opacity="0.08" />
-      <path d="${pad_d}" fill="none" stroke="#60a5fa" stroke-width="1.6" />
+      <path d="${vlak}" fill="url(#grafiek-verloop)" />
+      <path d="${pad_d}" fill="none" stroke="var(--reeks)" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round" />
       ${waardelijn}${waardelabel}
-      <text x="${marge.l}" y="${H - 6}" fill="#64748b" font-size="10">${eerste}</text>
-      <text x="${B - marge.r}" y="${H - 6}" text-anchor="end" fill="#64748b" font-size="10">${laatste}</text>
+      <circle cx="${x(d.punten.length - 1).toFixed(1)}" cy="${y(laatstePunt.koers).toFixed(1)}" r="4.5"
+              fill="var(--reeks)" stroke="var(--surface)" stroke-width="2" />
+      ${tijdas}
+      <line id="grafiek-crosshair" x1="0" y1="${marge.t}" x2="0" y2="${marge.t + by}"
+            stroke="var(--text-1)" stroke-width="1" opacity="0" />
+      <circle id="grafiek-punt" r="5" fill="var(--reeks)" stroke="var(--surface)"
+              stroke-width="2" opacity="0" />
+      <rect id="grafiek-vlak" x="${marge.l}" y="${marge.t}" width="${bx}" height="${by}"
+            fill="transparent" style="cursor:crosshair" />
     </svg>`;
 
-  const laatsteKoers = d.punten[d.punten.length - 1].koers;
-  const verschil = w.geschat ? ((w.geschat - laatsteKoers) / laatsteKoers) * 100 : null;
+  _grafiekCijfers(d, w);
+  _grafiekHover(d, w, { B, H, marge, bx, x, y });
+
   document.getElementById('grafiek-uitleg').textContent =
-    `${d.punten.length} koersen in ${d.valuta || ''}` +
-    (verschil !== null
-      ? ` · koers ligt ${Math.abs(verschil).toFixed(0)}% ${verschil > 0 ? 'onder' : 'boven'} de geschatte waarde`
-      : '');
+    `${d.punten.length} koersen · ${eerste} tot ${laatste}`;
+}
+
+// Eén zin die zegt wat er te zien is, voor wie de grafiek niet kan zien.
+function _grafiekSamenvatting(d, w) {
+  const eerste = d.punten[0], laatste = d.punten[d.punten.length - 1];
+  const richting = laatste.koers >= eerste.koers ? 'gestegen' : 'gedaald';
+  let zin = `Koersverloop van ${eerste.datum} tot ${laatste.datum}: `
+          + `${richting} van ${fmtAs(eerste.koers)} naar ${fmtAs(laatste.koers)} ${d.valuta || ''}.`;
+  if (w.geschat) {
+    const pct = ((w.geschat - laatste.koers) / laatste.koers) * 100;
+    zin += ` De koers ligt ${Math.abs(pct).toFixed(0)} procent `
+         + `${pct > 0 ? 'onder' : 'boven'} de geschatte waarde van ${fmtAs(w.geschat)}.`;
+  }
+  return zin;
+}
+
+function _grafiekCijfers(d, w) {
+  const doel = document.getElementById('grafiek-cijfers');
+  const koers = d.punten[d.punten.length - 1].koers;
+  const val = d.valuta || '';
+  const cijfers = [['Koers nu', `${val} ${fmtAs(koers)}`, null]];
+
+  if (w.geschat) {
+    const pct = ((w.geschat - koers) / koers) * 100;
+    const kleur = pct >= 0 ? 'var(--buy)' : 'var(--pass)';
+    cijfers.push(['Geschatte waarde', `${val} ${fmtAs(w.geschat)}`, 'var(--buy)']);
+    cijfers.push(['Verschil', `${pct >= 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}%`, kleur]);
+  }
+
+  doel.innerHTML = '';
+  cijfers.forEach(([label, waarde, kleur]) => {
+    const blok = document.createElement('div');
+    const l = document.createElement('div');
+    l.className = 'grafiek-cijfer-label';
+    l.textContent = label;                       // uit de API: nooit via innerHTML
+    const v = document.createElement('div');
+    v.className = 'grafiek-cijfer-waarde';
+    v.textContent = waarde;
+    if (kleur) v.style.color = kleur;
+    blok.append(l, v);
+    doel.appendChild(blok);
+  });
+  doel.classList.remove('hidden');
+}
+
+// Crosshair, punt en tooltip. Het klikvlak beslaat het hele plotgebied, dus je
+// hoeft de 2px-lijn nooit te raken — je richt op een datum.
+function _grafiekHover(d, w, g) {
+  const svg = document.querySelector('#grafiek-svg svg');
+  const vlak = document.getElementById('grafiek-vlak');
+  const lijn = document.getElementById('grafiek-crosshair');
+  const punt = document.getElementById('grafiek-punt');
+  const tip = document.getElementById('grafiek-tooltip');
+  if (!svg || !vlak) return;
+
+  function toon(clientX) {
+    const r = svg.getBoundingClientRect();
+    const sx = (clientX - r.left) * (g.B / r.width);
+    let i = Math.round(((sx - g.marge.l) / g.bx) * (d.punten.length - 1));
+    i = Math.max(0, Math.min(d.punten.length - 1, i));
+
+    const p = d.punten[i], px = g.x(i), py = g.y(p.koers);
+    lijn.setAttribute('x1', px); lijn.setAttribute('x2', px);
+    lijn.setAttribute('opacity', '0.18');
+    punt.setAttribute('cx', px); punt.setAttribute('cy', py);
+    punt.setAttribute('opacity', '1');
+
+    tip.innerHTML = '';
+    const koers = document.createElement('div');
+    koers.className = 'tt-koers';
+    koers.textContent = `${d.valuta || ''} ${fmtAs(p.koers)}`;
+    const datum = document.createElement('div');
+    datum.className = 'tt-datum';
+    datum.textContent = p.datum;                 // uit de API: nooit via innerHTML
+    tip.append(koers, datum);
+
+    if (w.geschat) {
+      const pct = ((w.geschat - p.koers) / p.koers) * 100;
+      const verschil = document.createElement('div');
+      verschil.className = 'tt-verschil';
+      verschil.style.color = pct >= 0 ? 'var(--buy)' : 'var(--pass)';
+      verschil.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}% t.o.v. waarde`;
+      tip.appendChild(verschil);
+    }
+
+    // De tooltip zit in #grafiek-doel, dat het plotvlak omsluit; positioneren
+    // gaat dus in dezelfde ruimte als de SVG zelf.
+    tip.style.display = 'block';
+    const schaalX = r.width / g.B, schaalY = r.height / g.H;
+    const breedte = tip.offsetWidth;
+    let links = px * schaalX + 14;
+    if (links + breedte > r.width) links = px * schaalX - breedte - 14;
+    tip.style.left = Math.max(0, links) + 'px';
+    tip.style.top = Math.max(0, py * schaalY - 8) + 'px';
+  }
+
+  function verberg() {
+    lijn.setAttribute('opacity', '0');
+    punt.setAttribute('opacity', '0');
+    tip.style.display = 'none';
+  }
+
+  vlak.addEventListener('pointermove', e => toon(e.clientX));
+  vlak.addEventListener('pointerleave', verberg);
+  vlak.addEventListener('pointerdown', e => toon(e.clientX));
 }
 
 laadGrafiek('5y');
