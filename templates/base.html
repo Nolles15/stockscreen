@@ -198,9 +198,7 @@
     }
     .nav-internal a {
       display: flex; align-items: center;
-      /* 10px i.p.v. 14px sinds de zevende link (Tussenchecks): met 14px
-         liep de balk over op 1024px-schermen. */
-      padding: 0 10px;
+      padding: 0 12px;
       font-size: 12px; font-weight: 600; color: var(--text-3);
       text-decoration: none;
       border-bottom: 2px solid transparent;
@@ -298,12 +296,12 @@
       <!-- Intern sub-nav -->
       <div class="nav-internal">
         <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
-        <a href="/start" {% if request.path.startswith('/start') %}class="active"{% endif %}>Wat nu?</a>
-        <a href="/triage" {% if request.path == '/triage' %}class="active"{% endif %}>Triage</a>
         <a href="/analyses" {% if request.path.startswith('/analyses') %}class="active"{% endif %}>Analyses</a>
         <a href="/tussenchecks" {% if request.path.startswith('/tussenchecks') %}class="active"{% endif %}>Tussenchecks</a>
         <a href="/methode" {% if request.path == '/methode' %}class="active"{% endif %}>Methode</a>
-        <a href="/settings" {% if request.path == '/settings' %}class="active"{% endif %}>Instellingen</a>
+        {# "Wat nu?" en Triage staan als hulpmiddel op de instellingenpagina;
+           de tab blijft dus oplichten als je daar bent. #}
+        <a href="/settings" {% if request.path in ['/settings', '/triage'] or request.path.startswith('/start') %}class="active"{% endif %}>Instellingen</a>
         <a href="/log" {% if request.path == '/log' %}class="active"{% endif %}>Geschiedenis</a>
       </div>
 

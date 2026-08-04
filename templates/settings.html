@@ -4,6 +4,28 @@
 {% block content %}
 <h1 class="text-2xl font-bold mb-6">⚙ Instellingen</h1>
 
+<!-- Hulpmiddelen: stonden eerder als losse links in de bovenbalk, maar die
+     werd met acht items te vol (en liep op mobiel over). -->
+<div class="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-5">
+  <h2 class="font-semibold text-slate-300 mb-4">Hulpmiddelen</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <a href="/start" class="block rounded-xl border border-slate-800 p-4 no-underline hover:bg-slate-800">
+      <div class="font-bold text-slate-200">Wat nu? →</div>
+      <div class="text-slate-400 text-sm mt-1">
+        Vul een ticker in en zie waar dat aandeel staat in de pijplijn, wat de
+        volgende stap is en welke tekst je moet plakken.
+      </div>
+    </a>
+    <a href="/triage" class="block rounded-xl border border-slate-800 p-4 no-underline hover:bg-slate-800">
+      <div class="font-bold text-slate-200">Triage →</div>
+      <div class="text-slate-400 text-sm mt-1">
+        Tickers met onvolledige of verdachte data, zodat je ziet waar de
+        screener geen oordeel op kan bouwen.
+      </div>
+    </a>
+  </div>
+</div>
+
 <!-- Screening parameters -->
 <div class="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-5">
   <h2 class="font-semibold text-slate-300 mb-4">Screening parameters</h2>
