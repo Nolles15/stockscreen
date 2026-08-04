@@ -28,6 +28,11 @@
       --pass-border: #FECACA;
       --radius:      16px;
       --radius-sm:   10px;
+      /* Hoogte van de bovenbalk. Op mobiel zakken de paginalinks naar een
+         tweede regel, dus daar is hij hoger. Sticky elementen op de
+         pagina's (zoals de sectienav van een analyse) plakken hieraan
+         vast via var(--nav-h) — niet met een eigen 64px. */
+      --nav-h:       64px;
       --shadow:      0 1px 2px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.04);
       --font:        'Plus Jakarta Sans', -apple-system, sans-serif;
     }
@@ -152,7 +157,7 @@
       max-width: 1320px; margin: 0 auto;
       padding: 0 32px;
       display: flex; align-items: stretch; gap: 0;
-      height: 64px;
+      height: var(--nav-h);
     }
     .nav-brand {
       display: flex; align-items: center; gap: 12px;
@@ -215,6 +220,60 @@
     .btn-refresh:hover:not(:disabled) { background: #333; }
     .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
     #refresh-status { font-size: 12px; color: var(--text-3); }
+
+    /* ─── NAVIGATIE OP SMALLE SCHERMEN ─────────────────────────────────
+       De balk heeft op één regel ruim 1000px nodig (merk + tabs + zeven
+       paginalinks + refreshknop). Op een telefoon liep vrijwel alles
+       buiten beeld. Vanaf hier: merk en refreshknop op de eerste regel,
+       de paginalinks op een tweede regel die horizontaal scrollt. */
+    @media (max-width: 900px) {
+      :root { --nav-h: 108px; }
+
+      .nav-inner {
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 0 16px;
+      }
+
+      .nav-brand {
+        height: 60px;
+        padding-right: 16px;
+        border-right: none;
+      }
+
+      /* Eén tool-tab ("Screener") die naar dezelfde plek wijst als het
+         merk-logo — op mobiel puur ruimteverlies. */
+      .nav-tabs { display: none; }
+
+      .nav-actions { height: 60px; }
+
+      .nav-internal {
+        order: 3;
+        width: 100%;
+        height: 48px;
+        margin-left: 0; padding-left: 0;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        overflow-x: auto;
+        scrollbar-width: none;              /* Firefox */
+        -webkit-overflow-scrolling: touch;
+      }
+      .nav-internal::-webkit-scrollbar { display: none; }
+      .nav-internal a {
+        padding: 0 12px;
+        flex-shrink: 0;                     /* niet samenpersen, laat scrollen */
+        font-size: 13px;
+      }
+      /* De actieve link in beeld brengen, anders lijkt de rij leeg te
+         beginnen op pagina's verderop in het menu. */
+      .nav-internal a.active { scroll-margin-left: 16px; }
+    }
+
+    @media (max-width: 420px) {
+      /* Op de smalste telefoons kost de merktekst te veel breedte. */
+      .nav-brand-label, .nav-brand-sub { display: none; }
+      .btn-refresh { padding: 7px 12px; font-size: 12px; }
+    }
   </style>
 </head>
 <body>

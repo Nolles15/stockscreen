@@ -66,9 +66,10 @@
   .nu-voet { margin-top: 12px; font-size: 10.5px; color: var(--text-3); line-height: 1.5; }
 
   /* ─── Sectienavigatie ───
-     Plakt onder de hoofdnav (die is 64px hoog en zelf sticky). */
+     Plakt onder de hoofdnav, die zelf sticky is en op mobiel hoger
+     wordt doordat de paginalinks naar een tweede regel zakken. */
   .sectienav {
-    position: sticky; top: 64px; z-index: 90;
+    position: sticky; top: var(--nav-h); z-index: 90;
     background: rgba(255,255,255,0.94);
     backdrop-filter: blur(12px);
     border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -88,7 +89,8 @@
 
   /* ─── Rapportsecties ─── */
   .analyse-sectie {
-    scroll-margin-top: 132px;
+    /* hoofdnav + de sticky sectienav eroverheen */
+    scroll-margin-top: calc(var(--nav-h) + 68px);
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 26px 28px; margin-bottom: 16px;
   }
@@ -257,6 +259,11 @@
   });
   var actief = null;
 
+  // De hoofdnav is op mobiel hoger (paginalinks op een tweede regel), dus
+  // de detectiezone schuift mee in plaats van een vaste 140px aan te houden.
+  var navHoogte = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--nav-h'), 10) || 64;
+
   var obs = new IntersectionObserver(function (entries) {
     entries.forEach(function (e) {
       if (!e.isIntersecting) return;
@@ -267,7 +274,7 @@
       actief = el;
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
-  }, { rootMargin: '-140px 0px -70% 0px' });
+  }, { rootMargin: '-' + (navHoogte + 76) + 'px 0px -70% 0px' });
 
   document.querySelectorAll('.analyse-sectie').forEach(function (s) { obs.observe(s); });
 })();
