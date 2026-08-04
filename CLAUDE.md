@@ -75,6 +75,24 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **De analyse-rapporten moeten in `analyses/` op de repo-root staan, niet in `data/`.** `.dockerignore` sluit `data/`, `scripts/` en `docs/` uit van de build-context. Een rapport in `data/analyses/` werkt lokaal perfect en ontbreekt in productie zonder enige foutmelding — de pagina toont dan simpelweg nul analyses.
 - **Rapporten mengen Europese en Amerikaanse getalnotatie.** `1.239,40` (ASML) staat naast `93.79` (NVDA). Wie de punt blind als decimaalteken leest, maakt van ASML's koers 1,239 en krijgt een upside van +114476%. `engine/analyses.py:_parse_getal` handelt dit af: komma wint altijd als decimaalteken, een punt met precies drie cijfers erachter is een duizendtalscheiding.
 
+## `/start` — "Wat nu?"
+
+Ticker invullen, terugkrijgen waar dat aandeel staat in de pijplijn en wat de volgende stap is, met de tekst om te plakken erbij. Bedoeld om de route (tussencheck in Claude Code → research in cowork → stage 2 in Claude Code → publiceren) niet te hoeven onthouden.
+
+- **De logica zit in `_routekaart()` in app.py.** Die leest de screener-DB voor de feiten en de mappen `analyses/` en `tussenchecks/` voor de voortgang. Wijzigt de pijplijn, dan is dat de enige plek die bij moet.
+- **Korte ticker mag ook**: `RBT` vindt `RBT.PA`. Levert dat meerdere treffers op, dan vraagt de pagina om het volledige symbool.
+- **Dual-listing-waarschuwing**: staan er meerdere noteringen onder dezelfde bedrijfsnaam met een koers/winst die meer dan 1,5× uiteenloopt, dan komt er een rood blok bovenaan met welke notering je moet hebben. Zie de valkuil hieronder.
+
+## Valse koopsignalen bij tweede noteringen
+
+`scripts/check_noteringen.py` scant alle tickers hierop; `--zelftest` controleert de detectie zonder de app.
+
+Robertet (2026-08-04) stond met twee noteringen in de screener: RBT.PA (€802, HOLD) en CBR.PA, een investeringscertificaat (€91). Yahoo hing aan beide dezelfde groepscijfers, dus bij CBR werd de winst van het hele bedrijf gedeeld door alleen die kleine klasse: koers/winst 1,8 en een schijnbare korting van 80%, met een BUY op het dashboard. CBR.PA is gedeactiveerd.
+
+Dit is gevaarlijker dan de dual-listings die hierboven al staan (EXOR.AS, ACOMO.BR): daar ontbreken de financials, hier zijn ze van de verkeerde entiteit — het resultaat oogt volkomen geloofwaardig.
+
+**Koersen vergelijken werkt niet om dit te vinden.** Silvano noteert 4,49 PLN in Warschau en 1,11 EUR in Tallinn: dezelfde waarde, andere valuta. De koers/winst is wél valuta-onafhankelijk en loopt alleen uiteen als de winst niet bij die koers hoort.
+
 ## Analyses-pagina (`/analyses`)
 
 Toont de fundamentele analyses uit de aandelenanalyse-pipeline; publiek, geen afscherming.
