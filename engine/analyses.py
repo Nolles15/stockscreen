@@ -154,6 +154,13 @@ def _parse_getal(waarde: str | None) -> float | None:
     waarde = _schoon(waarde)
     if not waarde:
         return None
+    # Een min is niet altijd een koppelteken. Payton's rapport schreef de
+    # upside als '−17,9' met U+2212, het echte minteken, en dat las de regex
+    # hieronder als +17,9 — een positieve upside naast een PASS-oordeel.
+    # Alleen omzetten als er direct een cijfer op volgt, zodat een streepje
+    # in een jaartalreeks ('2020–2024') niets verandert. De kastlijn (—) blijft
+    # met rust: die betekent in deze rapporten 'geen waarde'.
+    waarde = re.sub(r"[−–](?=\d)", "-", waarde)
     m = re.search(r"[-+]?\d[\d.,]*", waarde)
     if not m:
         return None

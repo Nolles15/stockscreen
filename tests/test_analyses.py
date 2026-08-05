@@ -130,6 +130,9 @@ def _app(market_data=None, db_kapot=False) -> Flask:
 def test_getalnotatie_europees_en_amerikaans():
     """Regressie: '1.239,40' werd 1,239 en gaf ASML +114476% upside."""
     gevallen = [
+        ("−17,9", -17.9),   # echt minteken (U+2212), niet het koppelteken
+        ("–17,9", -17.9),   # halve kastlijn als min
+        ("2020–2024", 2020),  # maar niet in een jaartalreeks
         ("1.239,40", 1239.40),   # EUR: punt is duizendtal
         ("93.79", 93.79),        # USD: punt is decimaal
         ("57,56", 57.56),
