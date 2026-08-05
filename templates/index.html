@@ -1110,11 +1110,21 @@ function rowHtml(r) {
     hrBadge = ` <span class="text-xs px-1 rounded ${color}" title="EV/EBITDA: huidig ${currEv} vs. ${hr.years_available}-jaars mediaan ${medEv}">${sign}${pct.toFixed(0)}%</span>`;
   }
 
+  // Naam en oordeelpil naast elkaar in een flexrij, niet samen in één
+  // afkappende cel. Met `truncate` op de cel zelf viel de pil buiten de 160px
+  // en was hij onzichtbaar bij elke bedrijfsnaam die langer was dan het vakje —
+  // hij stond er wel, je zag hem alleen nooit. Nu kapt alleen de naam af.
+  const naamCel = `<td class="px-3 py-2.5 text-slate-300">
+      <div class="flex items-center gap-1">
+        <span class="truncate max-w-[160px]" title="${(r.name||'').replace(/"/g,"'")}">${r.name||'—'}</span>${oordeelPil(r)}
+      </div>
+    </td>`;
+
   return `<tr class="hover:bg-slate-800/40 transition ${rowBorder}">
     <td class="px-3 py-2.5 font-mono font-semibold">
       <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${dqBadge}${boekjaarBadge(r)}${newBadge}${hrBadge}${warn}
     </td>
-    <td class="px-3 py-2.5 text-slate-300 max-w-[160px] truncate" title="${r.name||''}">${r.name||'—'}${oordeelPil(r)}</td>
+    ${naamCel}
     <td class="px-3 py-2.5 text-right">${fmtMoney(r.price, r.currency)}</td>
     <td class="px-3 py-2.5 text-right font-semibold">${fmtMoney(r.combined_fv, r.currency)}${confidenceBadge(r)}</td>
     <td class="px-3 py-2.5 text-right ${mosClass}">
