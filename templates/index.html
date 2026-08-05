@@ -493,7 +493,9 @@ function oordeelPil(r) {
 
   const uitleg = [OORDEEL_UITLEG[o.oordeel] || o.soort, oordeelDatum(o.datum)];
   if (o.via) uitleg.push(`beoordeeld op ${o.via} — zelfde bedrijf, andere notering`);
-  if (o.koers_verschil !== null && o.koers_verschil !== undefined) {
+  // Onder een procent is het afrondingsruis; '+0% sinds toen' zegt niets.
+  if (o.koers_verschil !== null && o.koers_verschil !== undefined
+      && Math.abs(o.koers_verschil) >= 1) {
     const p = Math.round(o.koers_verschil);
     uitleg.push(`koers ${p > 0 ? '+' : ''}${p}% sinds toen`);
   }

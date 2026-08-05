@@ -259,6 +259,16 @@ def test_detailpagina_noemt_de_andere_notering():
     print("  [OK] de detailpagina noemt de andere notering en de veroudering")
 
 
+def test_detailpagina_zwijgt_over_een_koers_die_niet_bewoog():
+    """'Sindsdien bewoog de koers +0%' is ruis, geen mededeling."""
+    oordeel = {"oordeel": "TWIJFEL", "soort": "tussencheck", "datum": "2026-08-01",
+               "link": "/tussenchecks/HUG", "via": None, "verouderd": False,
+               "koers_verschil": 0.0}
+    html = _omgeving().get_template("stock.html").render(**_context(oordeel))
+    assert "Sindsdien bewoog de koers" not in html
+    print("  [OK] een koersverschil onder een procent blijft weg")
+
+
 def test_detailpagina_zonder_oordeel_blijft_heel():
     html = _omgeving().get_template("stock.html").render(**_context(None))
     assert "Tussencheck:" not in html

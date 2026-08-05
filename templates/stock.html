@@ -62,7 +62,8 @@
       Het oordeel is gemaakt op <strong>{{ oordeel.via }}</strong>, een andere notering van
       hetzelfde bedrijf.
     {% endif %}
-    {% if oordeel.koers_verschil is not none %}
+    {# Onder een procent is het afrondingsruis; '+0%' zegt niets en leidt af. #}
+    {% if oordeel.koers_verschil is not none and oordeel.koers_verschil | abs >= 1 %}
       Sindsdien bewoog de koers <strong>{{ oordeel.koers_verschil | pct }}</strong>.
     {% endif %}
     {% if oordeel.verouderd %}
