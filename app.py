@@ -25,6 +25,7 @@ from engine import data_quality
 from engine import markets
 from engine import normalizer
 from engine import moat_profile
+from engine import oordelen
 from engine import refresh
 from engine import remap_rules
 from engine.data_fetcher import (
@@ -183,6 +184,10 @@ def stock_detail(ticker):
         overrides=override_list,
         override_set=override_set,
         hist_mult=hist_mult,
+        oordeel=oordelen.voor_ticker(
+            ticker, stock.get("name"),
+            (market or {}).get("price"), stock.get("currency"),
+        ),
         config=cfg,
     )
 
@@ -215,6 +220,19 @@ def _filter_bedrag(waarde) -> str:
         return "—"
     heel, _, decimalen = f"{waarde:,.2f}".partition(".")
     return heel.replace(",", ".") + "," + decimalen
+
+
+_MAANDEN = ["januari", "februari", "maart", "april", "mei", "juni",
+            "juli", "augustus", "september", "oktober", "november", "december"]
+
+
+@app.template_filter("datum_nl")
+def _filter_datum_nl(waarde) -> str:
+    """'2026-08-03' -> '3 augustus 2026'. Onherkenbaar blijft onveranderd."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", (waarde or "").strip())
+    if not m:
+        return waarde or "onbekende datum"
+    return f"{int(m.group(3))} {_MAANDEN[int(m.group(2)) - 1]} {m.group(1)}"
 
 
 def _verrijk_met_actuele_koers(analyse: dict) -> dict:
@@ -609,6 +627,10 @@ def api_dashboard():
         })
 
     _add_rank_scores(rows)
+    # Wat jij al onderzocht hebt weegt zwaarder dan wat de screener rekent, dus
+    # het oordeel uit de rapporten reist mee naar het dashboard. Het verandert
+    # de rangorde niet — het maakt alleen zichtbaar wat er al bekend is.
+    oordelen.verrijk(rows)
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
     return jsonify(_sanitize(rows))
 

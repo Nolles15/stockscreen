@@ -62,6 +62,11 @@
 
 <p id="tab-uitleg" class="text-slate-400 text-sm mb-3"></p>
 
+<!-- Wat er al over deze lijst bekend is: hoeveel er onderzocht zijn en of er
+     regels bij zitten die hetzelfde bedrijf twee keer laten meetellen. Staat
+     bóven de tabel omdat het over de lijst als geheel gaat, niet over één rij. -->
+<p id="onderzoek-strook" class="text-slate-500 text-xs mb-3 hidden"></p>
+
 <!-- Filters — alleen zinvol op het tabblad "Alles" -->
 <div id="filterbalk" class="flex flex-wrap gap-3 mb-4 text-sm hidden">
   <select id="filter-market" onchange="renderTable()"
@@ -457,6 +462,97 @@ function renderActiveTab() {
   renderFocus(tab);
 }
 
+// ---- Onderzoeksoordelen ----------------------------------------------------
+// De uitslag van een tussencheck of een volledige analyse, als die er ligt.
+// De lijst verandert er niet van: een afgekeurd aandeel blijft staan, maar je
+// ziet meteen dát je er al naar gekeken hebt en wat eruit kwam. Zonder dit
+// stonden er op 4 augustus 2026 vier onderzochte aandelen in de top twintig
+// zonder dat de pagina dat wist — twee ervan hetzelfde bedrijf op OVERSLAAN.
+
+const OORDEEL_UITLEG = {
+  OVERSLAAN: 'Tussencheck: geen volledige analyse waard',
+  TWIJFEL:   'Tussencheck: twijfelgeval, nog geen conclusie',
+  VERDIEPEN: 'Tussencheck: verdient een volledige analyse',
+  KOOP:      'Volledige analyse: koopwaardig op de peildatum',
+  HOLD:      'Volledige analyse: goed bedrijf, niet goedkoop genoeg',
+  PASS:      'Volledige analyse: niet kopen op deze koers',
+};
+
+const MAANDEN = ['januari','februari','maart','april','mei','juni',
+                 'juli','augustus','september','oktober','november','december'];
+
+function oordeelDatum(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return iso || 'onbekende datum';
+  return `${Number(m[3])} ${MAANDEN[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+function oordeelPil(r) {
+  const o = r.oordeel;
+  if (!o || !o.oordeel) return '';
+
+  const uitleg = [OORDEEL_UITLEG[o.oordeel] || o.soort, oordeelDatum(o.datum)];
+  if (o.via) uitleg.push(`beoordeeld op ${o.via} — zelfde bedrijf, andere notering`);
+  if (o.koers_verschil !== null && o.koers_verschil !== undefined) {
+    const p = Math.round(o.koers_verschil);
+    uitleg.push(`koers ${p > 0 ? '+' : ''}${p}% sinds toen`);
+  }
+  if (o.verouderd) uitleg.push('ouder dan een jaar — mag opnieuw bekeken worden');
+
+  // ⏳ betekent: dit oordeel is oud genoeg om te herzien. ↗ betekent: het is op
+  // een andere notering gemaakt. Allebei staan ze ook uitgeschreven in de tip.
+  const merk = o.verouderd ? ' ⏳' : (o.via ? ' ↗' : '');
+  const tip = uitleg.join(' · ').replace(/"/g, "'");
+  return ` <a href="${o.link}" class="oordeel oordeel-${o.oordeel}" title="${tip}">${o.oordeel}${merk}</a>`;
+}
+
+// Tweede noteringen van hetzelfde bedrijf. Silvano bezette op 4 augustus 2026
+// twee van de twintig plekken in Kansen (SFG.WA en SFG1T.TL), wat de lijst
+// negentien bedrijven maakte terwijl er twintig regels stonden. Ze verdwijnen
+// niet — ze worden alleen als zodanig aangewezen.
+function markeerDubbeleNoteringen(rows) {
+  const eerste = new Map();
+  for (const r of rows) {
+    const naam = (r.name || '').trim().toLowerCase();
+    r._tweede_notering = naam ? (eerste.get(naam) || null) : null;
+    if (naam && !eerste.has(naam)) eerste.set(naam, r.ticker);
+  }
+}
+
+function noteringPil(r) {
+  if (!r._tweede_notering) return '';
+  return ` <span class="oordeel oordeel-neutraal" title="Zelfde bedrijf als ${r._tweede_notering}, andere beurs — dit is geen extra bedrijf in de lijst.">2e notering</span>`;
+}
+
+function onderzoekStrook(rows) {
+  const onderzocht = rows.filter(r => r.oordeel && r.oordeel.oordeel);
+  const dubbel = rows.filter(r => r._tweede_notering);
+  const zinnen = [];
+
+  if (onderzocht.length) {
+    const telling = {};
+    for (const r of onderzocht) {
+      telling[r.oordeel.oordeel] = (telling[r.oordeel.oordeel] || 0) + 1;
+    }
+    const opsomming = Object.entries(telling).map(([k, v]) => `${v}× ${k}`).join(', ');
+    zinnen.push(`${onderzocht.length} van deze ${rows.length} ` +
+                `${onderzocht.length === 1 ? 'is' : 'zijn'} al onderzocht: ${opsomming}.`);
+  }
+  if (dubbel.length) {
+    zinnen.push(dubbel.length === 1
+      ? '1 regel is een tweede notering van een bedrijf dat er al staat.'
+      : `${dubbel.length} regels zijn tweede noteringen van bedrijven die er al staan.`);
+  }
+  return zinnen.join(' ');
+}
+
+function toonOnderzoekStrook(tekst) {
+  const el = document.getElementById('onderzoek-strook');
+  if (!el) return;
+  el.textContent = tekst || '';
+  el.classList.toggle('hidden', !tekst);
+}
+
 // Eén regel uitleg in gewone taal, zodat je niet eerst de kolomkoppen hoeft te
 // ontcijferen om te snappen waarom iets in de lijst staat.
 function eenRegelUitleg(r) {
@@ -482,6 +578,9 @@ function renderFocus(tab) {
   const rows = tab.select(zichtbareRijen());
   const head = document.getElementById('focus-head');
   const body = document.getElementById('focus-body');
+
+  markeerDubbeleNoteringen(rows);
+  toonOnderzoekStrook(onderzoekStrook(rows));
 
   // Uitlijning expliciet per kolom, niet op positie — anders verschuift die zodra
   // er een kolom bij komt.
@@ -512,7 +611,7 @@ function renderFocus(tab) {
     const cel = `<td class="px-3 py-2"><button onclick="togglePin('${r.ticker}', event)"
         class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button></td>
       <td class="px-3 py-2 whitespace-nowrap"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>${boekjaarBadge(r)}</td>
-      <td class="px-3 py-2 text-slate-300">${r.name || ''}</td>`;
+      <td class="px-3 py-2 text-slate-300">${r.name || ''}${oordeelPil(r)}${noteringPil(r)}</td>`;
 
     if (tab.id === 'geenoordeel') {
       return `<tr class="hover:bg-slate-800/40">${cel}
@@ -611,6 +710,10 @@ function renderTable() {
     if (typeof av === 'string') return _sortDir * av.localeCompare(bv);
     return _sortDir * ((av > bv ? 1 : av < bv ? -1 : 0));
   });
+
+  // De strook telt "hoeveel van deze lijst zijn onderzocht"; over duizenden
+  // rijen zegt dat niets, dus op het tabblad Alles blijft hij weg.
+  toonOnderzoekStrook('');
 
   const tbody = document.getElementById('table-body');
   if (!rows.length) {
@@ -867,7 +970,7 @@ function rowHtml(r) {
     <td class="px-3 py-2.5 font-mono font-semibold">
       <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline">${r.ticker}</a>${dqBadge}${boekjaarBadge(r)}${newBadge}${hrBadge}${warn}
     </td>
-    <td class="px-3 py-2.5 text-slate-300 max-w-[160px] truncate" title="${r.name||''}">${r.name||'—'}</td>
+    <td class="px-3 py-2.5 text-slate-300 max-w-[160px] truncate" title="${r.name||''}">${r.name||'—'}${oordeelPil(r)}</td>
     <td class="px-3 py-2.5 text-right">${fmtMoney(r.price, r.currency)}</td>
     <td class="px-3 py-2.5 text-right font-semibold">${fmtMoney(r.combined_fv, r.currency)}${confidenceBadge(r)}</td>
     <td class="px-3 py-2.5 text-right ${mosClass}">

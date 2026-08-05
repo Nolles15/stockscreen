@@ -170,6 +170,28 @@ def _parse_getal(waarde: str | None) -> float | None:
         return None
 
 
+_VALUTA_TEKENS = {"€": "EUR", "$": "USD", "£": "GBP"}
+
+
+def _valuta_uit(waarde: str | None) -> str | None:
+    """Valutacode uit een koersnotatie: '€6,72' -> EUR, '4,49 PLN' -> PLN.
+
+    De tussenchecks noteren de koers los, zonder apart valutaveld, en doen dat
+    in twee vormen: symbool ervoor of code erachter. Zonder herkenbare valuta
+    liever None dan een gok — de code wordt gebruikt om te bepalen of een
+    koersvergelijking überhaupt mag.
+    """
+    if not waarde:
+        return None
+    m = re.search(r"\b([A-Z]{3})\b", waarde)
+    if m:
+        return m.group(1)
+    for teken, code in _VALUTA_TEKENS.items():
+        if teken in waarde:
+            return code
+    return None
+
+
 def _sectie_id(nr: int, titel: str) -> tuple[str, str]:
     """(anker-id, kort label voor de nav)."""
     return f"sectie-{nr}", _kort(titel)
@@ -344,6 +366,8 @@ def _parse_tussencheck(pad: str) -> dict:
         "oordeel": oordeel,
         "datum": datum,
         "koers": koers,
+        "koers_getal": _parse_getal(koers),
+        "valuta": _valuta_uit(koers),
         "beurswaarde": beurswaarde,
         "beurs": beurs,
         "initiaal": (ticker_uit_naam[:1] or "?").upper(),

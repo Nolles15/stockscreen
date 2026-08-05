@@ -38,6 +38,45 @@
 </div>
 {% endif %}
 
+{# Wat er al over dit aandeel is uitgezocht. Staat vóór de cijfers omdat het
+   ouder én zwaarwegender is dan de rekensom eronder: de screener kent alleen
+   de getallen, het rapport keek naar het bedrijf. #}
+{% if oordeel %}
+{% set tint = {'KOOP': 'buy', 'VERDIEPEN': 'buy',
+               'HOLD': 'hold', 'TWIJFEL': 'hold',
+               'PASS': 'pass', 'OVERSLAAN': 'pass'}.get(oordeel.oordeel, 'hold') %}
+<div class="rounded-xl p-4 mb-6"
+     style="background: var(--{{ tint }}-bg); border: 1px solid var(--{{ tint }}-border);">
+  <h3 class="font-semibold text-sm mb-1" style="color: var(--{{ tint }});">
+    {{ 'Volledige analyse' if oordeel.soort == 'analyse' else 'Tussencheck' }}: {{ oordeel.oordeel }}
+  </h3>
+  <p class="text-sm leading-relaxed text-slate-400">
+    {% if oordeel.soort == 'analyse' %}
+      Er ligt een volledige fundamentele analyse met peildatum
+      <strong>{{ oordeel.datum | datum_nl }}</strong>.
+    {% else %}
+      Er ligt een tussencheck van <strong>{{ oordeel.datum | datum_nl }}</strong> — de vraag of
+      dit aandeel een volledige analyse waard is, niet de analyse zelf.
+    {% endif %}
+    {% if oordeel.via %}
+      Het oordeel is gemaakt op <strong>{{ oordeel.via }}</strong>, een andere notering van
+      hetzelfde bedrijf.
+    {% endif %}
+    {% if oordeel.koers_verschil is not none %}
+      Sindsdien bewoog de koers <strong>{{ oordeel.koers_verschil | pct }}</strong>.
+    {% endif %}
+    {% if oordeel.verouderd %}
+      Dit oordeel is ouder dan een jaar; er zijn inmiddels nieuwe cijfers, dus het mag
+      opnieuw tegen het licht.
+    {% endif %}
+  </p>
+  <a href="{{ oordeel.link }}" class="text-sm font-medium inline-block mt-2"
+     style="color: var(--{{ tint }});">
+    {{ 'Lees de analyse' if oordeel.soort == 'analyse' else 'Lees de tussencheck' }} →
+  </a>
+</div>
+{% endif %}
+
 <!-- Header -->
 <div class="flex items-start justify-between flex-wrap gap-4 mb-6">
   <div>
