@@ -130,7 +130,7 @@ def _koers_verschil(rij: dict, rapport: dict) -> float | None:
 
     None zodra er iets niet zeker is: geen koers in het rapport, een andere
     valuta, of een koppeling via de bedrijfsnaam (dan is het een andere
-    notering en zegt het verschil niets).
+    notering in een andere valuta en zegt het verschil niets).
     """
     toen, nu = rapport.get("koers_getal"), rij.get("price")
     if not toen or not nu or toen <= 0:
@@ -160,14 +160,16 @@ def verrijk(rijen: list[dict]) -> None:
             per_naam[rapport["naam_key"]] = rapport
 
     # id() als sleutel: de rijen zijn dicts en dus niet hashbaar, en twee rijen
-    # met dezelfde inhoud bestaan hier niet (de ticker is uniek).
-    gekoppeld: dict[int, tuple[dict, str | None]] = {}
+    # met dezelfde inhoud bestaan hier niet (de ticker is uniek). De waarde is
+    # (rapport, via, via_naam): op wélke notering het oordeel gemaakt is, en of
+    # de koppeling überhaupt via de bedrijfsnaam liep.
+    gekoppeld: dict[int, tuple[dict, str | None, bool]] = {}
 
     # 1. Exact op Yahoo-symbool.
     for rij in rijen:
         rapport = per_symbool.get((rij.get("ticker") or "").upper())
         if rapport:
-            gekoppeld[id(rij)] = (rapport, None)
+            gekoppeld[id(rij)] = (rapport, None, False)
 
     # 2. Op de kale ticker, maar alleen als het niet dubbelzinnig is.
     per_kaal: dict[str, list[dict]] = {}
@@ -178,37 +180,43 @@ def verrijk(rijen: list[dict]) -> None:
         if len(kandidaten) > 1:
             kandidaten = [r for r in kandidaten if _naam_key(r.get("name")) == rapport["naam_key"]]
         for rij in kandidaten:
-            gekoppeld.setdefault(id(rij), (rapport, None))
+            gekoppeld.setdefault(id(rij), (rapport, None, False))
 
     # 3. Op bedrijfsnaam — de andere noteringen van hetzelfde bedrijf. Zowel de
     #    naam uit het rapport als de naam die de screener aan de al gekoppelde
     #    notering geeft; die twee zijn niet altijd identiek gespeld.
-    via_naam = dict(per_naam)
+    #
+    #    `via` moet een ticker zijn die de screener kent, want de pagina noemt
+    #    hem. Staat de andere notering niet in dezelfde set rijen — op een
+    #    detailpagina kijken we naar één aandeel — dan blijft `via` leeg en
+    #    vertelt alleen `via_naam` dát het oordeel elders gemaakt is.
+    namen = dict(per_naam)
     for rij in rijen:
         koppeling = gekoppeld.get(id(rij))
         sleutel = _naam_key(rij.get("name"))
-        if koppeling and sleutel and koppeling[1] is None:
-            via_naam[sleutel] = {**koppeling[0], "_bron_ticker": rij.get("ticker")}
+        if koppeling and sleutel and not koppeling[2]:
+            namen[sleutel] = {**koppeling[0], "_bron_ticker": rij.get("ticker")}
     for rij in rijen:
         if id(rij) in gekoppeld:
             continue
-        rapport = via_naam.get(_naam_key(rij.get("name")))
+        rapport = namen.get(_naam_key(rij.get("name")))
         if rapport:
-            gekoppeld[id(rij)] = (rapport, rapport.get("_bron_ticker") or rapport["ticker"])
+            gekoppeld[id(rij)] = (rapport, rapport.get("_bron_ticker"), True)
 
     for rij in rijen:
         koppeling = gekoppeld.get(id(rij))
         if not koppeling:
             continue
-        rapport, via = koppeling
+        rapport, via, via_naam = koppeling
         rij["oordeel"] = {
             "oordeel": rapport["oordeel"],
             "soort": rapport["soort"],
             "datum": rapport["datum"],
             "link": rapport["link"],
             "via": via,
+            "via_naam": via_naam,
             "verouderd": _verouderd(rapport["datum"]),
-            "koers_verschil": None if via else _koers_verschil(rij, rapport),
+            "koers_verschil": None if via_naam else _koers_verschil(rij, rapport),
         }
 
 

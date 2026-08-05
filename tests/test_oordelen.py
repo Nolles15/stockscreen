@@ -47,10 +47,25 @@ def test_beide_noteringen_krijgen_hetzelfde_oordeel():
     assert warschau["oordeel"]["via"] is None, "dit is de notering uit het rapport zelf"
 
     assert tallinn["oordeel"]["oordeel"] == "OVERSLAAN"
+    assert tallinn["oordeel"]["via_naam"] is True
     assert tallinn["oordeel"]["via"] == "SFG.WA", (
         "een oordeel via de bedrijfsnaam moet vertellen wáár het gemaakt is"
     )
     print("  [OK] SFG.WA en SFG1T.TL krijgen allebei OVERSLAAN")
+
+
+def test_via_noemt_alleen_een_ticker_die_bestaat():
+    """Op een detailpagina staat de andere notering niet in dezelfde set rijen.
+
+    Dan mag `via` niet de kale ticker uit het rapport worden: '/stock/SFG1T.TL'
+    zou anders melden dat het oordeel op 'SFG' is gemaakt, en die ticker kent
+    de screener niet.
+    """
+    oordeel = oordelen.voor_ticker("SFG1T.TL", "AS Silvano Fashion Group", 0.95, "EUR")
+    assert oordeel["oordeel"] == "OVERSLAAN"
+    assert oordeel["via"] is None
+    assert oordeel["via_naam"] is True
+    print("  [OK] via blijft leeg als de andere notering niet in beeld is")
 
 
 def test_yahoo_symbool_koppelt_exact():
@@ -161,7 +176,7 @@ def test_naam_van_de_screener_telt_ook_mee():
         tweede = _rij("ABC9Z.TL", "Voorbeeld Group AS")
         oordelen.verrijk([eerste, tweede])
 
-    assert eerste["oordeel"]["via"] is None
+    assert eerste["oordeel"]["via"] is None and eerste["oordeel"]["via_naam"] is False
     assert tweede["oordeel"]["via"] == "ABC.WA"
     print("  [OK] de naam uit de screener koppelt de tweede notering mee")
 
@@ -250,13 +265,25 @@ def test_detailpagina_toont_de_uitslag():
 
 def test_detailpagina_noemt_de_andere_notering():
     oordeel = {"oordeel": "OVERSLAAN", "soort": "tussencheck", "datum": "2026-08-03",
-               "link": "/tussenchecks/SFG", "via": "SFG.WA", "verouderd": True,
-               "koers_verschil": None}
+               "link": "/tussenchecks/SFG", "via": "SFG.WA", "via_naam": True,
+               "verouderd": True, "koers_verschil": None}
     html = _omgeving().get_template("stock.html").render(**_context(oordeel))
 
-    assert "SFG.WA" in html
+    assert "gemaakt op <strong>SFG.WA</strong>" in html
     assert "ouder dan een jaar" in html
     print("  [OK] de detailpagina noemt de andere notering en de veroudering")
+
+
+def test_detailpagina_verzint_geen_ticker_voor_de_andere_notering():
+    """Zonder bekende zusternotering blijft de zin algemeen."""
+    oordeel = {"oordeel": "OVERSLAAN", "soort": "tussencheck", "datum": "2026-08-03",
+               "link": "/tussenchecks/SFG", "via": None, "via_naam": True,
+               "verouderd": False, "koers_verschil": None}
+    html = _omgeving().get_template("stock.html").render(**_context(oordeel))
+
+    assert "op een andere notering van hetzelfde bedrijf" in html
+    assert "gemaakt op <strong>" not in html
+    print("  [OK] zonder bekende zusternotering blijft de zin algemeen")
 
 
 def test_detailpagina_zwijgt_over_een_koers_die_niet_bewoog():

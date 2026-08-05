@@ -61,6 +61,8 @@
     {% if oordeel.via %}
       Het oordeel is gemaakt op <strong>{{ oordeel.via }}</strong>, een andere notering van
       hetzelfde bedrijf.
+    {% elif oordeel.via_naam %}
+      Het oordeel is gemaakt op een andere notering van hetzelfde bedrijf.
     {% endif %}
     {# Onder een procent is het afrondingsruis; '+0%' zegt niets en leidt af. #}
     {% if oordeel.koers_verschil is not none and oordeel.koers_verschil | abs >= 1 %}

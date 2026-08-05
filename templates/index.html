@@ -493,6 +493,7 @@ function oordeelPil(r) {
 
   const uitleg = [OORDEEL_UITLEG[o.oordeel] || o.soort, oordeelDatum(o.datum)];
   if (o.via) uitleg.push(`beoordeeld op ${o.via} — zelfde bedrijf, andere notering`);
+  else if (o.via_naam) uitleg.push('beoordeeld op een andere notering van hetzelfde bedrijf');
   // Onder een procent is het afrondingsruis; '+0% sinds toen' zegt niets.
   if (o.koers_verschil !== null && o.koers_verschil !== undefined
       && Math.abs(o.koers_verschil) >= 1) {
@@ -503,7 +504,7 @@ function oordeelPil(r) {
 
   // ⏳ betekent: dit oordeel is oud genoeg om te herzien. ↗ betekent: het is op
   // een andere notering gemaakt. Allebei staan ze ook uitgeschreven in de tip.
-  const merk = o.verouderd ? ' ⏳' : (o.via ? ' ↗' : '');
+  const merk = o.verouderd ? ' ⏳' : ((o.via || o.via_naam) ? ' ↗' : '');
   const tip = uitleg.join(' · ').replace(/"/g, "'");
   return ` <a href="${o.link}" class="oordeel oordeel-${o.oordeel}" title="${tip}">${o.oordeel}${merk}</a>`;
 }
