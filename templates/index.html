@@ -48,6 +48,21 @@
     <option value="">Alle sectoren</option>
   </select>
 
+  {# Signaal hoort bij Land en Sector en niet in de filterbalk onder "Alles":
+     hij filtert vóór de selectie van een tabblad, dus "alleen koopwaardig"
+     geeft de twintig beste kóópwaardige aandelen in plaats van een gehalveerde
+     top twintig. #}
+  <label for="filter-signaal" class="text-slate-400 ml-2">Signaal</label>
+  <select id="filter-signaal" onchange="kiesSignaal(this.value)"
+    class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-500">
+    <option value="">Alle signalen</option>
+    <option value="koop">Koopwaardig (STRONG BUY + BUY)</option>
+    <option value="STRONG BUY">STRONG BUY</option>
+    <option value="BUY">BUY</option>
+    <option value="HOLD">HOLD</option>
+    <option value="SELL">SELL</option>
+  </select>
+
   <button id="filter-wis" onclick="wisFilters()"
     class="text-slate-400 hover:text-slate-200 underline underline-offset-2 hidden">
     toon alles
@@ -74,15 +89,17 @@
     <option value="">Alle markten</option>
   </select>
 
+  {# Alleen de redenen waarom er géén oordeel is. Het signaal zelf (STRONG BUY,
+     BUY, …) staat nu in de balk boven de tabbladen en werkt daar op álle
+     tabbladen; het hier nog eens aanbieden gaf twee filters over dezelfde
+     kolom, die elkaar stilzwijgend konden uitsluiten. #}
   <select id="filter-signal" onchange="renderTable()"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
-    <option value="">Alle signalen</option>
-    <option>STRONG BUY</option><option>BUY</option>
-    <option>HOLD</option><option>SELL</option>
-    <option value="reason:geen_data">— Geen data</option>
-    <option value="reason:databug">— Databug</option>
-    <option value="reason:geen_fv">— Geen FV (verlies)</option>
-    <option value="reason:growth">— 🌱 Kansen (verlies + groei)</option>
+    <option value="">Alles, ook zonder oordeel</option>
+    <option value="reason:geen_data">Geen data</option>
+    <option value="reason:databug">Databug</option>
+    <option value="reason:geen_fv">Geen FV (verlies)</option>
+    <option value="reason:growth">🌱 Kansen (verlies + groei)</option>
   </select>
 
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
@@ -131,7 +148,7 @@
         <th class="px-3 py-3 text-right sortable" data-col="normalized_fcf_m" title="Genormaliseerde free cash flow — meerjaarlijks gemiddelde na uitschieters — in miljoenen native valuta">FCF</th>
         <th class="px-3 py-3 text-center sortable" data-col="quality_score" title="Kwaliteitsscore 0–10: meet winstgevendheid (ROE/ROIC), balanssterkte, EPS/FCF-stabiliteit en Piotroski F-Score">Kwaliteit</th>
         <th class="px-3 py-3 text-center sortable" data-col="piotroski_score" title="Piotroski F-Score 0–9: negen boekhoudkundige criteria voor financiële gezondheid. ≥7 = sterk, ≤2 = zwak">Piotroski</th>
-        <th class="px-3 py-3 text-center" title="Koopadvies op basis van kwaliteitsscore en prijs ten opzichte van fair value. Hover op het signaal voor de uitleg.">Signaal</th>
+        <th class="px-3 py-3 text-center sortable" data-col="signal" title="Koopadvies op basis van kwaliteitsscore en prijs ten opzichte van fair value. Hover op het signaal voor de uitleg. Sorteert op sterkte, niet alfabetisch.">Signaal</th>
         <th class="px-3 py-3 text-left sortable" data-col="sector" title="Bedrijfssector volgens Yahoo Finance. Hover op de sectornaam voor een toelichting.">Sector</th>
         <th class="px-3 py-3 text-center sortable" data-col="market" title="Beursindex of -markt waarop het aandeel noteert">Markt</th>
         <th class="px-3 py-3 text-right sortable" data-col="market_cap_m" title="Marktkapitalisatie in miljoenen native valuta (koers × uitstaande aandelen)">M.Cap</th>
@@ -274,10 +291,19 @@ const LAND_PER_SUFFIX = {
   AX: 'Australië',      TO: 'Canada',
 };
 
-const LAND_KEY   = 'stockscreen.land';
-const SECTOR_KEY = 'stockscreen.sector';
-let _actiefLand   = localStorage.getItem(LAND_KEY) || '';
+const LAND_KEY    = 'stockscreen.land';
+const SECTOR_KEY  = 'stockscreen.sector';
+const SIGNAAL_KEY = 'stockscreen.signaal';
+let _actiefLand    = localStorage.getItem(LAND_KEY) || '';
 let _actieveSector = localStorage.getItem(SECTOR_KEY) || '';
+let _actiefSignaal = localStorage.getItem(SIGNAAL_KEY) || '';
+
+// Rangorde van de signalen, voor sorteren. Alfabetisch geeft BUY, HOLD, SELL,
+// STRONG BUY — precies de verkeerde volgorde.
+const SIGNAAL_RANG = {
+  'STRONG BUY': 5, 'BUY': 4, 'HOLD': 3, 'SELL': 2,
+  'INSUFFICIENT DATA': 1, 'N/A': 0,
+};
 
 function landVan(ticker) {
   if (!ticker.includes('.')) return 'Verenigde Staten';
@@ -295,10 +321,19 @@ function rijenNaLand() {
   return _allRows.filter(r => landVan(r.ticker) === _actiefLand);
 }
 
+// Signaal filteren gebeurt hier, dus vóór een tabblad zijn selectie maakt.
+// "Koopwaardig" op Kansen levert daardoor de twintig beste koopwaardige
+// aandelen, en niet de handvol die van de bestaande top twintig overblijft.
+function pastBijSignaal(r) {
+  if (!_actiefSignaal) return true;
+  if (_actiefSignaal === 'koop') return r.signal === 'STRONG BUY' || r.signal === 'BUY';
+  return r.signal === _actiefSignaal;
+}
+
 // Alle tabbladen kijken hierdoorheen, zodat "alleen Nederland" ook geldt voor
 // Kansen en Groeiers en niet alleen voor de grote tabel.
 function zichtbareRijen() {
-  const rijen = rijenNaLand();
+  const rijen = rijenNaLand().filter(pastBijSignaal);
   if (!_actieveSector) return rijen;
   return rijen.filter(r => sectorVan(r) === _actieveSector);
 }
@@ -361,20 +396,35 @@ function kiesSector(waarde) {
   renderActiveTab();
 }
 
+function kiesSignaal(waarde) {
+  _actiefSignaal = waarde;
+  localStorage.setItem(SIGNAAL_KEY, waarde);
+  vulSectorFilter();   // andere selectie, andere sectortellingen
+  renderTabs();
+  renderActiveTab();
+}
+
 // Zichtbaar maken dát er gefilterd is; anders leest een korte lijst als
 // "er zijn geen kansen" terwijl je naar één sector in één land kijkt.
 function actieveFilterTekst() {
-  if (_actiefLand && _actieveSector) return `in ${_actiefLand}, sector ${_actieveSector}`;
-  if (_actiefLand)   return `in ${_actiefLand}`;
-  if (_actieveSector) return `in sector ${_actieveSector}`;
-  return '';
+  const delen = [];
+  if (_actiefLand)    delen.push(`in ${_actiefLand}`);
+  if (_actieveSector) delen.push(`sector ${_actieveSector}`);
+  if (_actiefSignaal) {
+    delen.push(_actiefSignaal === 'koop' ? 'alleen koopwaardig' : `signaal ${_actiefSignaal}`);
+  }
+  return delen.join(', ');
 }
 
 function wisFilters() {
   _actiefLand = '';
   _actieveSector = '';
+  _actiefSignaal = '';
   localStorage.setItem(LAND_KEY, '');
   localStorage.setItem(SECTOR_KEY, '');
+  localStorage.setItem(SIGNAAL_KEY, '');
+  const sel = document.getElementById('filter-signaal');
+  if (sel) sel.value = '';
   vulLandFilter();
   vulSectorFilter();
   renderTabs();
@@ -440,6 +490,9 @@ function renderTabs() {
 function kiesTab(id) {
   _actieveTab = id;
   localStorage.setItem(TAB_KEY, id);
+  // Elk tabblad heeft zijn eigen natuurlijke volgorde; een sortering die je op
+  // Kansen koos hoort niet mee te reizen naar Groeiers.
+  _focusSortCol = null;
   renderTabs();
   renderActiveTab();
 }
@@ -451,7 +504,7 @@ function renderActiveTab() {
   // Zichtbaar maken dát er gefilterd is; anders lijkt een korte lijst al gauw
   // op "er zijn geen kansen" terwijl je naar één land kijkt.
   const wis = document.getElementById('filter-wis');
-  if (wis) wis.classList.toggle('hidden', !_actiefLand && !_actieveSector);
+  if (wis) wis.classList.toggle('hidden', !_actiefLand && !_actieveSector && !_actiefSignaal);
   const isAlles = tab.id === 'alles';
 
   document.getElementById('filterbalk').classList.toggle('hidden', !isAlles);
@@ -577,26 +630,97 @@ function eenRegelUitleg(r) {
   return delen.join(' · ');
 }
 
+// ---- Sorteren op de tabbladen ----------------------------------------------
+// Apart van `_sortCol` van de grote tabel, en bewust leeg bij het openen: elk
+// tabblad heeft een eigen natuurlijke volgorde (Kansen op de gewogen ranglijst,
+// Groeiers op omzetgroei) en die hoort te blijven tot je zelf iets kiest.
+//
+// De selectie verandert niet mee. Klik je op Kansen de kolom Korting aan, dan
+// herschik je de twintig die de ranglijst koos — je haalt er geen ander aandeel
+// bij. Wil je puur op korting kijken, dan is het tabblad Alles daarvoor.
+let _focusSortCol = null;
+let _focusSortDir = -1;
+
+// Sorteerwaarde per kolom. Signalen krijgen een rangorde mee omdat de tekst
+// alfabetisch de verkeerde volgorde geeft.
+function sorteerWaarde(rij, kolom) {
+  if (kolom === 'signal') return SIGNAAL_RANG[rij.signal] ?? -1;
+  return rij[kolom];
+}
+
+function vergelijk(a, b, kolom, richting) {
+  const av = sorteerWaarde(a, kolom);
+  const bv = sorteerWaarde(b, kolom);
+  // Lege waarden zakken altijd naar beneden, ongeacht de richting; anders
+  // vult de bovenkant van de lijst zich met streepjes.
+  const aLeeg = av === null || av === undefined || av === '';
+  const bLeeg = bv === null || bv === undefined || bv === '';
+  if (aLeeg && bLeeg) return 0;
+  if (aLeeg) return 1;
+  if (bLeeg) return -1;
+  if (typeof av === 'string') return richting * av.localeCompare(bv, 'nl');
+  return richting * (av > bv ? 1 : av < bv ? -1 : 0);
+}
+
+function sorteerFocus(rows) {
+  if (!_focusSortCol) return rows;
+  return [...rows].sort((a, b) => vergelijk(a, b, _focusSortCol, _focusSortDir));
+}
+
+function sorteerFocusOp(kolom) {
+  if (_focusSortCol === kolom) {
+    _focusSortDir *= -1;
+  } else {
+    _focusSortCol = kolom;
+    // Getallen wil je bijna altijd eerst van hoog naar laag zien, tekst juist
+    // van A naar Z.
+    _focusSortDir = (kolom === 'ticker' || kolom === 'name' ||
+                     kolom === 'sector' || kolom === 'reason_label') ? 1 : -1;
+  }
+  renderActiveTab();
+}
+
+// Delegatie: de koppen van een tabblad worden bij elke render opnieuw gemaakt,
+// dus een handler die één keer aan de bestaande koppen hangt overleeft de
+// eerste klik niet.
+const _focusHead = document.getElementById('focus-head');
+if (_focusHead) {
+  _focusHead.addEventListener('click', (e) => {
+    const th = e.target.closest('th.sortable');
+    if (th && th.dataset.col) sorteerFocusOp(th.dataset.col);
+  });
+}
+
 function renderFocus(tab) {
-  const rows = tab.select(zichtbareRijen());
+  const rows = sorteerFocus(tab.select(zichtbareRijen()));
   const head = document.getElementById('focus-head');
   const body = document.getElementById('focus-body');
 
   markeerDubbeleNoteringen(rows);
   toonOnderzoekStrook(onderzoekStrook(rows));
 
-  // Uitlijning expliciet per kolom, niet op positie — anders verschuift die zodra
-  // er een kolom bij komt.
+  // Uitlijning en sorteerkolom expliciet per kolom, niet op positie — anders
+  // verschuiven ze zodra er een kolom bij komt. Een lege sleutel betekent:
+  // niet sorteerbaar (de sterkolom en de uitlegkolom).
   const kolommen = tab.id === 'geenoordeel'
-    ? [['', 'l'], ['Ticker', 'l'], ['Naam', 'l'], ['Reden', 'l'], ['Sector', 'r']]
+    ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
+       ['Reden', 'l', 'reason_label'], ['Sector', 'r', 'sector']]
     : tab.id === 'groeiers'
-      ? [['', 'l'], ['Ticker', 'l'], ['Naam', 'l'], ['Sector', 'l'], ['Prijs', 'r'],
-         ['Omzetgroei', 'r'], ['Kwaliteit', 'r'], ['', 'r']]
-      : [['', 'l'], ['Ticker', 'l'], ['Naam', 'l'], ['Sector', 'l'], ['Prijs', 'r'],
-         ['Waarde', 'r'], ['Korting', 'r'], ['Waarom', 'r']];
+      ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
+         ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
+         ['Omzetgroei', 'r', 'revenue_cagr'], ['Kwaliteit', 'r', 'quality_score'], ['', 'r', '']]
+      : [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
+         ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
+         ['Waarde', 'r', 'combined_fv'], ['Korting', 'r', 'margin_of_safety'],
+         ['Waarom', 'r', '']];
 
-  head.innerHTML = kolommen.map(([k, a]) =>
-    `<th class="px-3 py-3 ${a === 'r' ? 'text-right' : 'text-left'}">${k}</th>`).join('');
+  head.innerHTML = kolommen.map(([k, a, col]) => {
+    const uitlijning = a === 'r' ? 'text-right' : 'text-left';
+    if (!col) return `<th class="px-3 py-3 ${uitlijning}">${k}</th>`;
+    const richting = _focusSortCol === col ? (_focusSortDir === 1 ? 'sort-asc' : 'sort-desc') : '';
+    return `<th class="px-3 py-3 ${uitlijning} sortable ${richting}" data-col="${col}"
+      title="Klik om te sorteren op ${k || 'deze kolom'}">${k}</th>`;
+  }).join('');
 
   if (!rows.length) {
     body.innerHTML = `<tr><td colspan="${kolommen.length}" class="text-center py-12 text-slate-500">
@@ -644,7 +768,15 @@ function renderFocus(tab) {
   const totaal = actieveFilterTekst()
     ? `${zichtbareRijen().length} ${actieveFilterTekst()} · ${_allRows.length} in totaal`
     : `${_allRows.length} in totaal`;
-  document.getElementById('row-count').textContent = `${rows.length} aandelen · van ${totaal}`;
+
+  // Bij een eigen sortering op Kansen: zeggen dat de selectie niet meeverandert.
+  // Anders lijkt "gesorteerd op korting" hetzelfde als "de hoogste kortingen",
+  // en dat scheelt hier tientallen aandelen.
+  const sorteernoot = (_focusSortCol && tab.id === 'kansen')
+    ? ' · gesorteerd binnen de twintig van de ranglijst, niet opnieuw geselecteerd'
+    : '';
+  document.getElementById('row-count').textContent =
+    `${rows.length} aandelen · van ${totaal}${sorteernoot}`;
 }
 
 let _allRows = [];
@@ -662,6 +794,7 @@ async function loadDashboard() {
     if (!res.ok) throw new Error('Server fout: ' + res.status + ' ' + res.statusText);
     _allRows = await res.json();
     console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
+    herstelSignaalFilter();
     vulLandFilter();
     vulSectorFilter();
     populateMarketFilter();
@@ -671,6 +804,18 @@ async function loadDashboard() {
     console.error('loadDashboard fout:', e);
     document.getElementById('row-count').textContent = '⚠ Fout bij laden: ' + e.message;
   }
+}
+
+// Het keuzemenu staat vast in de HTML, dus na een herlaadbeurt moet de bewaarde
+// keuze er weer in gezet worden — anders staat er "Alle signalen" terwijl de
+// lijst wel degelijk gefilterd is, en dat is precies het soort stille filter
+// waar je een halfuur naar zoekt.
+function herstelSignaalFilter() {
+  const sel = document.getElementById('filter-signaal');
+  if (!sel) return;
+  const geldig = [...sel.options].some(o => o.value === _actiefSignaal);
+  if (!geldig) _actiefSignaal = '';
+  sel.value = _actiefSignaal;
 }
 
 function populateMarketFilter() {
@@ -706,13 +851,9 @@ function renderTable() {
     return true;
   });
 
-  // Sort
-  rows.sort((a, b) => {
-    const av = a[_sortCol] ?? -Infinity;
-    const bv = b[_sortCol] ?? -Infinity;
-    if (typeof av === 'string') return _sortDir * av.localeCompare(bv);
-    return _sortDir * ((av > bv ? 1 : av < bv ? -1 : 0));
-  });
+  // Sort — dezelfde vergelijking als de tabbladen, zodat "Signaal" ook hier op
+  // sterkte sorteert en lege waarden onderaan blijven.
+  rows.sort((a, b) => vergelijk(a, b, _sortCol, _sortDir));
 
   // De strook telt "hoeveel van deze lijst zijn onderzocht"; over duizenden
   // rijen zegt dat niets, dus op het tabblad Alles blijft hij weg.
@@ -1005,22 +1146,25 @@ function rowHtml(r) {
   </tr>`;
 }
 
-// ---- Sorting ---------------------------------------------------------------
-document.querySelectorAll('.sortable').forEach(th => {
+// ---- Sorting (tabblad "Alles") ---------------------------------------------
+// Bewust afgebakend tot #alles-view: sinds de tabbladen ook sorteerbare koppen
+// hebben, zou een ongerichte querySelectorAll die van beide tabellen te pakken
+// krijgen en de pijltjes door elkaar halen.
+document.querySelectorAll('#alles-view .sortable').forEach(th => {
   th.addEventListener('click', () => {
     const col = th.dataset.col;
     if (_sortCol === col) {
       _sortDir *= -1;
     } else {
       _sortCol = col;
-      _sortDir = col === 'margin_of_safety' ? -1 : 1;
+      _sortDir = (col === 'margin_of_safety' || col === 'signal') ? -1 : 1;
     }
     renderTable();
   });
 });
 
 function updateSortIndicators() {
-  document.querySelectorAll('.sortable').forEach(th => {
+  document.querySelectorAll('#alles-view .sortable').forEach(th => {
     th.classList.remove('sort-asc', 'sort-desc');
     if (th.dataset.col === _sortCol) {
       th.classList.add(_sortDir === 1 ? 'sort-asc' : 'sort-desc');
