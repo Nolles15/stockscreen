@@ -169,8 +169,11 @@ def refresh_prices_bulk(tickers: list[str], config: dict | None = None) -> dict:
     if not tickers:
         return result
 
-    # Bestaande prijzen vooraf ophalen: nodig voor de split-guard.
-    previous = {t: (md or {}).get("price") for t, md in db.get_all_market_data().items()}
+    # Bestaande prijzen vooraf ophalen: nodig voor de split-guard, en de oude
+    # bedrijfswaarde om die mee te laten bewegen (zie hieronder bij fields).
+    _vorige_md = db.get_all_market_data()
+    previous = {t: (md or {}).get("price") for t, md in _vorige_md.items()}
+    previous_ev = {t: (md or {}).get("enterprise_value") for t, md in _vorige_md.items()}
     shares = db.get_latest_shares_outstanding()
     eps = db.get_latest_eps_ttm()
 
@@ -239,6 +242,26 @@ def refresh_prices_bulk(tickers: list[str], config: dict | None = None) -> dict:
             n_shares = shares.get(ticker)
             if n_shares:
                 fields["market_cap"] = price * n_shares
+
+                # Laat de bedrijfswaarde met de koers meebewegen. Deze ronde
+                # verving alleen `market_cap`, terwijl `enterprise_value` bleef
+                # staan tot de volgende jaarcijferronde — en die is er pas na
+                # gemiddeld elf dagen. De EV-consistentiecheck in data_quality
+                # legde dus een verse beurswaarde naast een oude EV en zag een
+                # koersbeweging aan voor een datafout.
+                #
+                # EV = eigen vermogen tegen beurswaarde + nettoschuld, dus bij
+                # ongewijzigde schuld beweegt hij één op één mee met de koers.
+                # We tellen het verschil erbij op in plaats van EV opnieuw uit
+                # mcap + nettoschuld te berekenen: dat laatste zou de check
+                # tegen zijn eigen uitkomst laten toetsen en hem daarmee
+                # betekenisloos maken. Yahoo's eigen getal blijft het anker;
+                # het wordt alleen naar vandaag bijgewerkt.
+                oude_prijs = previous.get(ticker)
+                oude_ev = previous_ev.get(ticker)
+                if oude_ev and oude_prijs and oude_prijs > 0:
+                    fields["enterprise_value"] = oude_ev + n_shares * (price - oude_prijs)
+
             per_share = eps.get(ticker)
             if per_share and per_share > 0:
                 fields["pe_ttm"] = price / per_share

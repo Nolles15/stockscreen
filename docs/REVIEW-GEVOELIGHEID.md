@@ -308,7 +308,7 @@ Status bijgewerkt op 6 augustus 2026.
 | A7 | Addendum bij WTN/INF/SDG-tussenchecks: cyclusregel was onjuist | inhoud | middel | ✅ gedaan |
 | A8 | Eén ROIC-definitie (kasaftrek) voor quality én moat | model | laag | ⏸ **wacht op Janco** — verschuift SDG van geel naar groen en dus een moat-oordeel |
 | A9 | `/api/stock` op `jaarrijen_met_overrides` (vijfde gemiste plek) | bugfix | middel | ✅ gedaan |
-| A10 | Koersronde: afgeleide EV bijwerken of EV-melding dempen na koersbeweging | bugfix | laag | ⬜ open |
+| A10 | Koersronde: afgeleide EV bijwerken of EV-melding dempen na koersbeweging | bugfix | laag | ✅ gedaan — EV beweegt mee met de koers (`EV_nieuw = EV_oud + aandelen × koersverschil`), níét opnieuw afgeleid uit mcap + nettoschuld, want dan toetst de check zijn eigen uitkomst |
 | A11 | Dode knoppen opruimen + TTM-als-jaar-0 documenteren | opschoning | laag | ✅ gedaan — pyflakes volledig schoon; de Graham-groeicap is blijven staan als vangnet tegen een configtypo, met die reden erbij |
 | A12 | Universum: SHEL/NBIS/SBC + CRWD/DIS/PUIG toevoegen; VK-dekking overwegen | data | middel | ✅ zes toegevoegd; **VK-dekking is een aparte keuze** (Games Workshop, Halma) en staat open |
 | A13 | Koersval >90%: eigen label i.p.v. DATABUG | ux | laag | ✅ gedaan (FACTOR >10) |
