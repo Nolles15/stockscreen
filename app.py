@@ -975,6 +975,30 @@ def _run_weekly_tasks(cfg: dict) -> None:
     except Exception:
         log.exception("Opschonen activity_log mislukt")
 
+    # Koershistorie aanvullen. Stond eerst alleen achter een handmatig eindpunt,
+    # waardoor het archief alleen vooruitkwam als er iemand op drukte — en dat
+    # was te zien: elf van de top twintig van Kansen hadden op 6 augustus 2026
+    # zeven koerspunten. Honderd per week is bescheiden genoeg om Yahoo niet te
+    # belasten en genoeg om de aandelen die ertoe doen binnen enkele weken op
+    # orde te hebben, want die staan nu vooraan in de rij.
+    try:
+        tickers = db.tickers_needing_backfill(
+            100, _backfill_cutoff("5y"), _onderzochte_tickers())
+        if tickers:
+            resultaat = refresh.backfill_price_history(tickers, "5y")
+            db.set_refresh_state("last_backfill_at", datetime.now(timezone.utc).isoformat())
+            db.log_activity("backfill_prices", None, "ok", {
+                "tickers": len(tickers),
+                "tickers_ok": resultaat["tickers_ok"],
+                "rows": resultaat["rows"],
+                "failed": len(resultaat["failed"]),
+                "bron": "wekelijks",
+            })
+            log.info("Koershistorie aangevuld: %s van %s tickers",
+                     resultaat["tickers_ok"], len(tickers))
+    except Exception:
+        log.exception("Wekelijkse backfill koershistorie mislukt")
+
     # Koershistorie verdunnen: buiten twee jaar volstaat één koers per week.
     # Zonder dit groeit price_history door naar miljoenen regels terwijl het
     # extra detail nergens gebruikt wordt — de cyclustest kijkt naar dalingen
@@ -1942,6 +1966,26 @@ def api_refresh_fundamentals_status():
     return jsonify({"running": _fundamentals_running})
 
 
+def _onderzochte_tickers() -> list[str]:
+    """Screener-tickers waar een analyse of tussencheck van ligt.
+
+    Die krijgen voorrang bij het ophalen van koershistorie. Juist daar wordt
+    naar de grafiek gekeken en juist daar telt de koersval mee in het
+    moat-profiel — een reeks van zeven dagen maakt dat oordeel waardeloos.
+
+    De koppeling loopt via dezelfde weg als het dashboard (`oordelen.verrijk`),
+    zodat een tweede notering van hetzelfde bedrijf ook meeprofiteert.
+    """
+    try:
+        rijen = [{"ticker": s["ticker"], "name": s.get("name")}
+                 for s in db.get_all_stocks()]
+        oordelen.verrijk(rijen)
+        return [r["ticker"] for r in rijen if r.get("oordeel")]
+    except Exception:
+        log.warning("Voorrangslijst voor backfill bepalen mislukt", exc_info=True)
+        return []
+
+
 def _backfill_cutoff(period: str) -> str:
     """
     Vanaf welke datum een ticker geldt als "historie compleet genoeg".
@@ -1983,7 +2027,8 @@ def api_backfill_price_history():
     # Een ticker telt pas als "gedaan" wanneer de historie ook echt terugloopt.
     # Anders zou de dagelijkse koersronde, die vijf dagen wegschrijft, een ticker
     # voorgoed uit de backfill houden met vijf dagen in plaats van jaren.
-    tickers = data.get("tickers") or db.tickers_needing_backfill(limit, _backfill_cutoff(period))
+    tickers = data.get("tickers") or db.tickers_needing_backfill(
+        limit, _backfill_cutoff(period), _onderzochte_tickers())
     if not tickers:
         return jsonify({"started": False, "reason": "Alle actieve tickers hebben koershistorie over deze periode."})
 
@@ -2256,7 +2301,7 @@ def api_price_history_stats():
     # Telt ook de tickers die alleen de laatste paar dagen hebben: die missen de
     # diepe historie nog, ook al staan er rijen voor ze in de tabel.
     stats["tickers_zonder_historie"] = len(
-        db.tickers_needing_backfill(100000, _backfill_cutoff("5y")))
+        db.tickers_needing_backfill(100000, _backfill_cutoff("5y"), []))
     return jsonify(stats)
 
 

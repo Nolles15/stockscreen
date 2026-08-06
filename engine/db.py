@@ -578,9 +578,10 @@ def thin_price_history(dagelijks_tot_dagen: int = 730, dry_run: bool = False) ->
         return {"dry_run": False, "verwijderd": cur.rowcount, "grens": grens}
 
 
-def tickers_needing_backfill(limit: int, min_start: str) -> list[str]:
+def tickers_needing_backfill(limit: int, min_start: str,
+                             voorrang: list[str] | None = None) -> list[str]:
     """
-    Actieve tickers zonder bruikbare koershistorie.
+    Actieve tickers zonder bruikbare koershistorie, interessantste eerst.
 
     Let op de HAVING-clausule: selecteren op "helemaal geen rijen" is niet
     genoeg. De dagelijkse koersronde schrijft vijf dagen weg, dus zodra die een
@@ -589,24 +590,55 @@ def tickers_needing_backfill(limit: int, min_start: str) -> list[str]:
     naar de oudste opgeslagen dag: ligt die na `min_start`, dan ontbreekt de
     diepe historie nog.
 
-    En let op de willekeurige volgorde. Alfabetisch sorteren lijkt netter maar
-    loopt vast: een ticker waarvoor Yahoo geen historie heeft blijft in de
-    selectie zitten en wordt elke ronde opnieuw geprobeerd. Gemeten over 26
-    rondes zakte de opbrengst daardoor van 56 naar 9 geslaagde tickers per
-    ronde van honderd — tegen het eind ging vrijwel elke plek naar een bekende
-    mislukking. Willekeurig trekken verdeelt die kansloze gevallen over alle
-    rondes in plaats van ze vooraan te laten ophopen.
+    ## Waarom er groepen zijn, en waarom er bínnen een groep geloot wordt
+
+    Er stond hier alleen `ORDER BY random()`. Dat was een reparatie van een echt
+    probleem: alfabetisch sorteren loopt vast, want een ticker waarvoor Yahoo
+    geen historie heeft blijft in de selectie zitten en wordt elke ronde
+    opnieuw geprobeerd. Gemeten over 26 rondes zakte de opbrengst daardoor van
+    56 naar 9 geslaagde tickers per ronde van honderd — tegen het eind ging
+    vrijwel elke plek naar een bekende mislukking.
+
+    Maar loten over het hele universum betekent ook: de twintig aandelen waar
+    daadwerkelijk naar gekeken wordt zijn 0,7% van 2.759 tickers en krijgen dus
+    0,7% van de aandacht. Gemeten op 6 augustus 2026 hadden elf van de top
+    twintig van Kansen zeven koerspunten, terwijl willekeurige namen jaren
+    hadden. Dat is niet alleen zonde van de ophaaltijd: het moat-profiel drukt
+    "zwaarste koersval sinds jaar X" af als één van zijn drie redenen, en dat
+    getal is met zeven dagen historie betekenisloos — precies bij de aandelen
+    waar het ertoe doet.
+
+    Vandaar groepen mét loting bínnen de groep: de interessante tickers gaan
+    voor, en een kansloos geval kan nog steeds niet de kop van de rij bezetten.
+
+    `voorrang` is voor tickers waar een rapport of tussencheck van ligt. Die
+    kennis staat in markdownbestanden en niet in de database, dus die geeft de
+    aanroeper mee.
     """
+    voorrang = [t.upper() for t in (voorrang or [])]
     with _cursor() as cur:
         cur.execute("""
             SELECT s.ticker FROM stocks s
-            LEFT JOIN price_history p ON p.ticker = s.ticker
-            WHERE s.active = 1
-            GROUP BY s.ticker
+            LEFT JOIN price_history p  ON p.ticker = s.ticker
+            LEFT JOIN calculated_scores c ON c.ticker = s.ticker
+            LEFT JOIN data_quality dq  ON dq.ticker = s.ticker
+            WHERE s.active = 1 AND s.presumed_delisted_at IS NULL
+            GROUP BY s.ticker, c.quality_score, c.margin_of_safety,
+                     c.combined_fv, dq.data_status
             HAVING MIN(p.date) IS NULL OR MIN(p.date) > %s
-            ORDER BY random()
+            ORDER BY
+              CASE
+                WHEN s.ticker = ANY(%s::text[]) THEN 0
+                WHEN dq.data_status IN ('ok', 'warning')
+                     AND c.combined_fv IS NOT NULL
+                     AND c.margin_of_safety >= 20
+                     AND c.quality_score >= 7          THEN 1
+                WHEN c.margin_of_safety IS NOT NULL     THEN 2
+                ELSE 3
+              END,
+              random()
             LIMIT %s
-        """, (min_start, limit))
+        """, (min_start, voorrang, limit))
         return [r["ticker"] for r in cur.fetchall()]
 
 
