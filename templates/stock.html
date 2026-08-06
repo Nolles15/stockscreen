@@ -90,8 +90,9 @@
     </p>
     {% if stock and stock.description %}
     <p class="text-slate-400 text-sm mt-2 max-w-2xl leading-relaxed" id="stock-desc-short">
-      {{ stock.description[:400] }}{% if stock.description|length > 400 %}<button
-        onclick="document.getElementById('stock-desc-short').textContent = {{ stock.description|tojson }}; this.remove()"
+      {{ stock.description[:400] }}{% if stock.description|length > 400 %}<span
+        id="stock-desc-rest" hidden>{{ stock.description[400:] }}</span><button type="button"
+        id="stock-desc-more"
         class="text-blue-400 hover:underline ml-1 text-xs">meer lezen…</button>{% endif %}
     </p>
     {% endif %}
@@ -759,6 +760,23 @@
 <script>
 const TICKER = '{{ ticker }}';
 
+// "meer lezen" bij de bedrijfsomschrijving.
+//
+// Hier stond een onclick met `{{ '{{ stock.description|tojson }}' }}` erin. Dat gaat stuk: het
+// tojson-filter levert Markup op, dus Jinja escapet de aanhalingstekens niet,
+// en binnen een dubbel aangehaald HTML-attribuut beeindigt de eerste " het
+// attribuut. De knop deed daardoor niets en de rest van de omschrijving lekte
+// als losse attributen de HTML in. Nooit door een gebruiker gemeld, want een
+// kapotte knop ziet er precies zo uit als een knop die niets hoeft te doen.
+//
+// Nu staat de rest van de tekst gewoon in de DOM (verborgen), zodat Jinja hem
+// normaal escapet en er geen JavaScript-string aan te pas komt.
+document.getElementById('stock-desc-more')?.addEventListener('click', function () {
+  const rest = document.getElementById('stock-desc-rest');
+  if (rest) rest.hidden = false;
+  this.remove();
+});
+
 // ---------------------------------------------------------------------------
 // Beslisboom
 //
@@ -922,11 +940,22 @@ function toonMoatCijfers(m) {
 
   const jaren = roic.map(p => `<th class="px-3 py-1.5 text-right font-medium">${p.jaar}</th>`).join('');
   const cyc = m.cyclus || {};
-  const cyclusRegel = cyc.beschikbaar
-    ? `<p class="text-xs text-slate-500 mt-3">Koershistorie vanaf ${cyc.vanaf}: zwaarste terugval
+  // Drie gevallen, niet twee: geen historie, te korte historie, en bruikbare
+  // historie. Het middelste geval toonde eerder gewoon de getallen, waardoor
+  // een reeks van twee weken "staat weer op recordhoogte" opleverde.
+  let cyclusRegel;
+  if (cyc.betrouwbaar) {
+    cyclusRegel = `<p class="text-xs text-slate-500 mt-3">Koershistorie vanaf ${cyc.vanaf}: zwaarste terugval
        ${cyc.diepste_terugval_pct}% (${cyc.diepste_terugval_datum}),
-       nu ${cyc.onder_top_pct}% ten opzichte van de hoogste slotkoers ooit.</p>`
-    : '<p class="text-xs text-slate-500 mt-3">Nog geen koershistorie opgeslagen voor dit aandeel.</p>';
+       nu ${cyc.onder_top_pct}% ten opzichte van de hoogste slotkoers ooit.</p>`;
+  } else if (cyc.beschikbaar) {
+    cyclusRegel = `<p class="text-xs text-amber-500/80 mt-3">Koershistorie beslaat pas
+       ${Math.max(1, Math.round((cyc.jaren || 0) * 12))} maanden (${cyc.punten || 0} koersen),
+       vanaf ${cyc.vanaf}. Te kort voor een uitspraak over koersval; de cijfers hieronder
+       gaan alleen over die periode.</p>`;
+  } else {
+    cyclusRegel = '<p class="text-xs text-slate-500 mt-3">Nog geen koershistorie opgeslagen voor dit aandeel.</p>';
+  }
 
   doel.innerHTML = `
     <h2 class="text-sm font-semibold text-slate-300 mb-2">Waarop het moat-oordeel rust</h2>

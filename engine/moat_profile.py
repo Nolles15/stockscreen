@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+from datetime import date
 from typing import Optional
 
 log = logging.getLogger(__name__)
@@ -44,6 +45,13 @@ STABIEL_ROOD = 0.65        # hieronder stort het rendement in slechte jaren in
 MARGE_EROSIE_PP = -3.0     # brutomarge-daling over de reeks die telt als erosie
 
 MIN_JAREN = 3              # minder dan drie jaar zegt niets over standvastigheid
+
+# De cyclusvraag is "is dit aandeel ooit hard geraakt en kwam het terug". Twee
+# jaar is de ondergrens waarop dat een betekenis heeft; korter en je meet de
+# ruis van een handvol handelsdagen. De puntengrens vangt het andere geval af:
+# een lange reeks met maar drie koersen erin.
+MIN_CYCLUS_JAREN = 2.0
+MIN_CYCLUS_PUNTEN = 24
 
 
 def _f(row: dict, key: str) -> Optional[float]:
@@ -114,11 +122,23 @@ def cyclustest(price_history: list[dict]) -> dict:
     Vijf jaar jaarcijfers laat geen enkele recessie zien. De koershistorie gaat
     verder terug en beantwoordt daarmee de vraag waar tien jaar cijfers voor
     bedoeld waren: is dit bedrijf ooit hard geraakt, en kwam het terug?
+
+    `betrouwbaar` is het veld dat ertoe doet. Een reeks van twee weken levert
+    keurige getallen op die niets betekenen: de diepste terugval is dan de
+    grootste beweging van die twee weken en de "hoogste slotkoers ooit" is de
+    hoogste van die twee weken. Zo belandde "staat weer op recordhoogte" in de
+    tussenchecks van Wittchen, Infotel en Synergie terwijl die aandelen tientallen
+    procenten onder hun top stonden, en op 6 augustus 2026 opnieuw bij Zealand
+    Pharma (57% onder de top) en Moberg Pharma. Drie keer handmatig gecorrigeerd
+    is twee keer te vaak.
+
+    De cijfers blijven staan — ze worden alleen niet meer als conclusie
+    gepresenteerd zolang de reeks te kort is.
     """
     koersen = [(r.get("date"), _f(r, "close")) for r in price_history]
     koersen = [(d, c) for d, c in koersen if d and c and c > 0]
     if len(koersen) < 2:
-        return {"beschikbaar": False}
+        return {"beschikbaar": False, "betrouwbaar": False}
 
     koersen.sort(key=lambda x: x[0])
     top = koersen[0][1]
@@ -133,9 +153,22 @@ def cyclustest(price_history: list[dict]) -> dict:
 
     alletijden_top = max(c for _, c in koersen)
     laatste = koersen[-1][1]
+
+    # Op dagen rekenen, niet op kalenderjaren: 31 december tot 1 januari is
+    # anders "1 jaar", en 27 juli tot 5 augustus "0 jaar" terwijl beide
+    # net zo kort zijn.
+    try:
+        van = date.fromisoformat(koersen[0][0][:10])
+        tot = date.fromisoformat(koersen[-1][0][:10])
+        jaren = round((tot - van).days / 365.25, 1)
+    except (ValueError, TypeError):
+        jaren = 0.0
+
     return {
         "beschikbaar": True,
-        "jaren": round((int(koersen[-1][0][:4]) - int(koersen[0][0][:4])), 1),
+        "betrouwbaar": jaren >= MIN_CYCLUS_JAREN and len(koersen) >= MIN_CYCLUS_PUNTEN,
+        "jaren": jaren,
+        "punten": len(koersen),
         "vanaf": koersen[0][0],
         "diepste_terugval_pct": round(diepste, 1),
         "diepste_terugval_datum": diepste_datum,
@@ -253,11 +286,20 @@ def bouw_profiel(annual: list[dict], price_history: list[dict] | None = None) ->
             f"({bruto_trend:+.1f} procentpunt)"
         )
     cyc = profiel["cyclus"]
-    if cyc.get("beschikbaar"):
+    if cyc.get("betrouwbaar"):
         profiel["redenen"].append(
             f"Zwaarste koersval sinds {cyc['vanaf'][:4]}: {cyc['diepste_terugval_pct']:.0f}%"
             + (f", nu {abs(cyc['onder_top_pct']):.0f}% onder de top"
                if cyc["onder_top_pct"] < -5 else ", staat weer op recordhoogte")
+        )
+    elif cyc.get("beschikbaar"):
+        # Wel koersen, te weinig om iets te beweren. Dit expliciet zeggen is het
+        # halve punt van de reparatie: een ontbrekende regel wordt gelezen als
+        # "niets bijzonders", een gemarkeerde regel als "hier weten we het niet".
+        maanden = max(1, round(cyc.get("jaren", 0) * 12))
+        profiel["redenen"].append(
+            f"Koershistorie beslaat pas {maanden} maand{'en' if maanden != 1 else ''} "
+            f"({cyc.get('punten', 0)} koersen) — te kort voor een uitspraak over koersval"
         )
 
     return profiel

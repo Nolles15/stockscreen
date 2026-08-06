@@ -53,6 +53,63 @@ def test_cyclustest():
     print("  [OK] zwaarste terugval en afstand tot de top")
 
 
+def _reeks(vanaf: str, dagen: int, koers=100.0):
+    """Dagelijkse koersen vanaf een datum, vlak verloop."""
+    from datetime import date, timedelta
+    d0 = date.fromisoformat(vanaf)
+    return [{"date": (d0 + timedelta(days=i)).isoformat(), "close": koers}
+            for i in range(dagen)]
+
+
+def test_korte_reeks_is_beschikbaar_maar_niet_betrouwbaar():
+    """De fout die drie tussenchecks haalde.
+
+    Tien dagen koershistorie leverde keurige getallen op — diepste terugval en
+    afstand tot de top — die allebei alleen over die tien dagen gingen. Het
+    profiel meldde dan "staat weer op recordhoogte" terwijl het aandeel
+    tientallen procenten onder zijn werkelijke top stond.
+    """
+    c = cyclustest(_reeks("2026-07-27", 10))
+    assert c["beschikbaar"], "de cijfers blijven beschikbaar"
+    assert not c["betrouwbaar"], "maar mogen geen conclusie dragen"
+    assert c["jaren"] < 0.1
+
+
+def test_lange_reeks_met_genoeg_punten_is_betrouwbaar():
+    c = cyclustest(_reeks("2023-01-01", 800))
+    assert c["beschikbaar"] and c["betrouwbaar"]
+    assert c["jaren"] >= 2.0
+
+
+def test_lange_periode_met_te_weinig_punten_is_niet_betrouwbaar():
+    """Drie koersen over vijf jaar is geen cyclusbeeld."""
+    koersen = [{"date": "2020-01-01", "close": 100.0},
+               {"date": "2022-06-01", "close": 40.0},
+               {"date": "2025-01-01", "close": 90.0}]
+    c = cyclustest(koersen)
+    assert c["beschikbaar"] and not c["betrouwbaar"]
+
+
+def test_jaren_rekent_op_dagen_niet_op_kalenderjaren():
+    """31 december tot 1 januari was eerder 'één jaar'."""
+    c = cyclustest([{"date": "2025-12-31", "close": 100.0},
+                    {"date": "2026-01-01", "close": 101.0}])
+    assert c["jaren"] == 0.0, f"kreeg {c['jaren']}"
+    assert not c["betrouwbaar"]
+
+
+def test_de_reden_belooft_niets_bij_een_korte_reeks():
+    """Geen 'recordhoogte' meer, maar een expliciete melding dat we het niet weten."""
+    profiel = bouw_profiel(
+        _jaren(revenue=[100.0] * 4, gross_profit=[50.0] * 4, ebit=[20.0] * 4,
+               total_equity=[100.0] * 4, total_debt=[0.0] * 4),
+        price_history=_reeks("2026-07-27", 10),
+    )
+    redenen = " ".join(profiel["redenen"])
+    assert "recordhoogte" not in redenen
+    assert "te kort" in redenen.lower(), redenen
+
+
 def test_groen_vereist_hoog_en_standvastig():
     # Wolters Kluwer-profiel: mediaan ~19%, dieptepunt op 88% daarvan.
     wkl = _jaren(ebit=[190, 200, 210, 205, 215],
@@ -135,4 +192,14 @@ if __name__ == "__main__":
     test_herstel_is_geen_instorting()
     test_herstel_wordt_niet_zomaar_groen()
     test_te_weinig_jaren()
+    test_korte_reeks_is_beschikbaar_maar_niet_betrouwbaar()
+    print("  [OK] korte koersreeks is beschikbaar maar niet betrouwbaar")
+    test_lange_reeks_met_genoeg_punten_is_betrouwbaar()
+    print("  [OK] lange reeks met genoeg punten is wel betrouwbaar")
+    test_lange_periode_met_te_weinig_punten_is_niet_betrouwbaar()
+    print("  [OK] drie koersen over vijf jaar telt niet als cyclusbeeld")
+    test_jaren_rekent_op_dagen_niet_op_kalenderjaren()
+    print("  [OK] jaren rekent op dagen, niet op kalenderjaren")
+    test_de_reden_belooft_niets_bij_een_korte_reeks()
+    print("  [OK] geen 'recordhoogte' bij een reeks van tien dagen")
     print("\nAlle tests moat-profiel geslaagd.")
