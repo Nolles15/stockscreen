@@ -167,10 +167,19 @@ def _calc_revenue_cagr(annual_rows: list[dict], years: int = 3) -> Optional[floa
 # Per-ticker pipeline
 # ---------------------------------------------------------------------------
 
-def run_ticker(ticker: str, config: dict) -> dict:
+def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
     """
     Run the full calculation pipeline for one ticker.
     Returns a result dict (also persisted to calculated_scores table).
+
+    Deze functie belt Yahoo NIET — alle invoer komt uit de database. Dat maakt
+    hem herbruikbaar als zuivere herberekening: na een wijziging in config.yaml
+    (sectorprofielen, signaaldrempels, gewichten) draai je hem opnieuw over de
+    opgeslagen cijfers en heb je het effect meteen in plaats van pas als de
+    nachtelijke ronde is langsgeweest. Zie /api/scores/recompute.
+
+    `persist=False` rekent alles door maar schrijft niets weg — de proefdraai
+    van dat endpoint.
     """
     warnings: list[str] = []
 
@@ -431,6 +440,9 @@ def run_ticker(ticker: str, config: dict) -> dict:
         "warnings":         warnings,
         "last_calculated":  datetime.utcnow().isoformat(),
     }
+
+    if not persist:
+        return result
 
     # Persist
     db.upsert_scores(

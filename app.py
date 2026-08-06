@@ -2506,6 +2506,103 @@ def api_gaps_report():
     return jsonify(out)
 
 
+def _run_scores_recompute_job(jid: str, tickers: list[str], cfg: dict, dry_run: bool):
+    """Herbereken de waarderingen over de opgeslagen cijfers. Geen Yahoo.
+
+    Draait als achtergrondtaak omdat het hele universum niet binnen de
+    gunicorn-timeout van 120 seconden past: elke ticker kost een handvol
+    query's naar Neon.
+    """
+    totaal = len(tickers)
+    # get_all_scores() geeft een lijst, geen map op ticker.
+    voor = {r["ticker"]: r for r in db.get_all_scores()}
+    sig_overgang: dict = {}
+    fv_gewijzigd = 0
+    verschuivingen: list[dict] = []
+    fouten: dict = {}
+
+    for i, t in enumerate(tickers):
+        _update_job(jid, status="running", progress=int(100 * i / max(totaal, 1)),
+                    current=t)
+        oud = voor.get(t) or {}
+        try:
+            nieuw = run_ticker(t, cfg, persist=not dry_run)
+        except Exception as e:               # één kapotte ticker stopt de ronde niet
+            fouten[t] = str(e)
+            continue
+
+        s_oud, s_nieuw = oud.get("signal"), nieuw.get("signal")
+        if s_oud != s_nieuw:
+            sleutel = f"{s_oud} -> {s_nieuw}"
+            sig_overgang[sleutel] = sig_overgang.get(sleutel, 0) + 1
+
+        fv_oud, fv_nieuw = oud.get("combined_fv"), nieuw.get("combined_fv")
+        if fv_oud and fv_nieuw:
+            factor = fv_nieuw / fv_oud
+            if abs(factor - 1) > 0.01:
+                fv_gewijzigd += 1
+                verschuivingen.append({
+                    "ticker": t, "factor": round(factor, 3),
+                    "fv_oud": round(fv_oud, 2), "fv_nieuw": round(fv_nieuw, 2),
+                    "signaal": f"{s_oud} -> {s_nieuw}" if s_oud != s_nieuw else s_nieuw,
+                })
+
+    verschuivingen.sort(key=lambda r: abs(r["factor"] - 1), reverse=True)
+    _update_job(
+        jid, status="done", progress=100, current="",
+        resultaat={
+            "dry_run": dry_run,
+            "doorgerekend": totaal - len(fouten),
+            "fv_gewijzigd": fv_gewijzigd,
+            "signaal_overgangen": dict(sorted(sig_overgang.items(),
+                                              key=lambda kv: -kv[1])),
+            "grootste_verschuivingen": verschuivingen[:25],
+        },
+        errors=fouten,
+    )
+
+
+@app.route("/api/scores/recompute", methods=["POST"])
+def api_scores_recompute():
+    """
+    Herbereken waardering, signaal en kwaliteit voor alle (of opgegeven)
+    tickers vanuit de REEDS opgeslagen cijfers — geen netwerkcall naar Yahoo.
+
+    Waarvoor: na een wijziging in config.yaml (sectorprofielen, signaal-
+    drempels, gewichten in de fair value) staat het effect anders pas in de
+    database als de nachtelijke ronde langs die ticker komt. Bij 90 per dag
+    over ~2.760 aandelen is dat ruim een maand, waarin het dashboard oude en
+    nieuwe aannames door elkaar toont. Dit endpoint trekt dat in één keer recht.
+
+    Dit is expres GEEN vervanging van de nachtelijke ronde: die haalt verse
+    koersen en jaarcijfers op, dit rekent alleen opnieuw over wat er al ligt.
+
+    Body: {"dry_run": true, "tickers": [...]}   (dry_run default True)
+    Geeft een job_id terug; pollen via /api/refresh/status?job_id=...
+    """
+    data = request.get_json(silent=True) or {}
+    dry_run = bool(data.get("dry_run", True))
+    only = data.get("tickers")
+
+    tickers = [s["ticker"] for s in db.get_all_stocks()]
+    if only:
+        want = {t.upper() for t in only}
+        tickers = [t for t in tickers if t in want]
+
+    jid = _new_job()
+    threading.Thread(
+        target=_run_scores_recompute_job,
+        args=(jid, tickers, load_config(), dry_run),
+        daemon=True,
+    ).start()
+    return jsonify({
+        "job_id": jid,
+        "n_tickers": len(tickers),
+        "dry_run": dry_run,
+        "poll_url": f"/api/refresh/status?job_id={jid}",
+    })
+
+
 @app.route("/api/data-quality/recompute", methods=["POST"])
 def api_data_quality_recompute():
     """
