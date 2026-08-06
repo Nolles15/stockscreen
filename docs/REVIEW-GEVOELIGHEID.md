@@ -295,32 +295,44 @@ vals-negatief-bron van 1b is groter en goedkoper te dichten.
 
 ## Aanbevelingen, genummerd
 
-| # | Wat | Soort | Prioriteit |
-|---|---|---|---|
-| A1 | EV-check: `total_cash` → `net_cash` (±100 valse meldingen weg) | bugfix | **hoog** |
-| A2 | Kwaliteitspóórt uit BUY/STRONG BUY (of verlagen); kwaliteit als weging/badge houden | beleggingsbeslissing | **hoog** |
-| A3 | Aparte kwaliteitslijst (kwaliteit ≥9, ongeacht korting) naast Kansen | feature | **hoog** |
-| A4 | Financials: kwaliteitsscore "n.v.t." i.p.v. 1–4 op regels die daar niets betekenen | model | middel |
-| A5 | Tussencheck-regel 1 alleen bij betrouwbare FV (confidence + cons<opt) | methodiek | **hoog** |
-| A6 | Controlegroep: elke ~5e OVERSLAAN alsnog analyseren (eerst SFG) | methodiek | middel |
-| A7 | Addendum bij WTN/INF/SDG-tussenchecks: cyclusregel was onjuist | inhoud | middel |
-| A8 | Eén ROIC-definitie (kasaftrek) voor quality én moat | model | laag |
-| A9 | `/api/stock` op `jaarrijen_met_overrides` (vijfde gemiste plek) | bugfix | middel |
-| A10 | Koersronde: afgeleide EV bijwerken of EV-melding dempen na koersbeweging | bugfix | laag |
-| A11 | Dode knoppen opruimen (sell_quality_floor, _SPLIT_EPS_RATIO, MIN_YEARS_PIOTROSKI, Graham-cap) + TTM-als-jaar-0 expliciet documenteren of heroverwegen | opschoning | laag |
-| A12 | Universum: SHEL/NBIS/SBC + CRWD/DIS/PUIG toevoegen; VK-dekking overwegen | data | middel |
-| A13 | Koersval >90%: eigen label i.p.v. DATABUG | ux | laag |
+Status bijgewerkt op 6 augustus 2026.
 
-### Goedkope documentatie-fixes (aparte lijst)
+| # | Wat | Soort | Prioriteit | Status |
+|---|---|---|---|---|
+| A1 | EV-check: `total_cash` → `net_cash` (±100 valse meldingen weg) | bugfix | **hoog** | ✅ gedaan |
+| A2 | Kwaliteitspóórt uit BUY/STRONG BUY (of verlagen); kwaliteit als weging/badge houden | beleggingsbeslissing | **hoog** | ⏸ **wacht op Janco** — dit verandert wat een koopsignaal betekent en is geen bouwkeuze |
+| A3 | Aparte kwaliteitslijst (kwaliteit ≥9, ongeacht korting) naast Kansen | feature | **hoog** | ✅ gedaan (tabblad 💎 Kwaliteit) |
+| A4 | Financials: kwaliteitsscore "n.v.t." i.p.v. 1–4 op regels die daar niets betekenen | model | middel | ✅ gedaan |
+| A5 | Tussencheck-regel 1 alleen bij betrouwbare FV (confidence + cons<opt) | methodiek | **hoog** | ✅ gedaan — uitgebreid tot een vier-ankertoets in de tussencheck-skill |
+| A6 | Controlegroep: elke ~5e OVERSLAAN alsnog analyseren (eerst SFG) | methodiek | middel | ⏸ **wacht op een analyseronde** — de regel staat in de skill, de eerste moet nog draaien |
+| A7 | Addendum bij WTN/INF/SDG-tussenchecks: cyclusregel was onjuist | inhoud | middel | ✅ gedaan |
+| A8 | Eén ROIC-definitie (kasaftrek) voor quality én moat | model | laag | ⏸ **wacht op Janco** — verschuift SDG van geel naar groen en dus een moat-oordeel |
+| A9 | `/api/stock` op `jaarrijen_met_overrides` (vijfde gemiste plek) | bugfix | middel | ✅ gedaan |
+| A10 | Koersronde: afgeleide EV bijwerken of EV-melding dempen na koersbeweging | bugfix | laag | ⬜ open |
+| A11 | Dode knoppen opruimen + TTM-als-jaar-0 documenteren | opschoning | laag | ✅ gedaan — pyflakes volledig schoon; de Graham-groeicap is blijven staan als vangnet tegen een configtypo, met die reden erbij |
+| A12 | Universum: SHEL/NBIS/SBC + CRWD/DIS/PUIG toevoegen; VK-dekking overwegen | data | middel | ✅ zes toegevoegd; **VK-dekking is een aparte keuze** (Games Workshop, Halma) en staat open |
+| A13 | Koersval >90%: eigen label i.p.v. DATABUG | ux | laag | ✅ gedaan (FACTOR >10) |
 
-- `CLAUDE.md` cron-blok beschrijft een geschrapte GitHub-Actions-schedule en
-  een niet-bestaande scheduler-gate.
-- Suspend-drempels: docs zeggen 10/30/90, code doet 3/21/45
-  (`CLAUDE.md`, `docs/ARCHITECTURE.md`).
-- "Negen dagen" FV-cadans in `app.py:691` en `refresh.py:397` is elf.
-- `docs/ARCHITECTURE.md` rondegroottes: 100/20 moet 250/40 zijn.
-- `valuation.py` docstrings: beschrijven `max()` waar de code blendt, en
-  Graham zonder yield-scaler waar de code ×0,88 doet.
+### Buiten de lijst gevonden en opgelost
+
+- **Sectorprofielen matchten niet op de Yahoo-namen.** `config.yaml` gebruikte
+  de GICS-namen; 617 aandelen (22%) vielen stil terug op `Default`, en bij
+  Basic Materials was dat een 20% royaler anker — schijnkortingen dus.
+  Gerepareerd, plus een profiel voor Communication Services (186 tickers, stond
+  ook op Default). Bewaakt door `tests/test_sector_config.py`.
+- **`POST /api/scores/recompute`** — een configwijziging landde tot nu toe pas
+  in de database als de nachtelijke ronde langskwam: ruim een maand, waarin het
+  dashboard oude en nieuwe aannames door elkaar toonde.
+
+### Goedkope documentatie-fixes — ✅ alle vijf gedaan
+
+- ~~`CLAUDE.md` cron-blok beschrijft een geschrapte GitHub-Actions-schedule en
+  een niet-bestaande scheduler-gate.~~
+- ~~Suspend-drempels: docs zeggen 10/30/90, code doet 3/21/45.~~
+- ~~"Negen dagen" FV-cadans is elf.~~
+- ~~`docs/ARCHITECTURE.md` rondegroottes: 100/20 moet 250/40 zijn.~~
+- ~~`valuation.py` docstrings: `max()` waar de code blendt, Graham zonder
+  yield-scaler.~~
 
 ## Verantwoording en beperkingen
 

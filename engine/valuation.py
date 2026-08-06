@@ -113,6 +113,18 @@ def _sector_cfg(sector: str, config: dict) -> dict:
 
 
 def _cap_growth(g: float, config: dict, perpetuity: bool = False) -> float:
+    """Harde bovengrens op de groeiaanname.
+
+    De Graham-tak (`perpetuity=False`) bindt in de praktijk nooit: de hoogste
+    `growth_max` over alle sectoren is 8 en dat is precies de cap. Verhogen naar
+    10 verandert dan ook geen enkele waardering — gemeten in de sweep van de
+    gevoeligheidsreview. Hij blijft staan als vangnet tegen een configtypo
+    (`growth_max: 40`), niet als knop om aan te draaien; wie de groei wil
+    verruimen moet in `sectors` zijn en daarna deze cap meeverhogen.
+
+    De perpetuity-tak bindt wél: 5% tegen een `growth_max` tot 8, en daar is de
+    cap essentieel omdat de noemer (r − g) bij hoge g explodeert.
+    """
     hard_cap = config.get("valuation", {}).get(
         "max_perpetuity_growth" if perpetuity else "max_growth_rate", 8 if not perpetuity else 5
     )
