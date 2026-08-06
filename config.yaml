@@ -35,7 +35,11 @@ signals:
   hold_upper_pct: 115
   sell_pct: 130
   sell_pct_high_quality: 175   # compounders (quality >= 9) pas SELL bij 175% van FV
-  sell_quality_floor: 6
+  # `sell_quality_floor` stond hier tot 2026-08-06 en deed niets meer: de regel
+  # die hem gebruikte ("kwaliteit onder de zes = SELL, ongeacht de prijs") is
+  # geschrapt omdat hij 72,5% van de portefeuille op verkopen zette. De sleutel
+  # is verwijderd in plaats van op 0 gezet, want een knop die niets doet is
+  # erger dan geen knop. De reden staat in engine/screener.py.
 valuation:
   multiples_weight: 0.6
   dcf_weight: 0.4

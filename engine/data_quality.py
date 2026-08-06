@@ -70,7 +70,6 @@ _NEG_FCF_STREAK_YEARS = 3          # >=N aaneengesloten jaren negative FCF → b
 #   2. clean-factor — alleen flaggen als de ratio dicht bij een écht split-getal ligt
 # Bovendien is split_suspected géén harde blocker meer (alleen een waarschuwing);
 # de downstream FV-plausibiliteitsgate in screener.py vangt absurde FV's alsnog.
-_SPLIT_EPS_RATIO = 3.0
 _SPLIT_EPS_MIN_ABS = 0.30          # kleinste EPS in het paar moet ≥ dit (native ccy)
 _SPLIT_CLEAN_FACTORS = (2.0, 3.0, 4.0, 5.0, 10.0)
 _SPLIT_FACTOR_TOL = 0.06           # ratio moet binnen 6% van een split-getal liggen
@@ -273,8 +272,9 @@ def evaluate(
 
     # 3b. Structurele winstgevendheid — streaks van verlies of negatieve FCF
     # maken de cashflow-methodes onbetrouwbaar ongeacht completeness.
+    # Alleen de verliesreeks wordt hier geteld; de FCF-reeks gaat hieronder over
+    # álle jaren (neg_fcf_streak_full) en niet over recent_rows.
     loss_streak = 0
-    neg_fcf_streak = 0
     for row in recent_rows:
         ni = row.get("net_income")
         if ni is not None and ni < 0:
@@ -315,8 +315,9 @@ def evaluate(
             f"perpetuity en EV/FCF niet bruikbaar."
         )
 
-    # 3c. Stock-split detectie via EPS YoY ratio (alleen waarschuwing, geen blocker)
-    split_suspected = False
+    # 3c. Stock-split detectie via EPS YoY ratio (alleen waarschuwing, geen blocker).
+    # De melding gaat rechtstreeks in `issues`; de blocker-herkenning verderop
+    # matcht op de tekst ("Verdachte EPS-sprong"), niet op een vlag hier.
     for i in range(len(full_rows) - 1):
         eps_now = full_rows[i].get("eps_diluted")
         eps_prev = full_rows[i + 1].get("eps_diluted")
@@ -330,7 +331,6 @@ def evaluate(
             # of herstel-swings (5.9x, 13x, 7.7x) zijn geen mechanische splits.
             factor = _clean_split_factor(ratio)
             if factor is not None:
-                split_suspected = True
                 issues.append(
                     f"Verdachte EPS-sprong FY{full_rows[i].get('fiscal_year')}→FY{full_rows[i+1].get('fiscal_year')}: "
                     f"{eps_prev:.2f} → {eps_now:.2f} (ratio {ratio:.1f}x ≈ {factor:.0f}:1) — mogelijk niet-verwerkte split; "

@@ -28,8 +28,6 @@ from typing import Optional
 
 log = logging.getLogger(__name__)
 
-MIN_YEARS_PIOTROSKI = 2   # Need at least 2 years for YoY comparisons
-
 
 def _val(row: dict, *keys) -> Optional[float]:
     for k in keys:

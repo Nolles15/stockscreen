@@ -171,13 +171,14 @@ op basis van de tabel `refresh_state` wat er moet gebeuren. Zie
 elk kwartier een tick
    │
    ├─ na 18:30 Amsterdam en vandaag nog niet gedraaid?
-   │     └─ refresh_prices_bulk()  — alle tickers, chunks van 200, ~4 min voor 900
+   │     └─ refresh_prices_bulk()  — alle tickers, chunks van 200
    │
    ├─ na 03:00 Amsterdam en vandaag nog niet gedraaid?
-   │     └─ refresh_fundamentals_batch(100)  — de 100 langst niet-geprobeerde
+   │     └─ refresh_fundamentals_batch(250)  — de 250 langst niet-geprobeerde
+   │        (`refresh.fundamentals_per_night` in config.yaml)
    │
    └─ langer dan 7 dagen geleden?
-         └─ weekly_reprobe(20) + activity_log ouder dan 90 dagen opruimen
+         └─ weekly_reprobe(40) + activity_log ouder dan 90 dagen opruimen
 ```
 
 **Waarom de state in de database staat.** Elke beslissing komt uit
@@ -201,11 +202,17 @@ omhoog. Dit is de directe tegenmaatregel tegen wat er in april gebeurde, toen
 zonder foutmelding voltooit maar niets oplevert telt hierin mee als mislukking —
 delisted tickers gooien namelijk geen fout.
 
-**Suspenderen is bewust traag.** Pas na 10 mislukkingen, gespreid over minstens
-30 dagen, en alleen als er geen enkel jaarcijfer in de database staat. Daarna
-volgt wekelijks een nieuwe poging; pas na 90 dagen zonder resultaat komt er
-`presumed_delisted_at` op te staan, en ook dan blijft de ticker zichtbaar in het
-beheerscherm. Niets verdwijnt stilzwijgend.
+**Suspenderen vraagt drie voorwaarden tegelijk.** Pas na 3 mislukkingen,
+gespreid over minstens 21 dagen, en alleen als er geen enkel jaarcijfer in de
+database staat. Daarna volgt wekelijks een nieuwe poging; pas na 45 dagen zonder
+resultaat komt er `presumed_delisted_at` op te staan, en ook dan blijft de ticker
+zichtbaar in het beheerscherm. Niets verdwijnt stilzwijgend.
+
+Die getallen stonden ooit op 10/30/90 en zijn verlaagd omdat ze in de praktijk
+anders uitpakten dan bedoeld: een ticker krijgt maar eens per elf dagen een
+beurt, dus tien pogingen duurden maanden. **De bescherming tegen massa-suspensies
+zit niet in deze drempels maar in de storm-guard hierboven** — die laat de
+tellers bij een storing helemaal met rust, en dat is waarom ze omlaag konden.
 
 **Zichtbaarheid.** `GET /api/health` (zonder token) geeft de leeftijd van beide
 rondes, versheidspercentages, dekkingscijfers en `scheduler_alive`. Elke pagina
@@ -252,7 +259,7 @@ GitHub Actions houdt **zelf** de loop aan. Fly krijgt per ticker één korte syn
 - **Stateless op Fly.** Geen `_jobs` dict, geen polling. Een Fly restart midden in een batch kost hooguit één ticker.
 - **curl `--max-time 100`** op de workflow-kant ligt onder de `120s` gunicorn-timeout — als yfinance hangt, sneuvelt deze ene call en gaat de workflow door.
 - **Workflow faalt alleen als >20% van de tickers faalt.** Losse yfinance-timeouts zijn normaal en mogen de nachtelijke run niet als rood markeren.
-- **Batch-selectie is `ORDER BY last_fetched ASC`.** Met `limit=90` per nacht en ~620 tickers is alles binnen 7 dagen vers. Bij de eerste rollout kun je handmatig `limit=500` draaien.
+- **Batch-selectie is `ORDER BY last_fetched ASC`.** De `limit=90` in de workflow stamt uit de tijd van ~620 tickers, toen alles daarmee binnen zeven dagen vers was. Het universum is inmiddels ~2.760 groot en de interne scheduler draait 250 per nacht (elf dagen per ronde); deze noodknop is dus alleen bedoeld om een achterstand in te lopen, niet om de ronde over te nemen. Geef er dan handmatig een hogere `limit` aan mee.
 
 **Auth.** Elke `/api/cron/*` endpoint checkt `X-Cron-Token: <CRON_TOKEN>`. Zowel Fly (`fly secrets set CRON_TOKEN=...`) als GitHub (`Settings → Secrets → CRON_TOKEN`) moeten dezelfde waarde hebben.
 

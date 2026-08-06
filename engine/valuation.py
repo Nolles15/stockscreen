@@ -2,15 +2,22 @@
 Valuation engine — three methods, then combines them.
 
 Method A (60% weight): Normalized Multiples
-  4 multiples × fair value:
-    P/E FV     = Normalized EPS        × max(hist median P/E,  sector P/E)
-    EV/EBITDA  = Normalized EBITDA     × max(hist median EV/EBITDA, sector) → per share
-    P/B FV     = Book value per share  × max(hist median P/B,  sector P/B)
-    EV/FCF FV  = Normalized FCF/share  × max(hist median EV/FCF, sector)
-  Multiples FV = average of the 4 (excluding None)
+  Elke multiple is een BLEND van 0,65 × eigen historische mediaan + 0,35 ×
+  sectorstandaard — niet max() van de twee. Zonder eigen historie: alleen de
+  sector. De blend drukt bedrijven die historisch duur handelden (groei) naar
+  beneden; wie alleen de eigen historie zou nemen, verklaart elke waardering
+  per definitie normaal.
+    P/E FV     = Normalized EPS        × blend(hist P/E,       sector P/E)
+    EV/EBITDA  = Normalized EBITDA     × blend(hist EV/EBITDA, sector) → per share
+    P/B FV     = Book value per share  × blend(hist P/B,       sector P/B)
+    EV/FCF FV  = Normalized FCF/share  × blend(hist EV/FCF,    sector)
+  Multiples FV = mediaan van de overgebleven methodes bij ≥3, anders het
+  gemiddelde. Eerst gaat er een outlier-filter overheen (0,20×–5,0×).
 
 Method B (40% weight): Split evenly between:
-  Graham IV   = Normalized EPS × (8.5 + 2 × g)
+  Graham IV   = Normalized EPS × (8.5 + 2 × g) × yield_scaler
+                yield_scaler = min(1, 4.4 / bond_yield) — herschaalt Graham's
+                ijking uit 1962 naar het huidige renteniveau, en nooit omhoog.
   Perpetuity  = Normalized Owner Earnings per share / (r – g)
 
 Combined FV = 0.60 × Multiples FV + 0.40 × (Graham + Perpetuity) / 2
@@ -31,8 +38,13 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 # Graham-multiplier werd in 1962 geijkt op een AAA bedrijfsobligatierendement van 4.4%.
-# In een hoger-rente-omgeving is de klassieke formule te hoog; we schalen mee met de
-# required_return zodat Graham een conservatieve benchmark blijft (nooit inflerend).
+# In een hoger-rente-omgeving is de klassieke formule te hoog; we schalen mee met
+# `valuation.bond_yield` uit config.yaml zodat Graham een conservatieve benchmark
+# blijft (nooit inflerend).
+#
+# Nadrukkelijk de OBLIGATIErente en niet de rendementseis per sector. Die stond hier
+# ooit, en dat telde het risico dubbel — de risico-opslag zit al in de multiples en in
+# de disconteringsvoet. Zie de docstring van graham_fair_value voor wat dat kostte.
 GRAHAM_REFERENCE_YIELD = 4.4
 
 # Minimum r - g spread voor een stabiele Gordon Growth — onder de 2% explodeert de
@@ -129,7 +141,10 @@ def multiples_fair_value(
 
     eps       = normalized.get("normalized_eps")
     ebitda    = normalized.get("normalized_ebitda")
-    fcf_ps    = normalized.get("normalized_oe_per_share")   # per share
+    # De EV/FCF-methode rekent op de TOTALE genormaliseerde FCF en bouwt zelf de
+    # brug naar per aandeel via net_debt_ps hieronder. Er stond hier ook een
+    # `normalized_oe_per_share`, ongebruikt; twee kandidaten voor dezelfde invoer
+    # is precies hoe je per ongeluk de verkeerde pakt.
     norm_fcf  = normalized.get("normalized_fcf")
 
     # Book value per share from most recent year.
@@ -149,7 +164,6 @@ def multiples_fair_value(
     # Net debt (latest year) for EV → equity bridge
     net_debt_ps = None
     for r in annual_rows:
-        debt = r.get("total_debt", 0) or 0
         nc   = r.get("net_cash", 0) or 0
         sh   = r.get("shares_outstanding")
         if sh and sh > 0:

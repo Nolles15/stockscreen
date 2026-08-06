@@ -717,7 +717,8 @@ def _effective_signal(price, fv, q_score, row, cfg):
     Het signaal zoals het nú geldt, niet zoals het bij de laatste herberekening
     was opgeslagen.
 
-    Koersen worden dagelijks ververst, de fair value hooguit eens per negen dagen.
+    Koersen worden dagelijks ververst, de fair value hooguit eens per elf dagen
+    (250 jaarcijfer-fetches per nacht over ~2.760 tickers).
     Het opgeslagen signaal is dus al snel achterhaald; live herberekenen zorgt dat
     een verse koers meteen tegen de laatste waardering wordt gehouden.
 

@@ -1,6 +1,6 @@
 """Test de tijdlogica van scheduler v2 zonder DB of netwerk."""
-import os, sys, types
-from datetime import datetime, timedelta, timezone
+import sys
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 AMS = ZoneInfo("Europe/Amsterdam")

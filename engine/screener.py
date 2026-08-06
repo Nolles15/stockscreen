@@ -45,7 +45,6 @@ def determine_signal(
     hold_upper_pct     = sig_cfg.get("hold_upper_pct", 115) / 100.0
     sell_pct           = sig_cfg.get("sell_pct",       130) / 100.0
     sell_pct_compounder = sig_cfg.get("sell_pct_high_quality", 175) / 100.0
-    sell_q_floor       = sig_cfg.get("sell_quality_floor", 6)
     min_quality        = config.get("screening", {}).get("min_quality_score", 7)
 
     price_vs_fv = price / combined_fv             # < 1 = undervalued
@@ -58,7 +57,7 @@ def determine_signal(
     # SELL betekent hier uitsluitend "te duur ten opzichte van de fair value".
     #
     # Eerder stond hier `if quality < sell_quality_floor: signal = "SELL"`, waardoor
-    # elk aandeel met een kwaliteitsscore onder de 6 een verkoopsignaal kreeg —
+    # elk aandeel met een kwaliteitsscore onder de zes een verkoopsignaal kreeg —
     # ongeacht de prijs. Dat gold voor 72,5% van de portefeuille en verklaarde vrijwel
     # de hele scheve verdeling. Umicore noteerde onder zijn eigen fair value en stond
     # tóch op SELL: een kwaliteitsoordeel met een waarderingsetiket erop.

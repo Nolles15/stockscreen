@@ -391,9 +391,10 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
 # mislukte pogingen, gespreid over weken, en geen enkel jaarcijfer in de database.
 #
 # De drempels stonden aanvankelijk op 10 pogingen / 30 dagen. Dat leek streng maar
-# pakte anders uit dan bedoeld: bij een rotatie van ~900 tickers en 100 per nacht
-# krijgt elke ticker maar eens per negen dagen een beurt, dus tien pogingen duurt
-# drie maanden en het archief werd pas na een half jaar bereikt. Voor symbolen
+# pakte anders uit dan bedoeld: elke ticker krijgt maar eens per elf dagen een
+# beurt (250 per nacht over ~2.760 tickers; bij de oude 100 over ~900 was het er
+# negen), dus tien pogingen duurt maanden en het archief werd pas na een half
+# jaar bereikt. Voor symbolen
 # waar Yahoo letterlijk "possibly delisted" op teruggeeft is dat onnodig lang, en
 # ze slokken al die tijd rotatiecapaciteit op.
 #

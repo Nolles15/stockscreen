@@ -7,7 +7,6 @@ Gebruik:
 import json
 import os
 import sys
-import time
 import urllib.request
 
 APP = "https://stockscreen-janco.fly.dev"

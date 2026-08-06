@@ -15,7 +15,7 @@ maatstaven (margin of safety, P/E) die valuta-onafhankelijk zijn.
 
 import logging
 import time
-from datetime import datetime, date
+from datetime import datetime
 from typing import Any, Callable
 
 import numpy as np
@@ -713,7 +713,6 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
         bvps = row.get("book_value_ps")
         fcf = row.get("fcf")
         ebitda = row.get("ebitda")
-        total_assets = row.get("total_assets")
         total_debt = row.get("total_debt")
         net_cash = row.get("net_cash")
 
@@ -728,9 +727,9 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
         ev = None
         if yr_price and shares and total_debt is not None:
             market_cap_hist = yr_price * shares
-            cash = (-net_cash + total_debt) if net_cash is not None else 0
-            ev = market_cap_hist + total_debt - (total_debt - (net_cash or 0) * -1)
-            # Simplified: EV ≈ market_cap + net_debt
+            # EV = beurswaarde + nettoschuld. Hier stonden twee eerdere pogingen
+            # boven deze regel die allebei meteen werden overschreven — dode code
+            # die de indruk wekte dat er iets subtielers gebeurde dan dit.
             net_debt = (total_debt or 0) - max(0, -(net_cash or 0))
             ev = market_cap_hist + net_debt
 
