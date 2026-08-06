@@ -14,6 +14,25 @@ waar onderzoekstijd aan verloren gaat.
 
 Deze test is de waakhond: verschijnt er een nieuwe sectornaam in de database,
 of hernoemt Yahoo er een, dan valt hij om in plaats van stil terug te vallen.
+
+IJKMETHODE VOOR EEN NIEUW SECTORPROFIEL
+---------------------------------------
+Verzin de multiples niet en kopieer ze niet uit een externe bron; leid ze af
+uit het eigen universum, zodat het nieuwe profiel dezelfde strengheid heeft
+als de bestaande. Zo is Communication Services op 6 augustus 2026 afgeleid:
+
+1. Bepaal per bestaande sector de mediaan van de eigen historische multiples
+   van de aandelen erin (`historical_multiples`, niet de TTM-waarden).
+2. Deel de configwaarde door die mediaan. Dat gaf: Technology 1,42 ·
+   Utilities 1,43 · Consumer Defensive 1,45 · Industrials 1,78 · Energy 1,87.
+   De ijkfactor voor K/W ligt dus rond 1,45.
+3. Pas die factor toe op de mediaan van de nieuwe sector. Communication
+   Services: K/W 12,8 x 1,45 = 18,5 en EV/EBITDA 5,1 -> 10,6.
+4. Corrigeer voor de samenstelling en leg de reden vast in config.yaml.
+
+Meet daarna de uitkomst voordat je hem deployt: hoeveel schuift de fair value
+en hoeveel signalen kantelen. Voor Communication Services was dat x0,911
+(mediaan over 136 tickers) en zes keer HOLD -> SELL, allemaal telecom.
 """
 import os
 import sys
@@ -48,10 +67,6 @@ YAHOO_SECTOREN = [
 # Namen die BEWUST op Default uitkomen, met de reden erbij. Alles wat hier niet
 # in staat en ook geen eigen profiel heeft, is een fout.
 BEWUST_DEFAULT = {
-    "Communication Services":
-        "Nog geen eigen profiel. 186 aandelen; Yahoo gooit hier telecom "
-        "(lage multiples) en media/interactief (hoge) op een hoop, dus de "
-        "keuze is een waarderingsbeslissing en geen naamfout. Openstaand.",
     "Unknown":
         "Sector onbekend bij Yahoo. Default is hier de juiste uitkomst.",
 }
@@ -129,6 +144,26 @@ def test_basic_materials_wijkt_echt_af_van_default():
     assert bm["ev_ebitda"] < default["ev_ebitda"]
 
 
+def test_communication_services_is_geijkt_en_strenger_dan_default():
+    """Regressie op de ijking van 6 augustus 2026.
+
+    De sector is voor 72% telecom en media, met een mediane eigen K/W van 12,8
+    tegen 18 in Default. Het profiel hoort dus strenger te zijn dan Default op
+    alle drie de multiples; anders is het afgeleide profiel per ongeluk weer
+    de terugval geworden en levert het dezelfde schijnkortingen op.
+    """
+    with open(CONFIG_PAD, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    cs = _sector_cfg("Communication Services", cfg)
+    default = _sector_cfg("Default", cfg)
+    assert cs != default, "Communication Services valt terug op Default"
+    for veld in ("pe", "ev_ebitda", "pb", "ev_fcf", "growth_base"):
+        assert cs[veld] < default[veld], (
+            f"{veld} hoort strenger te zijn dan Default "
+            f"({cs[veld]} tegen {default[veld]})"
+        )
+
+
 def test_onbekende_sector_valt_nog_steeds_netjes_terug():
     """De terugval zelf moet blijven werken — die is niet het probleem."""
     with open(CONFIG_PAD, encoding="utf-8") as fh:
@@ -148,6 +183,8 @@ if __name__ == "__main__":
     print("  [OK] elk profiel heeft alle acht velden")
     test_basic_materials_wijkt_echt_af_van_default()
     print("  [OK] Basic Materials is strenger dan Default, zoals bedoeld")
+    test_communication_services_is_geijkt_en_strenger_dan_default()
+    print("  [OK] Communication Services heeft een geijkt eigen profiel")
     test_onbekende_sector_valt_nog_steeds_netjes_terug()
     print("  [OK] terugval op Default werkt nog")
     print("\nAlle tests sectorconfig geslaagd.")

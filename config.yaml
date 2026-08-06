@@ -149,6 +149,27 @@ sectors:
     ev_ebitda: 15
     pb: 1.8
     ev_fcf: 20
+  # Afgeleid op 2026-08-06 uit het eigen universum (152 tickers), niet uit een
+  # externe bron. Methode: de bestaande profielen staan op ongeveer 1,45x de
+  # historische mediaan van hun eigen sector (Technology 1,42 · Utilities 1,43 ·
+  # Consumer Defensive 1,45 · Industrials 1,78 · Energy 1,87). De mediane K/W
+  # van deze sector is 12,8 → 12,8 x 1,45 = 18,5, en EV/EBITDA 5,1 → 10,6.
+  # Hier staat het net iets strenger omdat 72% van de sector telecom of media
+  # is; games en platforms zitten hoger maar zijn de minderheid.
+  #
+  # LET OP de spreiding: telecom noteert op K/W 11,4 en interactief op 16,5.
+  # Geen enkel sectorgetal klopt voor allebei. Dat het toch beperkt schaadt,
+  # komt doordat de fair value voor 65% op de eigen historie van het aandeel
+  # leunt en maar voor 35% op dit anker.
+  Communication Services:
+    growth_base: 3
+    growth_min: 1
+    growth_max: 5
+    required_return: 10
+    pe: 17
+    ev_ebitda: 10
+    pb: 2.0
+    ev_fcf: 15
   Default:
     growth_base: 4
     growth_min: 2
