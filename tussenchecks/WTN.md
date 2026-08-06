@@ -127,6 +127,22 @@ Dit is wel mijn minst zekere voorspelling van vandaag: een operationele marge di
 drie jaar halveert is geen detail, en het feit dat de screener hier een kapotte
 scenariowaardering afgeeft betekent dat ik minder houvast heb dan bij Payton.
 
+## Naschrift (2026-08-06)
+
+De koersval-regel in dit document was gebaseerd op zeven koerspunten en is met de
+volledige reeks onjuist gebleken. Er stond dat het aandeel "weer op recordhoogte"
+staat; in werkelijkheid noteert Wittchen **66% ónder zijn top**, met een diepste
+terugval van 71% (dieptepunt 10 juni 2026).
+
+Dat verandert de context wezenlijk: de koers van 14,24 PLN is geen top maar een
+cyclisch dieptepunt. Het oordeel VERDIEPEN blijft staan — de argumenten (stijgende
+brutomarge bij dalende omzet, groene moat, goedkoop op directe maatstaven) zijn
+onafhankelijk van deze regel.
+
+De oorzaak is inmiddels weggenomen: de koershistorie werd willekeurig over 2.759
+tickers verdeeld, waardoor juist de onderzochte aandelen bijna niets hadden. Sinds
+6 augustus 2026 krijgen tickers met een rapport voorrang.
+
 ---
 Gebaseerd op opgeslagen screenerdata (Yahoo, `AGGREGATOR`-kwaliteit) plus beperkt
 webonderzoek. **Geen invoer voor `research/WTN.md`** — die eist `HOOG`-kwaliteit

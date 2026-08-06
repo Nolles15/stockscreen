@@ -250,12 +250,19 @@ def evaluate(
                     )
 
         # EV consistentie: enterprise_value ≈ market_cap + net_debt
+        #
+        # Dit las eerst `total_cash`, een veld dat in geen enkele jaarrij wordt
+        # gevuld (zie de veldenlijst in data_fetcher). De kaspositie telde
+        # daardoor altijd als nul en de impliciete EV viel structureel te hoog
+        # uit — goed voor honderden valse meldingen, waaronder die bij SDG.PA
+        # (2,26x) en INF.PA (1,59x) die in tussenchecks als aandachtspunt zijn
+        # geciteerd. Met `net_cash` (kas minus schuld, wél gevuld) zakken ze
+        # naar 1,02x resp. 1,03x.
         ev = mkt.get("enterprise_value")
         total_debt = latest_row.get("total_debt")
-        total_cash = latest_row.get("total_cash")
-        if ev and mc and ev > 0 and mc > 0 and total_debt is not None:
-            net_debt = (total_debt or 0) - (total_cash or 0)
-            implied_ev = mc + net_debt
+        net_cash = latest_row.get("net_cash")
+        if ev and mc and ev > 0 and mc > 0 and (total_debt is not None or net_cash is not None):
+            implied_ev = mc - net_cash if net_cash is not None else mc + (total_debt or 0)
             if implied_ev > 0:
                 ev_ratio = max(implied_ev, ev) / min(implied_ev, ev)
                 if ev_ratio > 1.5:
@@ -529,11 +536,17 @@ def classify_blockers(issues: list[str] | None, data_status: str | None) -> dict
 #   geen_data  — bron leverde niets / niet-equity / geen koers / te leeg → Route B (databron)
 #   databug    — schaal/eenheid/dual-listing-mismatch of FV 10x+ van koers → fixen
 #   geen_fv    — data compleet & solvabel maar verlieslatend → <2 methodes; of insolvent
+#
+# Het label van `databug` heet bewust niet meer "DATABUG": een verschil van meer
+# dan een factor tien tussen modelwaarde en koers is meestal een schaalfout,
+# maar bij een koersval van 90% of meer is het de werkelijkheid. Een echte crash
+# als datafout presenteren verbergt precies het nieuws dat je wilt zien. De code
+# blijft `databug` (dat is een sleutel, geen tekst voor de lezer).
 # ---------------------------------------------------------------------------
 
 _REASON_LABELS = {
     "geen_data":  "GEEN DATA",
-    "databug":    "DATABUG",
+    "databug":    "FACTOR >10",
     "geen_fv":    "GEEN FV (VERLIES)",
     "verouderd":  "CIJFERS VEROUDERD",
 }

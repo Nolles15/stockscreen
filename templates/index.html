@@ -97,7 +97,7 @@
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alles, ook zonder oordeel</option>
     <option value="reason:geen_data">Geen data</option>
-    <option value="reason:databug">Databug</option>
+    <option value="reason:databug">Factor &gt;10</option>
     <option value="reason:geen_fv">Geen FV (verlies)</option>
     <option value="reason:growth">🌱 Kansen (verlies + groei)</option>
   </select>
@@ -434,11 +434,32 @@ function wisFilters() {
 const TABS = [
   {
     id: 'kansen', label: '⭐ Kansen',
-    uitleg: 'De twintig aandelen die nu het meest de moeite waard lijken, gewogen op korting, kwaliteit en hoe betrouwbaar de waardering is.',
+    uitleg: 'De twintig aandelen met de grootste korting op de modelwaarde, '
+      + 'gewogen op kwaliteit en betrouwbaarheid. Let op: het model rekent met '
+      + 'de eigen historische waardering — kwaliteit die structureel duurder is '
+      + 'geworden belandt hier zelden. Zie 💎 Kwaliteit.',
     select: rows => rows
       .filter(r => r.rank_score !== null && r.rank_score !== undefined)
       .sort((a, b) => b.rank_score - a.rank_score)
       .slice(0, 20),
+  },
+  {
+    // De keerzijde van Kansen. Het waarderingsmodel ankert voor 65% op de eigen
+    // historische multiples van een bedrijf, dus wie structureel duurder werd
+    // dan zijn eigen verleden krijgt per constructie een lage korting. Precies
+    // de compounders dus. Die stonden in geen enkele weergave als groep bij
+    // elkaar; hier wel — markeren, niet wegfilteren.
+    id: 'kwaliteit', label: '💎 Kwaliteit',
+    uitleg: 'De sterkste bedrijven ongeacht de prijs. Het waarderingsmodel '
+      + 'onderschat juist deze categorie structureel — een lage korting hier '
+      + 'zegt weinig. Banken en verzekeraars ontbreken: de kwaliteitsscore is '
+      + 'daar niet op berekend.',
+    select: rows => rows
+      .filter(r => (r.quality_score || 0) >= 8.5
+        && ['ok', 'warning'].includes(r.data_status)
+        && r.sector !== 'Financial Services')
+      .sort((a, b) => (b.quality_score - a.quality_score)
+        || ((b.margin_of_safety ?? -999) - (a.margin_of_safety ?? -999))),
   },
   {
     id: 'groeiers', label: '🌱 Groeiers',
@@ -609,6 +630,19 @@ function toonOnderzoekStrook(tekst) {
   el.classList.toggle('hidden', !tekst);
 }
 
+// De kwaliteitsscore rekent met schuldratio en rentedekking. Voor een bank of
+// verzekeraar betekenen die niets: schuld ís daar het bedrijfsmodel. De
+// screener geeft ze daardoor stelselmatig 1 tot 4,5, en dat leest als een
+// oordeel terwijl het een meetfout is. Liever eerlijk niets tonen.
+function kwaliteitCel(r) {
+  if (r.sector === 'Financial Services') {
+    return '<span class="text-slate-500 cursor-help" title="De kwaliteitsscore rekent'
+      + ' met schuldratio en rentedekking; voor banken en verzekeraars betekenen die'
+      + ' niets. Score bewust niet getoond.">n.v.t.</span>';
+  }
+  return r.quality_score ?? '—';
+}
+
 // Eén regel uitleg in gewone taal, zodat je niet eerst de kolomkoppen hoeft te
 // ontcijferen om te snappen waarom iets in de lijst staat.
 function eenRegelUitleg(r) {
@@ -709,6 +743,11 @@ function renderFocus(tab) {
       ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
          ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
          ['Omzetgroei', 'r', 'revenue_cagr'], ['Kwaliteit', 'r', 'quality_score'], ['', 'r', '']]
+    : tab.id === 'kwaliteit'
+      ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
+         ['Sector', 'l', 'sector'], ['Kwaliteit', 'r', 'quality_score'],
+         ['Korting', 'r', 'margin_of_safety'], ['Signaal', 'r', 'signal'],
+         ['Onderzocht', 'r', '']]
       : [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
          ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
          ['Waarde', 'r', 'combined_fv'], ['Korting', 'r', 'margin_of_safety'],
@@ -735,10 +774,13 @@ function renderFocus(tab) {
   body.innerHTML = rows.map(r => {
     const ster = pins.includes(r.ticker) ? '★' : '☆';
     const sterKleur = pins.includes(r.ticker) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400';
+    // Op het Kwaliteit-tabblad staat het oordeel in een eigen kolom, dus daar
+    // niet ook nog achter de naam — anders staat dezelfde pil er twee keer.
+    const naamExtra = tab.id === 'kwaliteit' ? noteringPil(r) : oordeelPil(r) + noteringPil(r);
     const cel = `<td class="px-3 py-2"><button onclick="togglePin('${r.ticker}', event)"
         class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button></td>
       <td class="px-3 py-2 whitespace-nowrap"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>${boekjaarBadge(r)}</td>
-      <td class="px-3 py-2 text-slate-300">${r.name || ''}${oordeelPil(r)}${noteringPil(r)}</td>`;
+      <td class="px-3 py-2 text-slate-300">${r.name || ''}${naamExtra}</td>`;
 
     if (tab.id === 'geenoordeel') {
       return `<tr class="hover:bg-slate-800/40">${cel}
@@ -752,8 +794,19 @@ function renderFocus(tab) {
         <td class="px-3 py-2 text-slate-400 text-xs">${r.sector || '—'}</td>
         <td class="px-3 py-2 text-right">${fmt(r.price)}</td>
         <td class="px-3 py-2 text-right text-emerald-400">${cagr}</td>
-        <td class="px-3 py-2 text-right">${r.quality_score ?? '—'}</td>
+        <td class="px-3 py-2 text-right">${kwaliteitCel(r)}</td>
         <td class="px-3 py-2 text-right text-xs text-slate-500">geen waardebepaling mogelijk</td></tr>`;
+    }
+    if (tab.id === 'kwaliteit') {
+      const mos = r.margin_of_safety;
+      const mosKleur = mos >= 25 ? 'text-emerald-400' : mos >= 0 ? 'text-slate-300' : 'text-red-400';
+      const sigKlasse = 'signal-' + (r.signal || 'N/A').replace(/ /g, '\\ ');
+      return `<tr class="hover:bg-slate-800/40">${cel}
+        <td class="px-3 py-2 text-slate-400 text-xs">${r.sector || '—'}</td>
+        <td class="px-3 py-2 text-right font-medium">${kwaliteitCel(r)}</td>
+        <td class="px-3 py-2 text-right ${mosKleur}">${mos !== null && mos !== undefined ? mos.toFixed(0) + '%' : '—'}</td>
+        <td class="px-3 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold ${sigKlasse}">${r.signal || 'N/A'}</span></td>
+        <td class="px-3 py-2 text-right">${oordeelPil(r) || '<span class="text-slate-500">—</span>'}</td></tr>`;
     }
     const mos = r.margin_of_safety;
     const kleur = mos >= 25 ? 'text-emerald-400' : mos >= 0 ? 'text-slate-300' : 'text-red-400';
@@ -943,8 +996,9 @@ function reasonTooltip(r) {
   }
   if (code === 'databug') {
     const issues = (r.warnings || []).slice(0, 4).map(x => '• ' + x).join('\n');
-    return 'DATABUG — de cijfers kloppen niet qua schaal/eenheid (bv. FV wijkt 10×+ van de koers, '
-      + 'verkeerde currency of dual-listing).\nMoet gefixt worden — nog geen betrouwbaar signaal.'
+    return 'FACTOR >10 — modelwaarde en koers verschillen meer dan een factor tien.\n'
+      + 'Meestal een schaal- of eenheidsfout in de data (verkeerde valuta, dual-listing); '
+      + 'soms een extreme koersbeweging die echt is.\nUitzoeken voordat je dit als signaal leest.'
       + (issues ? '\n\n' + issues : '');
   }
   if (code === 'geen_fv') {
@@ -1132,9 +1186,11 @@ function rowHtml(r) {
     </td>
     <td class="px-3 py-2.5 text-right text-xs ${fcfClass}">${fcfStr}</td>
     <td class="px-3 py-2.5 text-center">
-      <span class="font-bold ${(r.quality_score||0) >= 8 ? 'text-green-700' : (r.quality_score||0) >= 7 ? 'text-green-600' : 'text-red-700'}">
+      ${r.sector === 'Financial Services'
+        ? kwaliteitCel(r)
+        : `<span class="font-bold ${(r.quality_score||0) >= 8 ? 'text-green-700' : (r.quality_score||0) >= 7 ? 'text-green-600' : 'text-red-700'}">
         ${r.quality_score !== null && r.quality_score !== undefined ? r.quality_score + '/10' : '—'}
-      </span>
+      </span>`}
     </td>
     <td class="px-3 py-2.5 text-center text-slate-400">
       ${r.piotroski_score !== null && r.piotroski_score !== undefined ? r.piotroski_score + '/9' : '—'}

@@ -94,6 +94,26 @@ werden. De waardering zal het opwaartse potentieel bevestigen; de scorekaart zal
 concurrentiepositie blijven steken. Een KOOP zou alleen ontstaan als vraag 1 en 2 beide
 gunstig uitpakken: de bedrijfswaarde klopt én de margedaling is aantoonbaar cyclisch.
 
+## Naschrift (2026-08-06)
+
+Twee cijfers uit dit document zijn achteraf onjuist gebleken.
+
+**De koersval-regel.** Die was gebaseerd op zeven koerspunten en meldde
+"recordhoogte". Met de volledige reeks blijkt Synergie een diepste terugval van
+**44%** te hebben gehad (september 2022) en 28% onder zijn top te staan. De oorzaak
+is weggenomen: sinds 6 augustus 2026 krijgen tickers met een rapport voorrang bij
+het ophalen van koershistorie.
+
+**De EV-inconsistentie.** Vraag 1 van dit document — "klopt de bedrijfswaarde?" —
+kwam voort uit een melding dat beurswaarde plus nettoschuld (€792 mln) niet strookt
+met Yahoo's €354 mln. Die controle bleek zelf kapot: hij las een kasveld dat nooit
+gevuld wordt en rekende dus altijd met kas = 0. Herberekend met de werkelijke
+kaspositie zakt de afwijking van 2,26× naar **1,02×**. Vraag 1 vervalt daarmee
+grotendeels; de EV/EBITDA van 3,5 is waarschijnlijk gewoon juist.
+
+Het oordeel TWIJFEL blijft staan, en de kernvraag verschuift naar vraag 1 uit de
+oorspronkelijke lijst: waar ging die negen procentpunt operationele marge naartoe?
+
 ---
 Gebaseerd op opgeslagen screenerdata (Yahoo, `AGGREGATOR`-kwaliteit) plus beperkt
 webonderzoek. **Geen invoer voor `research/SDG.md`** — die eist `HOOG`-kwaliteit bronnen

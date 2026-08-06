@@ -116,6 +116,26 @@ En dat is precies de reden om hem over te slaan: een HOLD op een krimpend bedrij
 het uitzoeken niet waard. De uren gaan beter naar een kandidaat waar het antwoord nog
 open ligt.
 
+## Naschrift (2026-08-06)
+
+Twee cijfers uit dit document zijn achteraf onjuist gebleken.
+
+**De koersval-regel.** Die was gebaseerd op zeven koerspunten en meldde
+"recordhoogte, −2%". Met de volledige reeks blijkt Infotel in maart 2026 een
+terugval van **41%** te hebben gehad en 28% onder zijn top te staan. De oorzaak is
+weggenomen: sinds 6 augustus 2026 krijgen tickers met een rapport voorrang bij het
+ophalen van koershistorie.
+
+**De EV-inconsistentie.** Het document noemt dat beurswaarde plus schuld (€313 mln)
+niet strookt met Yahoo's €197 mln. Die controle bleek zelf kapot: hij las een
+kasveld dat nooit gevuld wordt en rekende dus altijd met kas = 0. Herberekend met de
+werkelijke kaspositie zakt de afwijking van 1,59× naar **1,03×** — er was niets aan
+de hand. De controle is op 6 augustus 2026 gerepareerd.
+
+Het oordeel OVERSLAAN blijft ongewijzigd: dat rust op de margeerosie van 5,3
+procentpunt, het dalende rendement op kapitaal en het feit dat software maar 4,9%
+van de omzet is — geen van die drie raakt aan bovenstaande correcties.
+
 ---
 Gebaseerd op opgeslagen screenerdata (Yahoo, `AGGREGATOR`-kwaliteit) plus beperkt
 webonderzoek. **Geen invoer voor `research/INF.md`** — die eist `HOOG`-kwaliteit

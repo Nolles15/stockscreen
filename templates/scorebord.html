@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Scorebord onderzoekspijplijn{% endblock %}
+
+{# Bewust volledig server-side: geen enkele regel JavaScript op deze pagina.
+   base.html en de pagina-sjablonen delen één globale JS-scope, en die valkuil
+   heeft eerder een hele pagina gesloopt. Wat hier staat is een tabel met
+   getallen; daar is geen script voor nodig. #}
+{% block content %}
+<style>
+  .sb-tabel { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sb-tabel th {
+    text-align: left; padding: 8px 10px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-3); font-weight: 700;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .sb-tabel td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+    color: var(--text-1); vertical-align: middle;
+  }
+  .sb-tabel tr:last-child td { border-bottom: none; }
+  .sb-tabel .r { text-align: right; }
+  .sb-ticker { font-weight: 700; }
+  .sb-ticker a { color: var(--text-1); text-decoration: none; }
+  .sb-ticker a:hover { text-decoration: underline; }
+  .sb-naam { color: var(--text-2); font-size: 12px; }
+  .sb-leeg { color: var(--text-3); }
+  .sb-op { color: var(--pass); font-weight: 600; }
+  .sb-neer { color: var(--buy); font-weight: 600; }
+
+  .sb-kaart {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 22px; margin-bottom: 22px;
+  }
+  .sb-kop { font-size: 15px; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+  .sb-uitleg { font-size: 12.5px; color: var(--text-2); line-height: 1.65; max-width: 720px; }
+  .sb-lijst { margin: 10px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); line-height: 1.8; }
+  .sb-waarschuwing {
+    border-left: 3px solid var(--hold); background: var(--hold-bg);
+    padding: 12px 16px; border-radius: var(--radius-sm);
+    font-size: 12.5px; color: var(--text-2); line-height: 1.6; margin-top: 14px;
+  }
+  .page-head  { margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 800; color: var(--text-1); letter-spacing: -0.4px; }
+  .page-sub   { font-size: 13px; color: var(--text-2); margin-top: 6px; max-width: 720px; line-height: 1.6; }
+  .sb-scroll { overflow-x: auto; }
+</style>
+
+<div style="max-width: 1320px; margin: 0 auto; padding: 32px;">
+  {% include "_onderzoek_kop.html" %}
+
+  <div class="page-head">
+    <h1 class="page-title">Scorebord</h1>
+    <p class="page-sub">
+      Hoe goed voorspelt een tussencheck wat de volledige analyse vindt? En
+      even belangrijk: wat wordt er per constructie níét gemeten?
+    </p>
+  </div>
+
+  <div class="sb-kaart sb-scroll">
+    <table class="sb-tabel">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Tussencheck</th>
+          <th>Datum</th>
+          <th>Voorspeld</th>
+          <th>Analyse</th>
+          <th class="r">Score</th>
+          <th class="r">Sinds</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in regels %}
+        <tr>
+          <td class="sb-ticker">
+            {% if r.tussencheck %}<a href="/tussenchecks/{{ r.ticker }}">{{ r.ticker }}</a>
+            {%- elif r.analyse %}<a href="/analyses/{{ r.ticker }}">{{ r.ticker }}</a>
+            {%- else %}{{ r.ticker }}{% endif %}
+            <div class="sb-naam">{{ r.naam }}</div>
+          </td>
+          <td>
+            {% if r.tussencheck %}
+            <span class="oordeel oordeel-{{ r.tussencheck }}">{{ r.tussencheck }}</span>
+            {% else %}<span class="sb-leeg">—</span>{% endif %}
+          </td>
+          <td class="sb-leeg">{{ r.tc_datum or r.an_datum or '—' }}</td>
+          <td>{{ r.voorspelling or '—' }}</td>
+          <td>
+            {% if r.analyse %}
+            <span class="oordeel oordeel-{{ r.analyse }}">{{ r.analyse }}</span>
+            {% else %}<span class="sb-leeg">—</span>{% endif %}
+          </td>
+          <td class="r">{% if r.score is not none %}{{ r.score }}/45{% else %}<span class="sb-leeg">—</span>{% endif %}</td>
+          <td class="r">
+            {% if r.rendement is not none and r.rendement is not undefined %}
+              {% if r.rendement >= 1 %}<span class="sb-neer">{{ r.rendement | pct }}</span>
+              {% elif r.rendement <= -1 %}<span class="sb-op">{{ r.rendement | pct }}</span>
+              {% else %}<span class="sb-leeg">0%</span>{% endif %}
+            {% else %}<span class="sb-leeg">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sb-kaart">
+    <div class="sb-kop">Kalibratie</div>
+    {% if kalibratie.paren %}
+    <p class="sb-uitleg">
+      {{ kalibratie.paren }} van de {{ kalibratie.totaal }} bedrijven hebben zowel een
+      voorspelling als een uitslag. Daarvan waren er <strong>{{ kalibratie.raak }} raak</strong>.
+    </p>
+    <ul class="sb-lijst">
+      {% for ticker, voorspeld, werd, richting in kalibratie.details %}
+      <li><strong>{{ ticker }}</strong>: voorspeld {{ voorspeld }} → werd {{ werd }} — {{ richting }}</li>
+      {% endfor %}
+    </ul>
+    <p class="sb-uitleg" style="margin-top: 12px;">
+      {% if kalibratie.afwijking > 0.3 %}
+      Gemiddelde afwijking {{ kalibratie.afwijking | pct }} op de schaal PASS–HOLD–KOOP:
+      <strong>stelselmatig te optimistisch</strong>. Dat betekent dat de VERDIEPEN-drempel
+      te ruim staat en er uren gaan naar kandidaten die de analyse niet halen.
+      {% elif kalibratie.afwijking < -0.3 %}
+      Gemiddelde afwijking {{ kalibratie.afwijking | pct }}: <strong>stelselmatig te somber</strong>.
+      Dan slaat de check waarschijnlijk kandidaten over die het wél waard waren.
+      {% else %}
+      Gemiddelde afwijking {{ kalibratie.afwijking | pct }}: geen duidelijke scheefheid.
+      {% endif %}
+    </p>
+    {% if kalibratie.paren < 10 %}
+    <div class="sb-waarschuwing">
+      {{ kalibratie.paren }} waarnemingen is te weinig om conclusies aan te verbinden.
+      Dit is een richting, geen bewijs. Vanaf ongeveer tien paren wordt het een signaal.
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="sb-uitleg">Nog geen enkel bedrijf heeft zowel een voorspelling als een uitslag.</p>
+    {% endif %}
+  </div>
+
+  <div class="sb-kaart">
+    <div class="sb-kop">Wat je meet, en wat je niet meet</div>
+    <p class="sb-uitleg">
+      De pijplijn maakt twee soorten fouten, en maar één daarvan is zichtbaar.
+      Een <strong>vals positief</strong> — VERDIEPEN dat op PASS uitkomt — kost uren,
+      maar je ziet hem, want de analyse is gedaan. Een <strong>vals negatief</strong> —
+      OVERSLAAN dat een KOOP was — kost een gemiste kans en blijft per constructie
+      onzichtbaar, want die analyse komt er nooit.
+    </p>
+    <ul class="sb-lijst">
+      <li>
+        VERDIEPEN met analyse: <strong>{{ vlek.verdiepen_getoetst[0] }} van
+        {{ vlek.verdiepen_getoetst[1] }}</strong> — vals positieven zijn zichtbaar.
+        {% if vlek.vals_pos %}
+        Uitgekomen op PASS: {{ vlek.vals_pos | join(', ') }}.
+        {% endif %}
+      </li>
+      <li>
+        OVERSLAAN zonder analyse: <strong>{{ vlek.overslaan_ongetoetst | length }} van
+        {{ vlek.overslaan_totaal }}</strong> — vals negatieven zijn onzichtbaar.
+        {% if vlek.overslaan_ongetoetst %}
+        Het gaat om
+        {% for t in vlek.overslaan_ongetoetst %}<a href="/tussenchecks/{{ t }}">{{ t }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+        {% endif %}
+      </li>
+    </ul>
+    {% if vlek.overslaan_ongetoetst %}
+    <div class="sb-waarschuwing">
+      Van die groep is niets bekend. Wil je dat wel, dan is er maar één weg: draai
+      er af en toe alsnog een volledige analyse op — bij voorkeur op het geval dat
+      het dichtst bij de streep lag.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

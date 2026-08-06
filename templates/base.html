@@ -327,8 +327,9 @@
       <!-- Intern sub-nav -->
       <div class="nav-internal">
         <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
-        <a href="/analyses" {% if request.path.startswith('/analyses') %}class="active"{% endif %}>Analyses</a>
-        <a href="/tussenchecks" {% if request.path.startswith('/tussenchecks') %}class="active"{% endif %}>Tussenchecks</a>
+        {# Analyses, tussenchecks en het scorebord zijn drie kanten van dezelfde
+           pijplijn; ze delen daarom één tab met subtabs op de pagina zelf. #}
+        <a href="/analyses" {% if request.path.startswith('/analyses') or request.path.startswith('/tussenchecks') or request.path == '/scorebord' %}class="active"{% endif %}>Onderzoek</a>
         <a href="/methode" {% if request.path == '/methode' %}class="active"{% endif %}>Methode</a>
         {# "Wat nu?" en Triage staan als hulpmiddel op de instellingenpagina;
            de tab blijft dus oplichten als je daar bent. #}

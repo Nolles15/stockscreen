@@ -1,0 +1,66 @@
+{# Gedeelde kop voor de drie onderzoekspagina's: subtabs plus één feitenregel
+   over de stand van de pijplijn.
+
+   Verwacht in de context: `subtab` ('analyses' | 'tussenchecks' | 'scorebord')
+   en `pijplijn` (uit engine.scorebord.pijplijn_overzicht).
+
+   De feitenregel noemt bewust ook wat er níét gemeten is. Dat de
+   OVERSLAAN-groep nooit tegen een analyse is gehouden, is geen detail maar de
+   omvang van de blinde vlek — en dat hoort zichtbaar te zijn op de pagina
+   zelf, niet alleen in een rapport. #}
+<style>
+  .onderzoek-tabs {
+    display: flex; gap: 0; align-items: stretch;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+  }
+  .onderzoek-tabs a {
+    padding: 8px 16px 10px;
+    font-size: 13px; font-weight: 600; color: var(--text-3);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .onderzoek-tabs a:hover { color: var(--text-1); }
+  .onderzoek-tabs a.active { color: var(--text-1); border-bottom-color: var(--text-1); }
+  .onderzoek-tabs .telling { color: var(--text-3); font-weight: 500; }
+  .onderzoek-stand {
+    font-size: 12px; color: var(--text-2); line-height: 1.6;
+    margin-bottom: 22px; max-width: 760px;
+  }
+  .onderzoek-stand .let-op { color: var(--pass); font-weight: 600; }
+  @media (max-width: 640px) {
+    .onderzoek-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .onderzoek-tabs::-webkit-scrollbar { display: none; }
+  }
+</style>
+
+<div class="onderzoek-tabs">
+  <a href="/analyses" {% if subtab == 'analyses' %}class="active"{% endif %}>
+    Analyses <span class="telling">({{ pijplijn.n_analyses }})</span>
+  </a>
+  <a href="/tussenchecks" {% if subtab == 'tussenchecks' %}class="active"{% endif %}>
+    Tussenchecks <span class="telling">({{ pijplijn.n_tussenchecks }})</span>
+  </a>
+  <a href="/scorebord" {% if subtab == 'scorebord' %}class="active"{% endif %}>
+    Scorebord
+  </a>
+</div>
+
+<p class="onderzoek-stand">
+  {{ pijplijn.n_tussenchecks }} tussenchecks:
+  {{ pijplijn.verdeling_tc.get('VERDIEPEN', 0) }} VERDIEPEN ·
+  {{ pijplijn.verdeling_tc.get('TWIJFEL', 0) }} TWIJFEL ·
+  {{ pijplijn.verdeling_tc.get('OVERSLAAN', 0) }} OVERSLAAN
+  {%- if pijplijn.vlek.overslaan_ongetoetst %}
+  <span class="let-op">({{ pijplijn.vlek.overslaan_ongetoetst | length }} nooit getoetst)</span>
+  {%- endif %}.
+  {% if pijplijn.kalibratie.paren %}
+  Voorspellingen: {{ pijplijn.kalibratie.raak }} van {{ pijplijn.kalibratie.paren }} raak.
+  {% endif %}
+  {{ pijplijn.n_analyses }} volledige analyses:
+  {{ pijplijn.verdeling_an.get('KOOP', 0) }} KOOP ·
+  {{ pijplijn.verdeling_an.get('HOLD', 0) }} HOLD ·
+  {{ pijplijn.verdeling_an.get('PASS', 0) }} PASS.
+</p>

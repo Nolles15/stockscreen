@@ -27,6 +27,7 @@ from engine import normalizer
 from engine import moat_profile
 from engine import oordelen
 from engine import refresh
+from engine import scorebord as scorebord_mod
 from engine import remap_rules
 from engine.data_fetcher import (
     fetch_and_store,
@@ -291,6 +292,32 @@ def analyses_overzicht():
         "analyses.html",
         analyses=analyses,
         logo_token=analyses_mod.LOGO_DEV_TOKEN,
+        subtab="analyses",
+        pijplijn=scorebord_mod.pijplijn_overzicht(),
+        config=load_config(),
+    )
+
+
+@app.route("/scorebord")
+def scorebord_pagina():
+    """Hoe goed voorspelt de tussencheck wat de analyse vindt — en wat er per
+    constructie niet gemeten wordt.
+
+    De koersen komen rechtstreeks uit de database in plaats van via
+    /api/dashboard: de webapp zit al bij de bron, en dat scheelt een HTTP-slag.
+    """
+    regels = scorebord_mod.verzamel()
+    rijen = [{"ticker": r["ticker"], "name": r.get("name"),
+              "price": r.get("price"), "currency": r.get("currency")}
+             for r in db.get_dashboard_data()]
+    scorebord_mod.met_koersen(regels, rijen)
+    return render_template(
+        "scorebord.html",
+        regels=regels,
+        kalibratie=scorebord_mod.kalibratie(regels),
+        vlek=scorebord_mod.blinde_vlek(regels),
+        pijplijn=scorebord_mod.pijplijn_overzicht(),
+        subtab="scorebord",
         config=load_config(),
     )
 
@@ -491,6 +518,8 @@ def tussenchecks_overzicht():
     return render_template(
         "tussenchecks.html",
         checks=analyses_mod.get_alle_tussenchecks(),
+        subtab="tussenchecks",
+        pijplijn=scorebord_mod.pijplijn_overzicht(),
         config=load_config(),
     )
 
@@ -2624,7 +2653,11 @@ def triage_page():
 def api_stock_detail(ticker):
     t = ticker.upper()
     stock  = db.get_stock(t)
-    annual = db.get_financials(t, "annual")
+    # Mét overrides: handmatig ingevoerde boekjaren staan in een andere tabel,
+    # en wie alleen `financials` leest mist ze. Dat gold hier nog, waardoor het
+    # moat-profiel hieronder — en dus ook de tussenchecks die dit endpoint
+    # gebruiken — rekende zonder bijvoorbeeld LASTIK's handmatige FY2025.
+    annual, _ = db.jaarrijen_met_overrides(t)
     market = db.get_market_data(t)
     scores = db.get_scores(t)
     hist   = db.get_historical_multiples(t)

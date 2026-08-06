@@ -31,6 +31,7 @@ import yaml
 from flask import Flask, render_template
 
 from engine import analyses as analyses_mod
+from engine import scorebord as scorebord_mod
 
 WORTEL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -94,6 +95,8 @@ def _app(market_data=None, db_kapot=False) -> Flask:
             "analyses.html",
             analyses=[verrijk(a) for a in analyses_mod.get_all_summaries()],
             logo_token=analyses_mod.LOGO_DEV_TOKEN,
+            subtab="analyses",
+            pijplijn=scorebord_mod.pijplijn_overzicht(),
             config=config(),
         )
 
@@ -114,6 +117,8 @@ def _app(market_data=None, db_kapot=False) -> Flask:
         return render_template(
             "tussenchecks.html",
             checks=analyses_mod.get_alle_tussenchecks(),
+            subtab="tussenchecks",
+            pijplijn=scorebord_mod.pijplijn_overzicht(),
             config=config(),
         )
 
