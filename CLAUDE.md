@@ -7,11 +7,11 @@ Dutch-language stock screener voor Europese small/mid-caps. Flask + PostgreSQL (
 | | |
 |---|---|
 | **Live** | https://stockscreen-janco.fly.dev |
-| **Fly app** | `stockscreen-janco` (region `ams`, 256mb, 1 worker / 8 threads, gunicorn 120s timeout) |
+| **Fly app** | `stockscreen-janco` (region `ams`, 512mb, 1 worker / 8 threads, gunicorn 120s timeout) |
 | **DB** | Neon PostgreSQL, Frankfurt |
 | **GitHub** | github.com/Nolles15/stockscreen (branch `main`) |
 | **Local dev** | `DATABASE_URL="..." python app.py` → http://localhost:5001 |
-| **Deploy** | `fly deploy --remote-only --depot=false` (vanuit de repo-root). **Neem `--depot=false` meteen mee**: de TLS-onderschepping op dit netwerk blokkeert de depot.dev-builder (`x509: certificate signed by unknown authority`), maar fly meldt dat pas ná ruim tien minuten stil wachten op een builder die hij nooit kan bereiken. Met Fly's eigen builder is een deploy klaar in ~40 seconden. |
+| **Deploy** | `fly deploy --local-only` (vanuit de repo-root). Bouwt met de Docker die op deze machine draait en stuurt alleen het resultaat naar Fly. **Gebruik dit en niet `--remote-only`**: dat laatste laat Fly een bouwmachine aanmaken met een schijf van 50 GB, en die schijf wordt elke maand doorberekend of je hem gebruikt of niet — op 6 augustus 2026 was dat meer dan de helft van de hele Fly-rekening. De bouwcontext is maar 5,5 MB, dus lokaal bouwen kost niets extra's. Werkt Docker een keer niet, dan is de terugval `fly deploy --remote-only --depot=false` — **`--depot=false` moet je dan meteen meenemen**, want de TLS-onderschepping op dit netwerk blokkeert de depot.dev-builder (`x509: certificate signed by unknown authority`) en fly meldt dat pas ná ruim tien minuten stil wachten. Ruim daarna wel `fly apps destroy fly-builder-*` op. |
 
 ## Kritieke operationele feiten
 
