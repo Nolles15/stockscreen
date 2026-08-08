@@ -98,6 +98,50 @@ def test_jaren_rekent_op_dagen_niet_op_kalenderjaren():
     assert not c["betrouwbaar"]
 
 
+def test_dunne_marge_krijgt_een_waarschuwing_bij_groen():
+    """Ework Group, 7 augustus 2026.
+
+    24% mediaan rendement op kapitaal en dus groen, terwijl de operationele
+    marge 0,8% is: een bemiddelaar die 13,7 mrd omzet langs 250 mln eigen
+    vermogen schuift. Het rendement is hoog omdat de noemer klein is.
+    """
+    # ebit/revenue ≈ 0,9%; eigen vermogen klein genoeg voor een hoge ROIC
+    p = bouw_profiel(_jaren(
+        revenue=[16000.0, 17200.0, 15800.0, 13700.0],
+        gross_profit=[440.0, 470.0, 430.0, 390.0],
+        ebit=[145.0, 155.0, 140.0, 120.0],
+        total_equity=[260.0, 280.0, 300.0, 250.0],
+        total_debt=[0.0, 0.0, 0.0, 0.0],
+    ))
+    assert p["niveau"] == "groen", "de ROIC-test hoort hier nog steeds groen te geven"
+    assert p["dunne_marge"] is True
+    redenen = " ".join(p["redenen"])
+    assert "LET OP" in redenen and "weinig kapitaal" in redenen, redenen
+
+
+def test_gezonde_marge_krijgt_geen_waarschuwing():
+    """De tegenproef: een groen bedrijf met een normale marge blijft schoon."""
+    p = bouw_profiel(_jaren(
+        revenue=[1000.0] * 4, gross_profit=[500.0] * 4, ebit=[200.0] * 4,
+        total_equity=[700.0] * 4, total_debt=[300.0] * 4,
+    ))
+    assert p["niveau"] == "groen"
+    assert p["dunne_marge"] is False
+    assert "LET OP" not in " ".join(p["redenen"])
+
+
+def test_waarschuwing_alleen_bij_groen():
+    """Bij rood of geel zegt het oordeel zelf al genoeg; dan is de extra regel ruis."""
+    p = bouw_profiel(_jaren(
+        revenue=[16000.0, 17200.0, 15800.0, 13700.0],
+        gross_profit=[440.0, 470.0, 430.0, 390.0],
+        ebit=[145.0, 155.0, 140.0, 120.0],
+        total_equity=[6000.0] * 4, total_debt=[2000.0] * 4,   # grote noemer -> lage ROIC
+    ))
+    assert p["niveau"] != "groen"
+    assert p["dunne_marge"] is False
+
+
 def test_de_reden_belooft_niets_bij_een_korte_reeks():
     """Geen 'recordhoogte' meer, maar een expliciete melding dat we het niet weten."""
     profiel = bouw_profiel(
@@ -202,4 +246,10 @@ if __name__ == "__main__":
     print("  [OK] jaren rekent op dagen, niet op kalenderjaren")
     test_de_reden_belooft_niets_bij_een_korte_reeks()
     print("  [OK] geen 'recordhoogte' bij een reeks van tien dagen")
+    test_dunne_marge_krijgt_een_waarschuwing_bij_groen()
+    print("  [OK] groen bij een operationele marge onder 5% krijgt LET OP")
+    test_gezonde_marge_krijgt_geen_waarschuwing()
+    print("  [OK] groen met een normale marge blijft schoon")
+    test_waarschuwing_alleen_bij_groen()
+    print("  [OK] geen waarschuwing bij rood of geel")
     print("\nAlle tests moat-profiel geslaagd.")

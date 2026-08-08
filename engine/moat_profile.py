@@ -53,6 +53,23 @@ MIN_JAREN = 3              # minder dan drie jaar zegt niets over standvastighei
 MIN_CYCLUS_JAREN = 2.0
 MIN_CYCLUS_PUNTEN = 24
 
+# Onder deze operationele marge betekent een hoog rendement op kapitaal iets
+# anders dan een sterke positie. Het rendement is dan hoog omdat de NOEMER klein
+# is: een doorgeefluik of bemiddelaar heeft geen fabrieken en nauwelijks eigen
+# vermogen, dus een flinterdunne winst levert al een indrukwekkend percentage op.
+#
+# Ework Group (7 augustus 2026) was het schoolvoorbeeld: 24% mediaan rendement op
+# kapitaal en dus "groen", bij een operationele marge van 0,8% en een brutomarge
+# van 2,8% — 13,7 miljard omzet langs 250 miljoen eigen vermogen. Truecaller liet
+# eerder dezelfde vorm zien bij een app zonder kapitaalbehoefte.
+#
+# Vijf procent is bewust laag gekozen. Het is geen oordeel over de bedrijfstak —
+# een supermarkt kan op 4% draaien en toch een positie hebben — maar een reden om
+# het groene stempel niet zonder toelichting te laten staan. Vandaar een extra
+# regel bij de redenen en GEEN verlaging van het niveau: markeren, niet
+# wegfilteren.
+MIN_OP_MARGE_GROEN = 5.0
+
 
 def _f(row: dict, key: str) -> Optional[float]:
     v = row.get(key)
@@ -258,6 +275,7 @@ def bouw_profiel(annual: list[dict], price_history: list[dict] | None = None) ->
             "standvastig_rood": STABIEL_ROOD,
             "marge_erosie_pp": MARGE_EROSIE_PP,
             "minimaal_jaren": MIN_JAREN,
+            "min_op_marge_groen": MIN_OP_MARGE_GROEN,
         },
         "formule_roic": "EBIT × (1 − belastingtarief) / (eigen vermogen + schuld)",
         "roic": [{"jaar": j, "pct": round(w, 1)} for j, w in roic],
@@ -278,6 +296,22 @@ def bouw_profiel(annual: list[dict], price_history: list[dict] | None = None) ->
             f"Rendement op kapitaal: mediaan {mediaan:.1f}%, "
             f"laagste jaar {laagste:.1f}% ({laagste_jaar})"
         )
+    # Dunne-margewaarschuwing: een groen oordeel op een bedrijf dat per euro omzet
+    # bijna niets overhoudt, meet de kleine noemer en niet de sterke positie.
+    profiel["dunne_marge"] = False
+    op_pcts = [w for _, w in operationeel]
+    if niveau == "groen" and op_pcts:
+        op_mediaan = statistics.median(op_pcts)
+        if op_mediaan < MIN_OP_MARGE_GROEN:
+            profiel["dunne_marge"] = True
+            profiel["op_marge_mediaan"] = round(op_mediaan, 1)
+            profiel["redenen"].append(
+                f"LET OP: operationele marge is mediaan {op_mediaan:.1f}% — onder de "
+                f"{MIN_OP_MARGE_GROEN:.0f}% waarboven een hoog rendement op kapitaal iets "
+                f"zegt over de positie. Bij zo'n dunne marge is het rendement vooral hoog "
+                f"doordat er weinig kapitaal in het bedrijf zit"
+            )
+
     if brutos and bruto_trend is not None:
         richting = "stijgt" if bruto_trend > 0.5 else "daalt" if bruto_trend < -0.5 else "blijft vlak"
         profiel["brutomarge_trend_pp"] = round(bruto_trend, 1)

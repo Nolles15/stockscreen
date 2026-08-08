@@ -913,7 +913,15 @@ function bouwBeslisboom(d) {
   // bepaalde: goedkope aandelen met een zwakke moat kwamen steevast op HOLD uit.
   const m = d.moat;
   if (m) {
-    const regels = (m.redenen || []).slice();
+    // De motor levert de redenen als platte tekst, zodat de API bruikbaar blijft
+    // voor de tussencheck-skill. De nadruk zetten we hier, in de weergave: een
+    // regel die met LET OP begint is een kanttekening bij het oordeel zelf en
+    // moet niet wegvallen tussen de gewone constateringen.
+    const regels = (m.redenen || []).map(r =>
+      String(r).startsWith('LET OP')
+        ? `<span class="text-amber-500/90">${r}</span>`
+        : r
+    );
     if (m.niveau === 'rood')
       regels.push('<span class="text-slate-500">Goedkoop is hier geen koopje — dit profiel viel eerder herhaaldelijk tegen.</span>');
     else if (m.niveau === 'geel')
