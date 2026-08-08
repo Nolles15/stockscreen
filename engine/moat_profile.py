@@ -95,9 +95,12 @@ def roic_reeks(annual: list[dict]) -> list[tuple[int, float]]:
     ROIC per boekjaar, oplopend in tijd. [(jaar, percentage), ...]
 
     NOPAT / geïnvesteerd kapitaal, met geïnvesteerd kapitaal = eigen vermogen +
-    rentedragende schuld. Bewust de eenvoudige definitie: goodwill eruit filteren
-    vraagt gegevens die Yahoo niet betrouwbaar levert, en dan lijkt het
-    nauwkeuriger dan het is.
+    rentedragende schuld − overtollige kas. Dit is bewust exact dezelfde
+    definitie als in quality_score.py (besluit Janco 2026-08-08, A8): één woord,
+    één betekenis. De kas telt niet mee als geïnvesteerd — een volle spaarpot
+    verdient niets en zegt niets over de machine. Goodwill eruit filteren doen
+    we nog steeds niet: dat vraagt gegevens die Yahoo niet betrouwbaar levert,
+    en dan lijkt het nauwkeuriger dan het is.
     """
     uit = []
     for rij in sorted(annual, key=lambda r: r.get("fiscal_year") or 0):
@@ -107,7 +110,8 @@ def roic_reeks(annual: list[dict]) -> list[tuple[int, float]]:
         schuld = _f(rij, "total_debt") or 0.0
         if jaar is None or ebit is None or eigen is None:
             continue
-        kapitaal = eigen + schuld
+        overtollige_kas = max(0.0, _f(rij, "net_cash") or 0.0)
+        kapitaal = eigen + schuld - overtollige_kas
         if kapitaal <= 0:
             # Negatief eigen vermogen maakt ROIC betekenisloos (of absurd hoog).
             continue
@@ -277,7 +281,7 @@ def bouw_profiel(annual: list[dict], price_history: list[dict] | None = None) ->
             "minimaal_jaren": MIN_JAREN,
             "min_op_marge_groen": MIN_OP_MARGE_GROEN,
         },
-        "formule_roic": "EBIT × (1 − belastingtarief) / (eigen vermogen + schuld)",
+        "formule_roic": "EBIT × (1 − belastingtarief) / (eigen vermogen + schuld − overtollige kas)",
         "roic": [{"jaar": j, "pct": round(w, 1)} for j, w in roic],
         "brutomarge": [{"jaar": j, "pct": round(w, 1)} for j, w in bruto],
         "operationele_marge": [{"jaar": j, "pct": round(w, 1)} for j, w in operationeel],

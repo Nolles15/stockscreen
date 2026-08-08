@@ -214,6 +214,7 @@ def init_db() -> None:
             ("fv_methods_used", "INTEGER"),
             ("fv_methods_dropped", "TEXT"),   # JSON: redenen per weggevallen methode
             ("revenue_cagr",    "REAL"),      # 3-jaars omzet-CAGR (voor groei-markering)
+            ("implied_growth",  "REAL"),      # ingeprijsde groei %/jr (omgekeerde som, 2026-08-08)
         ):
             cur.execute(f"ALTER TABLE calculated_scores ADD COLUMN IF NOT EXISTS {col} {typ}")
         # Migratie: native-only — rename oude *_eur kolommen zodat historische
@@ -933,7 +934,7 @@ def get_dashboard_data() -> list[dict]:
             c.multiples_fv, c.graham_fv, c.perpetuity_fv, c.combined_fv,
             c.conservative_fv, c.base_fv, c.optimistic_fv,
             c.fv_confidence, c.fv_spread_pct, c.fv_methods_used,
-            c.fv_methods_dropped, c.revenue_cagr,
+            c.fv_methods_dropped, c.revenue_cagr, c.implied_growth,
             c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
             fy.latest_fy, fy.laatste_yahoo,
             dq.completeness_pct, dq.years_available, dq.freshness_days,

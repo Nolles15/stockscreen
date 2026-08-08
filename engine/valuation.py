@@ -368,6 +368,35 @@ def perpetuity_fair_value_all_scenarios(normalized: dict, sector: str, config: d
     }
 
 
+def implied_growth_pct(normalized: dict, sector: str, config: dict,
+                       price: Optional[float]) -> Optional[float]:
+    """
+    De omgekeerde som (besluit Janco 2026-08-08): welke eeuwigdurende groei
+    van de genormaliseerde winst per aandeel rechtvaardigt de hùidige koers?
+
+    Uit de perpetuity-formule FV = winst / (r − g) volgt, met FV = koers:
+
+        g = r − winst / koers
+
+    Dit is een feit over de prijs, geen voorspelling: een koers van 25× de
+    genormaliseerde winst bij een rendementseis van 10% prijst 6% groei per
+    jaar in, voor altijd. Of dat haalbaar is beoordeelt de lezer — het model
+    zelf rekent met maximaal 8% groei en noemt snelgroeiende bedrijven
+    daardoor per constructie "te duur"; dit getal maakt die groep alsnog
+    beoordeelbaar zonder iets te voorspellen. Markeren, niet wegfilteren.
+
+    Retourneert een percentage (5.0 = 5% per jaar), of None bij verlies of
+    ontbrekende koers — zonder positieve winst is er geen som mogelijk.
+    """
+    oe_ps = normalized.get("normalized_oe_per_share")
+    if not oe_ps or oe_ps <= 0 or not price or price <= 0:
+        return None
+    sc = _sector_cfg(sector, config)
+    val_cfg = config.get("valuation", {})
+    r = sc.get("required_return", val_cfg.get("default_required_return", 10)) / 100.0
+    return round((r - oe_ps / price) * 100.0, 1)
+
+
 # ---------------------------------------------------------------------------
 # Combined Fair Value
 # ---------------------------------------------------------------------------
@@ -464,6 +493,20 @@ def combined_fair_value(
     base_clean = [v for v in base_methods if v is not None and v > 0]
     spread_pct = _spread_pct(base_clean)
     confidence = _confidence_label(spread_pct, len(base_clean))
+
+    # Worldline-les (2026-08-08): "hoog vertrouwen" meet alleen of de methodes
+    # het met elkáár eens zijn. Bij WLN.PA stond 89,9% korting op hoog
+    # vertrouwen terwijl de invoer aantoonbaar kapot was en er verliesjaren in
+    # de reeks zaten — eensgezindheid op dezelfde kapotte invoer is geen
+    # betrouwbaarheid. Daarom komt "high" er alleen nog uit als álle drie de
+    # methodes meededen én de winstreeks niet door verliezen is vervuild
+    # (twee of meer verliesjaren; één incident zoals corona telt niet).
+    verliesjaren = sum(
+        1 for r in annual_rows
+        if r.get("net_income") is not None and r.get("net_income") < 0
+    )
+    if confidence == "high" and (len(base_clean) < 3 or verliesjaren >= 2):
+        confidence = "medium"
 
     # Minimum 2 valide top-level methodes vereist. Eén enkele methode levert geen
     # cross-validatie en is daardoor te gevoelig voor een enkele schaal/data-bug.

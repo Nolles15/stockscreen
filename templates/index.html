@@ -462,6 +462,27 @@ const TABS = [
         || ((b.margin_of_safety ?? -999) - (a.margin_of_safety ?? -999))),
   },
   {
+    // Besluit Janco 2026-08-08 (A2): de kwaliteitspoort op het koopsignaal
+    // blijft op 7 staan — KOOP blijft "goed bedrijf én goedkoop" betekenen.
+    // Maar direct achter die poort staat middelmatige kwaliteit met een grote
+    // korting en een betrouwbare waardering (o.a. Porsche en CIE toen dit
+    // gebouwd werd). Herstelt zo'n bedrijf, dan was dít de plek waar je het
+    // had kunnen zien staan. Markeren, niet wegfilteren.
+    id: 'herstellers', label: '🔧 Herstellers',
+    uitleg: 'Middelmatige kwaliteit (score 5 tot 7) met minstens 30% korting '
+      + 'en een betrouwbare waardering. Deze aandelen halen het koopsignaal '
+      + 'bewust niet — dit is grondstof voor tussenchecks, geen kooplijst. '
+      + 'Goedkoop is hier vaak goedkoop met een reden.',
+    select: rows => rows
+      .filter(r => (r.quality_score ?? -1) >= 5 && (r.quality_score ?? -1) < 7
+        && r.price_vs_fv_pct !== null && r.price_vs_fv_pct !== undefined
+        && r.price_vs_fv_pct <= 70
+        && r.fv_confidence === 'high'
+        && ['ok', 'warning'].includes(r.data_status)
+        && r.sector !== 'Financial Services')
+      .sort((a, b) => (b.margin_of_safety ?? -999) - (a.margin_of_safety ?? -999)),
+  },
+  {
     id: 'groeiers', label: '🌱 Groeiers',
     uitleg: 'Bedrijven die verlies maken maar hard groeien. Hiervoor is geen fair value te berekenen — dit is een lijst om zelf naar te kijken, geen oordeel.',
     select: rows => rows
@@ -643,6 +664,19 @@ function kwaliteitCel(r) {
   return r.quality_score ?? '—';
 }
 
+// De omgekeerde som: welke eeuwigdurende groei van de genormaliseerde winst
+// rechtvaardigt de huidige koers. Een feit over de prijs, geen voorspelling —
+// de lezer beoordeelt zelf of dat haalbaar is voor dit bedrijf.
+function ingeprijsdCel(r) {
+  const g = r.implied_growth;
+  if (g === null || g === undefined) return '<span class="text-slate-500">—</span>';
+  const kleur = g >= 6 ? 'text-amber-400' : g < 0 ? 'text-emerald-400' : 'text-slate-300';
+  return `<span class="${kleur} cursor-help" title="De koers is alleen te rechtvaardigen als de`
+    + ` genormaliseerde winst per aandeel eeuwig met ${g.toFixed(1)}% per jaar groeit`
+    + ` (bij de rendementseis van de sector). Boven de 6% is dat een zware aanname;`
+    + ` negatief betekent dat zelfs krimp de koers al goedmaakt.">${g.toFixed(1)}%/jr</span>`;
+}
+
 // Eén regel uitleg in gewone taal, zodat je niet eerst de kolomkoppen hoeft te
 // ontcijferen om te snappen waarom iets in de lijst staat.
 function eenRegelUitleg(r) {
@@ -743,10 +777,11 @@ function renderFocus(tab) {
       ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
          ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
          ['Omzetgroei', 'r', 'revenue_cagr'], ['Kwaliteit', 'r', 'quality_score'], ['', 'r', '']]
-    : tab.id === 'kwaliteit'
+    : (tab.id === 'kwaliteit' || tab.id === 'herstellers')
       ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
          ['Sector', 'l', 'sector'], ['Kwaliteit', 'r', 'quality_score'],
-         ['Korting', 'r', 'margin_of_safety'], ['Signaal', 'r', 'signal'],
+         ['Korting', 'r', 'margin_of_safety'],
+         ['Ingeprijsde groei', 'r', 'implied_growth'], ['Signaal', 'r', 'signal'],
          ['Onderzocht', 'r', '']]
       : [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
          ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
@@ -774,9 +809,10 @@ function renderFocus(tab) {
   body.innerHTML = rows.map(r => {
     const ster = pins.includes(r.ticker) ? '★' : '☆';
     const sterKleur = pins.includes(r.ticker) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400';
-    // Op het Kwaliteit-tabblad staat het oordeel in een eigen kolom, dus daar
-    // niet ook nog achter de naam — anders staat dezelfde pil er twee keer.
-    const naamExtra = tab.id === 'kwaliteit' ? noteringPil(r) : oordeelPil(r) + noteringPil(r);
+    // Op Kwaliteit en Herstellers staat het oordeel in een eigen kolom, dus
+    // daar niet ook nog achter de naam — anders staat dezelfde pil er twee keer.
+    const naamExtra = (tab.id === 'kwaliteit' || tab.id === 'herstellers')
+      ? noteringPil(r) : oordeelPil(r) + noteringPil(r);
     const cel = `<td class="px-3 py-2"><button onclick="togglePin('${r.ticker}', event)"
         class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button></td>
       <td class="px-3 py-2 whitespace-nowrap"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>${boekjaarBadge(r)}</td>
@@ -797,7 +833,7 @@ function renderFocus(tab) {
         <td class="px-3 py-2 text-right">${kwaliteitCel(r)}</td>
         <td class="px-3 py-2 text-right text-xs text-slate-500">geen waardebepaling mogelijk</td></tr>`;
     }
-    if (tab.id === 'kwaliteit') {
+    if (tab.id === 'kwaliteit' || tab.id === 'herstellers') {
       const mos = r.margin_of_safety;
       const mosKleur = mos >= 25 ? 'text-emerald-400' : mos >= 0 ? 'text-slate-300' : 'text-red-400';
       const sigKlasse = 'signal-' + (r.signal || 'N/A').replace(/ /g, '\\ ');
@@ -805,6 +841,7 @@ function renderFocus(tab) {
         <td class="px-3 py-2 text-slate-400 text-xs">${r.sector || '—'}</td>
         <td class="px-3 py-2 text-right font-medium">${kwaliteitCel(r)}</td>
         <td class="px-3 py-2 text-right ${mosKleur}">${mos !== null && mos !== undefined ? mos.toFixed(0) + '%' : '—'}</td>
+        <td class="px-3 py-2 text-right text-xs">${ingeprijsdCel(r)}</td>
         <td class="px-3 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold ${sigKlasse}">${r.signal || 'N/A'}</span></td>
         <td class="px-3 py-2 text-right">${oordeelPil(r) || '<span class="text-slate-500">—</span>'}</td></tr>`;
     }

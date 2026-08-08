@@ -881,6 +881,14 @@ function bouwBeslisboom(d) {
     wRegels.push(`Bandbreedte ${Number(s.conservative_fv).toFixed(2)} tot ${Number(s.optimistic_fv).toFixed(2)}`);
   if (conf)
     wRegels.push(`Vertrouwen in deze schatting: ${ {high:'hoog', medium:'gemiddeld', low:'laag'}[conf] || conf }`);
+  // De omgekeerde som: een feit over de prijs, geen voorspelling. Juist
+  // waardevol waar het model "te duur" zegt — dan is dit de echte vraag.
+  if (s.implied_growth !== null && s.implied_growth !== undefined) {
+    const ig = Number(s.implied_growth);
+    wRegels.push(ig >= 0
+      ? `De huidige koers is alleen te rechtvaardigen als de winst eeuwig met ${ig.toFixed(1)}% per jaar groeit — beoordeel zelf of dit bedrijf dat kan`
+      : `De huidige koers prijst krimp in (${ig.toFixed(1)}% per jaar) — elke stabilisatie is al meer dan de markt verwacht`);
+  }
   blokken.push(blok('3 · Waardering', wNiveau, wKop, wRegels));
 
   // 4. Oordeel — wat volgt hieruit?

@@ -20,7 +20,7 @@ from . import db
 from . import data_quality
 from .normalizer import normalize_all, historical_median_multiple
 from .quality_score import quality_score as calc_quality
-from .valuation import combined_fair_value
+from .valuation import combined_fair_value, implied_growth_pct
 
 log = logging.getLogger(__name__)
 
@@ -319,6 +319,11 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
     combined_fv  = fv_result.get("combined_fv")
     signal_data  = {}
 
+    # De omgekeerde som: welke groei zit er in de huidige koers ingebakken.
+    # Staat los van de FV-gate — ook (juist) zinvol als het model "te duur"
+    # roept, want dan is de vraag of de ingeprijsde groei haalbaar is.
+    implied_growth = implied_growth_pct(normalized, sector, config, price)
+
     if price and combined_fv and combined_fv > 0:
         signal_data = determine_signal(price, combined_fv, q_total, config)
 
@@ -431,6 +436,7 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         "fv_price_ratio":  round(combined_fv / price, 3) if (combined_fv and price) else None,
         "fv_methods_dropped": fv_result.get("fv_methods_dropped") or [],
         "revenue_cagr":    rev_cagr,
+        "implied_growth":  implied_growth,
         # Extra indicators
         "hist_relative":   hist_relative,
         "accruals_ratio":  accruals_ratio,
@@ -466,6 +472,7 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         fv_methods_used=result["fv_methods_used"],
         fv_methods_dropped=result["fv_methods_dropped"],
         revenue_cagr=rev_cagr,
+        implied_growth=implied_growth,
         signal=result["signal"],
         margin_of_safety=result.get("margin_of_safety"),
         warnings=warnings,

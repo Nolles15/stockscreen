@@ -33,6 +33,22 @@ def test_roic():
     print("  [OK] ROIC per jaar, negatief vermogen overgeslagen")
 
 
+def test_roic_trekt_overtollige_kas_af():
+    # A8 (besluit Janco 2026-08-08): zelfde definitie als quality_score.py.
+    # EBIT 100, eigen vermogen 400, schuld 100, nettokas 300:
+    # kapitaal = 400 + 100 - 300 = 200 -> 100 * 0,75 / 200 = 37,5%
+    spaarpot = _jaren(ebit=[100], total_equity=[400], total_debt=[100],
+                      net_cash=[300])
+    assert roic_reeks(spaarpot) == [(2021, 37.5)]
+
+    # Nettoschuld (negatieve nettokas) verandert niets: alleen óvertollige
+    # kas gaat eraf, schuld zit al in het kapitaal.
+    schuldig = _jaren(ebit=[100], total_equity=[400], total_debt=[100],
+                      net_cash=[-50])
+    assert roic_reeks(schuldig) == [(2021, 15.0)]
+    print("  [OK] overtollige kas telt niet mee als geinvesteerd kapitaal")
+
+
 def test_marges():
     rijen = _jaren(gross_profit=[60, 55], revenue=[100, 100], ebit=[20, 15])
     assert marge_reeks(rijen, "gross_profit") == [(2021, 60.0), (2022, 55.0)]
@@ -228,6 +244,7 @@ def test_te_weinig_jaren():
 
 if __name__ == "__main__":
     test_roic()
+    test_roic_trekt_overtollige_kas_af()
     test_marges()
     test_cyclustest()
     test_groen_vereist_hoog_en_standvastig()
