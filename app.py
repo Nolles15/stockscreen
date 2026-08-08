@@ -613,6 +613,7 @@ def api_dashboard():
             "fv_confidence":        r.get("fv_confidence"),
             "fv_spread_pct":        r.get("fv_spread_pct"),
             "fv_methods_used":      r.get("fv_methods_used"),
+            "implied_growth":       r.get("implied_growth"),
             "normalized_fcf_m":     fcf_m,
             "margin_of_safety":     mos_val,
             "price_vs_fv_pct":      pvf_val,
