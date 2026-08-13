@@ -89,6 +89,11 @@ FY_LAG_GEEN_OORDEEL = 2
 # procent is afronding in de omzetreeks, geen these-breuk.
 OMZETKRIMP_GRENS = -0.02
 
+# Springt de omzet tussen twee opeenvolgende jaren meer dan deze factor, dan is
+# er hoogstwaarschijnlijk van definitie gewisseld en meet de meerjarige groei
+# een boekhoudkundige wissel in plaats van het bedrijf.
+OMZETBREUK_FACTOR = 2.0
+
 # `rank_score` van het bezit ten opzichte van de kop van Kansen. Informatief,
 # telt nooit mee in het eindoordeel.
 RANK_FACTOR = 0.5
@@ -123,6 +128,39 @@ def _getal(waarde) -> Optional[float]:
         return None
 
 
+def omzetbreuk(annual: Optional[list]) -> Optional[str]:
+    """Zit er een definitiewissel in de omzetreeks? Geeft de uitleg terug, of None.
+
+    Aanleiding: Adyen (13 augustus 2026). Yahoo gaf voor boekjaar 2022 een omzet
+    van 8.936 miljoen en voor 2023 van 1.863 miljoen — een sprong van bijna een
+    factor vijf, niet omdat het bedrijf instortte maar omdat de reeks overging
+    van **bruto** omzet (inclusief doorbetaalde kaartkosten) naar **netto**
+    omzet. De driejaars-CAGR las dat als 33% krimp per jaar, terwijl Adyen in
+    werkelijkheid met zo'n 19% per jaar groeide. Twee verkoopregels gingen
+    daardoor af op een boekhoudkundige wissel.
+
+    Een echte omzethalvering in één jaar bestaat, maar is zeldzaam genoeg dat
+    "geen uitspraak doen" hier het goedkopere alternatief is: een gemiste
+    krimpmelding kost je een kwartaal, een valse kost je het vertrouwen in de
+    hele lijst. De brutowinst en EBIT liepen bij Adyen wél netjes door, dus de
+    rest van het oordeel blijft gewoon staan.
+    """
+    if not annual:
+        return None
+    reeks = [(r.get("fiscal_year"), _getal(r.get("revenue")))
+             for r in annual if r.get("period_type", "annual") == "annual"]
+    reeks = [(j, w) for j, w in reeks if j and w and w > 0]
+    reeks.sort()
+    for (jaar_a, omzet_a), (jaar_b, omzet_b) in zip(reeks, reeks[1:]):
+        factor = max(omzet_a, omzet_b) / min(omzet_a, omzet_b)
+        if factor >= OMZETBREUK_FACTOR:
+            return (f"De omzetreeks springt van {omzet_a / 1e6:.0f} mln ({jaar_a}) naar "
+                    f"{omzet_b / 1e6:.0f} mln ({jaar_b}) — een factor {factor:.1f}. "
+                    f"Dat is vrijwel zeker een wisseling van definitie, dus de meerjarige "
+                    f"omzetgroei zegt hier niets.")
+    return None
+
+
 # ---------------------------------------------------------------------------
 # De datapoort
 # ---------------------------------------------------------------------------
@@ -155,7 +193,7 @@ def datapoort(rij: dict) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _waardering(rij: dict, config: dict) -> list[dict]:
+def _waardering(rij: dict, config: dict, breuk: Optional[str] = None) -> list[dict]:
     sig_cfg = (config or {}).get("signals", {})
     val_cfg = (config or {}).get("valuation", {})
     hard_pct = sig_cfg.get("sell_pct_high_quality", 175)
@@ -164,7 +202,9 @@ def _waardering(rij: dict, config: dict) -> list[dict]:
     pvf = _getal(rij.get("price_vs_fv_pct"))
     signaal = rij.get("signal")
     groei_ingeprijsd = _getal(rij.get("implied_growth"))
-    groei_echt = _getal(rij.get("revenue_cagr"))
+    # Bij een definitiewissel in de omzetreeks is de gerealiseerde groei geen
+    # bruikbare maatstaf meer; A3 heeft hem nodig en zwijgt dan.
+    groei_echt = None if breuk else _getal(rij.get("revenue_cagr"))
     if groei_echt is not None:
         groei_echt *= 100.0   # revenue_cagr staat als fractie in de rij
 
@@ -197,11 +237,12 @@ def _waardering(rij: dict, config: dict) -> list[dict]:
     # markt iets in dat het model niet eens mág aannemen. Dat alleen is niet
     # genoeg — een groeier mag dat verdienen — dus de tweede eis is dat de
     # ingeprijsde groei ook boven de gerealiseerde omzetgroei ligt.
-    if groei_ingeprijsd is None:
+    if groei_ingeprijsd is None or breuk:
         regels.append(_regel(
             "A3", "waardering", "Ingeprijsde groei onhaalbaar", geraakt=None,
-            uitleg="Geen ingeprijsde groei te berekenen (geen positieve genormaliseerde winst).",
-            waarden={"ingeprijsd_pct": None, "gerealiseerd_pct": groei_echt},
+            uitleg=(breuk if breuk else
+                    "Geen ingeprijsde groei te berekenen (geen positieve genormaliseerde winst)."),
+            waarden={"ingeprijsd_pct": groei_ingeprijsd, "gerealiseerd_pct": None},
         ))
     else:
         boven_model = groei_ingeprijsd > max_g
@@ -228,7 +269,8 @@ def _waardering(rij: dict, config: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _these(rij: dict, snapshot: Optional[dict], moat: Optional[dict]) -> list[dict]:
+def _these(rij: dict, snapshot: Optional[dict], moat: Optional[dict],
+           breuk: Optional[str] = None) -> list[dict]:
     snap = snapshot or {}
     moat = moat or {}
 
@@ -290,13 +332,15 @@ def _these(rij: dict, snapshot: Optional[dict], moat: Optional[dict]) -> list[di
 
     regels.append(_regel(
         "B4", "these", "Omzet krimpt",
-        geraakt=None if cagr_nu is None else cagr_nu < OMZETKRIMP_GRENS,
-        uitleg=(f"De omzet kromp de laatste drie jaar met {abs(cagr_nu) * 100:.1f}% per jaar."
+        geraakt=None if (cagr_nu is None or breuk) else cagr_nu < OMZETKRIMP_GRENS,
+        uitleg=(breuk if breuk else
+                f"De omzet kromp de laatste drie jaar met {abs(cagr_nu) * 100:.1f}% per jaar."
                 if cagr_nu is not None and cagr_nu < OMZETKRIMP_GRENS else
                 f"Omzetgroei {cagr_nu * 100:.1f}% per jaar over drie jaar."
                 if cagr_nu is not None else "Geen omzetgroei over drie jaar bekend."),
         waarden={"cagr_pct": round(cagr_nu * 100, 1) if cagr_nu is not None else None,
-                 "grens_pct": OMZETKRIMP_GRENS * 100},
+                 "grens_pct": OMZETKRIMP_GRENS * 100,
+                 "reeksbreuk": bool(breuk)},
     ))
 
     # Alleen een omslag telt. Een bedrijf dat al negatieve kasstroom had toen je
@@ -457,7 +501,7 @@ def _alternatief(rij: dict, rank_grens: Optional[float]) -> dict:
 def toets(rij: dict, snapshot: Optional[dict] = None, moat: Optional[dict] = None,
           analyse: Optional[dict] = None, oordeel: Optional[dict] = None,
           config: Optional[dict] = None, rank_grens: Optional[float] = None,
-          vandaag: Optional[date] = None) -> dict:
+          annual: Optional[list] = None, vandaag: Optional[date] = None) -> dict:
     """Toets één aandeel dat je bezit tegen alle regels.
 
     `rij` is een dashboardrij zoals `/api/dashboard` die maakt. `snapshot` is de
@@ -482,8 +526,9 @@ def toets(rij: dict, snapshot: Optional[dict] = None, moat: Optional[dict] = Non
             "aantal_getoetst": 0,
         }
 
-    regels = (_waardering(rij, config or {})
-              + _these(rij, snapshot, moat)
+    breuk = omzetbreuk(annual)
+    regels = (_waardering(rij, config or {}, breuk)
+              + _these(rij, snapshot, moat, breuk)
               + _analyse_regels(rij, analyse, oordeel))
     informatief = [_alternatief(rij, rank_grens)]
 

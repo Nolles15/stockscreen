@@ -489,16 +489,30 @@ def _routekaart(ticker: str) -> tuple[dict | None, str | None]:
     }, None
 
 
-def _moat_profiel(ticker: str) -> dict | None:
-    """Het volledige moat-profiel voor één ticker, of None als het niet lukt.
+def _jaarrijen(ticker: str) -> list[dict]:
+    """Jaarrijen mét overrides, of een lege lijst als het misgaat.
 
-    Zelfde bron als de detailpagina en de tussencheck-skill. Bouwt de jaarrijen
-    mét overrides op — wie alleen `financials` leest mist de handmatig ingevoerde
-    jaren.
+    Wie alleen `financials` leest mist de handmatig ingevoerde jaren; die staan
+    in `overrides`.
     """
     try:
         annual, _ = db.jaarrijen_met_overrides(ticker)
-        return moat_profile.bouw_profiel(annual, db.get_price_history(ticker))
+        return annual
+    except Exception:
+        log.warning("jaarrijen ophalen mislukt voor %s", ticker, exc_info=True)
+        return []
+
+
+def _moat_profiel(ticker: str, annual: list[dict] | None = None) -> dict | None:
+    """Het volledige moat-profiel voor één ticker, of None als het niet lukt.
+
+    Zelfde bron als de detailpagina en de tussencheck-skill. `annual` kan
+    meegegeven worden als de aanroeper die rijen toch al heeft — dan wordt de
+    query niet twee keer gedaan.
+    """
+    try:
+        rijen = _jaarrijen(ticker) if annual is None else annual
+        return moat_profile.bouw_profiel(rijen, db.get_price_history(ticker))
     except Exception:
         log.warning("moat-profiel bouwen mislukt voor %s", ticker, exc_info=True)
         return None
@@ -787,7 +801,8 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
         analyse = None
         if oordeel and oordeel.get("soort") == "analyse" and oordeel.get("rapport_ticker"):
             analyse = analyses_mod.get_analyse(oordeel["rapport_ticker"])
-        moat = _moat_profiel(ticker)
+        annual = _jaarrijen(ticker)
+        moat = _moat_profiel(ticker, annual)
         snapshot = vastlegging.get("these_snapshot") or {}
 
         rij["sinds"] = vastlegging.get("sinds")
@@ -796,7 +811,7 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
         rij["moat_niveau"] = (moat or {}).get("niveau")
         rij["verkoop"] = exit_regels.toets(
             rij, snapshot=snapshot, moat=moat, analyse=analyse, oordeel=oordeel,
-            config=cfg, rank_grens=grens,
+            config=cfg, rank_grens=grens, annual=annual,
         )
         uit.append(rij)
 

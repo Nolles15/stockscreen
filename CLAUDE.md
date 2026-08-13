@@ -127,6 +127,16 @@ informatieve. Motor: [engine/exit_regels.py](engine/exit_regels.py), pagina in
 - **De datapoort gaat vóór alles.** `data_status` bad/missing of twee boekjaren achterstand →
   grijs, geen enkele regel getoetst. Elke afleiding die de motor overdoet moet dezelfde poorten
   passeren.
+- **Een definitiewissel in de omzetreeks telt niet als krimp.** Adyen (13 augustus 2026, de
+  eerste echte valse rode vlag): Yahoo gaf voor FY2022 de **bruto** omzet van 8.936 mln
+  (inclusief doorbetaalde kaartkosten) en vanaf FY2023 de **netto** omzet — 1.863 → 2.226 →
+  2.647. De driejaars-CAGR las dat als 33% krimp per jaar terwijl Adyen ~19% per jaar groeide,
+  en zette B4 én A3 aan het werk. `exit_regels.omzetbreuk()` zwijgt nu zodra twee opeenvolgende
+  jaren meer dan een factor 2 verschillen. Brutowinst en EBIT liepen bij Adyen wél door
+  (1.330 → 1.626 → 1.988 → 2.352), dus dáár is de wissel aan te zien en de rest van het oordeel
+  blijft staan. **Let op: `revenue_cagr` zelf is niet gerepareerd** — de Groeiers-tab, de
+  `is_growth_lossmaker`-markering en de "value trap"-waarschuwing in `screener.run_ticker`
+  lopen nog steeds op het kapotte getal.
 - **"Beter alternatief" (D1) telt nooit mee in het eindoordeel.** De rangorde schuift per
   verversing; er een verkoopoordeel op bouwen geeft elk kwartaal vals alarm. Tonen, niet wegen.
 - **Twee eindpunten met opzet.** `GET /api/bezit/tickers` is één query en wordt bij elke

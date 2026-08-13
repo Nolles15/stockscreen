@@ -162,6 +162,47 @@ def test_b4_omzetkrimp_pas_vanaf_twee_procent():
     print("  [OK] B4 gebruikt dezelfde -2%-grens als de omzetkrimp-waarschuwing")
 
 
+def test_definitiewissel_in_de_omzet_is_geen_krimp():
+    """Adyen, 13 augustus 2026 — de eerste echte valse rode vlag.
+
+    Yahoo gaf voor 2022 de brúto omzet (8.936 mln, inclusief doorbetaalde
+    kaartkosten) en vanaf 2023 de netto-omzet. De driejaars-CAGR las dat als 33%
+    krimp per jaar en zette twee regels aan het werk, terwijl Adyen ~19% per jaar
+    groeide. De brutowinst liep wél netjes door — daaraan is de wissel te zien.
+    """
+    adyen = [
+        {"fiscal_year": 2022, "period_type": "annual", "revenue": 8936e6},
+        {"fiscal_year": 2023, "period_type": "annual", "revenue": 1863e6},
+        {"fiscal_year": 2024, "period_type": "annual", "revenue": 2226e6},
+        {"fiscal_year": 2025, "period_type": "annual", "revenue": 2647e6},
+    ]
+    breuk = exit_regels.omzetbreuk(adyen)
+    assert breuk and "definitie" in breuk
+
+    rij = _rij(revenue_cagr=-0.3334, implied_growth=5.5)
+    uitslag = exit_regels.toets(rij, annual=adyen, config=CONFIG)
+    assert _geraakt(uitslag, "B4") is None, "krimp op een definitiewissel"
+    assert _geraakt(uitslag, "A3") is None, "ingeprijsde groei tegen een kapotte reeks"
+    assert uitslag["niveau"] == "groen"
+
+    # Zonder de reeks erbij vuurt hij nog steeds — de guard mag alleen ingrijpen
+    # als hij de breuk daadwerkelijk gezien heeft.
+    zonder = exit_regels.toets(rij, config=CONFIG)
+    assert _geraakt(zonder, "B4") is True
+
+    # Een normale reeks, ook een fors dalende, blijft gewoon meetellen.
+    dalend = [
+        {"fiscal_year": 2022, "period_type": "annual", "revenue": 1000e6},
+        {"fiscal_year": 2023, "period_type": "annual", "revenue": 850e6},
+        {"fiscal_year": 2024, "period_type": "annual", "revenue": 700e6},
+        {"fiscal_year": 2025, "period_type": "annual", "revenue": 600e6},
+    ]
+    assert exit_regels.omzetbreuk(dalend) is None
+    assert _geraakt(exit_regels.toets(_rij(revenue_cagr=-0.16), annual=dalend,
+                                      config=CONFIG), "B4") is True
+    print("  [OK] een definitiewissel in de omzetreeks telt niet als krimp (Adyen)")
+
+
 def test_b5_alleen_bij_een_omslag():
     omgeslagen = exit_regels.toets(_rij(normalized_fcf_m=-10.0),
                                    snapshot={"normalized_fcf_m": 40.0}, config=CONFIG)
