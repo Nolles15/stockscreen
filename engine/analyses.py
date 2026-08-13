@@ -177,6 +177,67 @@ def _parse_getal(waarde: str | None) -> float | None:
         return None
 
 
+_SCENARIO_NAMEN = ("pessimistisch", "basis", "optimistisch")
+
+
+def _tabelrij(regel: str) -> list[str] | None:
+    """Cellen van een markdown-tabelregel, of None als het er geen is."""
+    if not regel.lstrip().startswith("|"):
+        return None
+    return [cel.strip() for cel in regel.strip().strip("|").split("|")]
+
+
+def _parse_scenarios(execsum: str, valuta: str | None) -> dict[str, float]:
+    """Fair value per scenario uit de tabel in de executive summary.
+
+    Twee dingen maken dit lastiger dan het lijkt, en beide zijn de reden dat de
+    kolom hier wordt opgezocht in plaats van vastgezet:
+
+    1. **Elk rapport heeft deze tabel twee keer.** Naast de samenvatting staat er
+       een uitgebreidere in de DCF-sectie, met een andere kolomvolgorde: bij EVO
+       staat de fair value daar op kolom vier, bij ACN op drie, bij HUG op zes.
+       Zoeken op de scenarionaam door het hele bestand levert dus stelselmatig
+       het verkeerde getal op. Vandaar: alleen binnen `execsum`.
+    2. **De kop varieert** — 'Fair value', 'Fair value (SEK)', 'Fair value (PLN)',
+       en in één rapport twee kolommen naast elkaar (EUR én SEK). De kolom wordt
+       daarom uit de kop bepaald; bij meerdere treffers wint die van de valuta
+       waarin het aandeel noteert.
+
+    Ontbreekt de tabel of de kolom, dan komt er een lege dict terug. Een regel
+    die op een scenario steunt hoort dan te zwijgen, niet te raden.
+    """
+    regels = execsum.splitlines()
+    kolom = None
+    uit: dict[str, float] = {}
+
+    for regel in regels:
+        cellen = _tabelrij(regel)
+        if not cellen:
+            continue
+
+        if cellen[0].lower() == "scenario":
+            kandidaten = [i for i, cel in enumerate(cellen)
+                          if cel.lower().startswith("fair value")]
+            if not kandidaten:
+                kolom = None
+                continue
+            met_valuta = [i for i in kandidaten
+                          if valuta and valuta.lower() in cellen[i].lower()]
+            kolom = (met_valuta or kandidaten)[0]
+            uit = {}
+            continue
+
+        if kolom is None or len(cellen) <= kolom:
+            continue
+        naam = cellen[0].lower().strip("*")
+        if naam in _SCENARIO_NAMEN and naam not in uit:
+            getal = _parse_getal(cellen[kolom])
+            if getal is not None:
+                uit[naam] = getal
+
+    return uit
+
+
 _VALUTA_TEKENS = {"€": "EUR", "$": "USD", "£": "GBP"}
 
 
@@ -265,6 +326,14 @@ def _parse_bestand(pad: str) -> dict:
         "fair_value": _parse_bedrag(_bullet(execsum, "Fair value basis"), valuta),
         "fair_value_getal": _parse_getal(_bullet(execsum, "Fair value basis")),
         "upside": _parse_getal(_bullet(execsum, "Upside pct")),
+        # Waardeniveaus voor de verkoopregels (engine/exit_regels.py). De
+        # kansgewogen waarde is het gemiddelde over de scenario's naar hun kans;
+        # de EPV is de waarde zónder groeipremie en dus de hardste bodem die het
+        # rapport noemt. Ze staan hier omdat de screener ze niet kan afleiden:
+        # dit zijn uitkomsten van handwerk, geen berekening over Yahoo-data.
+        "fair_value_kansgewogen": _parse_getal(_bullet(execsum, "Fair value kansgewogen")),
+        "epv": _parse_getal(_bullet(execsum, "EPV per aandeel")),
+        "scenarios": _parse_scenarios(execsum, valuta),
         "koers_getal": _parse_getal(koers),
         "yahoo_symbol": _bullet(meta_tekst, "Yahoo symbol"),
         "score": _parse_score(tekst),

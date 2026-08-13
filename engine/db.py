@@ -294,6 +294,24 @@ def init_db() -> None:
                 value TEXT
             )
         """)
+        # Wat Janco bezit. Bewust zonder aantal en zonder aankoopkoers: de
+        # verkoopregels kijken er niet naar en horen dat ook niet te doen (zie
+        # engine/exit_regels.py). Wat hier wél staat is `these_snapshot` — de
+        # cijfers zoals ze eruitzagen op het moment van vastleggen, want zonder
+        # dat ijkpunt is "verslechterd" niet te onderscheiden van "was altijd al zo".
+        #
+        # Geen buitenlandse sleutel naar `stocks` met ON DELETE CASCADE: een
+        # ticker die uit de screener verdwijnt (delisting, hernoeming) mag jouw
+        # vastlegging niet stilletjes wissen. Dan hoort er een lege regel te
+        # staan die opvalt.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bezit (
+                ticker         TEXT PRIMARY KEY,
+                sinds          TEXT,
+                notitie        TEXT,
+                these_snapshot TEXT
+            )
+        """)
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +334,55 @@ def set_refresh_state(key: str, value: str) -> None:
             """,
             (key, value),
         )
+
+
+def bezit_lijst() -> list[dict]:
+    """Alles wat vastgelegd is als bezit, oudste vastlegging eerst.
+
+    De momentopname komt ontleed terug; een kapotte JSON levert een lege dict op
+    in plaats van een uitzondering. De vergelijkende verkoopregels melden dan
+    netjes dat ze niets te vergelijken hebben — beter dan een pagina die omvalt.
+    """
+    with _cursor() as cur:
+        cur.execute("SELECT * FROM bezit ORDER BY sinds, ticker")
+        rows = cur.fetchall()
+    uit = []
+    for row in rows:
+        rij = dict(row)
+        try:
+            rij["these_snapshot"] = json.loads(rij["these_snapshot"]) if rij.get("these_snapshot") else {}
+        except (json.JSONDecodeError, TypeError):
+            rij["these_snapshot"] = {}
+        uit.append(rij)
+    return uit
+
+
+def bezit_vastleggen(ticker: str, snapshot: dict | None = None,
+                     notitie: str | None = None) -> None:
+    """Leg vast dat je dit aandeel bezit.
+
+    Bij een bestaande vastlegging blijven `sinds` en de momentopname staan —
+    díé zijn het ijkpunt en overschrijven zou de vergelijking wissen. Alleen de
+    notitie wordt bijgewerkt, en alleen als er een nieuwe meegegeven wordt.
+    """
+    with _cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO bezit (ticker, sinds, notitie, these_snapshot)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT(ticker) DO UPDATE
+               SET notitie = COALESCE(excluded.notitie, bezit.notitie)
+            """,
+            (ticker, datetime.utcnow().date().isoformat(), notitie,
+             json.dumps(snapshot or {})),
+        )
+
+
+def bezit_verwijderen(ticker: str) -> bool:
+    """Haal een aandeel uit het bezit. True als er iets weg is."""
+    with _cursor() as cur:
+        cur.execute("DELETE FROM bezit WHERE ticker=%s", (ticker,))
+        return cur.rowcount > 0
 
 
 def get_all_refresh_state() -> dict[str, str]:

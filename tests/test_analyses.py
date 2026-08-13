@@ -153,6 +153,63 @@ def test_getalnotatie_europees_en_amerikaans():
         assert got is not None and abs(got - verwacht) < 0.001, f"{tekst!r} gaf {got}"
 
 
+def test_elk_rapport_geeft_zijn_waardeniveaus_af():
+    """De verkoopregels leunen op de kansgewogen waarde en de scenario's.
+
+    Ontbreekt er één, dan zwijgt regel C1 of C2 zonder foutmelding en denk je
+    dat er niets aan de hand is. Alle 29 rapporten hebben ze; dat hoort zo te
+    blijven.
+    """
+    for a in analyses_mod.get_all_summaries():
+        t = a["ticker"]
+        assert a.get("fair_value_kansgewogen") is not None, f"{t} mist de kansgewogen waarde"
+        scen = a.get("scenarios") or {}
+        for naam in ("pessimistisch", "basis", "optimistisch"):
+            assert scen.get(naam) is not None, f"{t} mist scenario {naam}"
+        assert scen["pessimistisch"] < scen["optimistisch"], f"{t}: scenario's staan omgekeerd"
+
+
+def test_scenariotabel_komt_uit_de_samenvatting_niet_uit_de_dcf_sectie():
+    """Elk rapport heeft deze tabel twee keer, met een andere kolomvolgorde.
+
+    In de DCF-sectie staat de fair value verderop in de rij (bij EVO op kolom
+    vier, bij ACN op drie). Zoeken op de scenarionaam door het hele bestand
+    levert dan een groeipercentage of een WACC op in plaats van een waarde.
+    Deze tabel bootst dat na: de tweede tabel zou 7,72 opleveren.
+    """
+    execsum = (
+        "- **Fair value scenarios:**\n\n"
+        "| Scenario | Fair value (SEK) | Upside % | Kans % |\n"
+        "|---|---|---|---|\n"
+        "| Pessimistisch | 609,44 | −17,2 | 35 |\n"
+        "| Basis | 1217,60 | +65,5 | 45 |\n"
+        "| Optimistisch | 1728,68 | +134,9 | 20 |\n"
+    )
+    uit = analyses_mod._parse_scenarios(execsum, "SEK")
+    assert uit == {"pessimistisch": 609.44, "basis": 1217.60, "optimistisch": 1728.68}
+
+    # De kolom wordt uit de kop bepaald, niet vastgezet op de tweede.
+    anders = (
+        "| Scenario | FCF-groei % | WACC % | Fair value | Upside % | Kans % |\n"
+        "|---|---|---|---|---|---|\n"
+        "| Optimistisch | +8,0 | 7,72 | 1728,68 | +134,9 | 20 |\n"
+    )
+    assert analyses_mod._parse_scenarios(anders, "SEK")["optimistisch"] == 1728.68
+
+    # Zonder herkenbare fair value-kolom liever niets dan een gok.
+    zonder = ("| Scenario | WACC % | Kans % |\n|---|---|---|\n"
+              "| Optimistisch | 7,72 | 20 |\n")
+    assert analyses_mod._parse_scenarios(zonder, "SEK") == {}
+
+    # Twee fair value-kolommen (EUR én SEK): die van het aandeel wint.
+    twee = (
+        "| Scenario | WACC % | Fair value EUR | Fair value SEK | Kans % |\n"
+        "|---|---|---|---|---|\n"
+        "| Optimistisch | 7,72 | 157,74 | 1728,68 | 20 |\n"
+    )
+    assert analyses_mod._parse_scenarios(twee, "SEK")["optimistisch"] == 1728.68
+
+
 def test_koers_en_fair_value_zelfde_ordegrootte():
     """Een factor 1000 ertussen betekent een verkeerd gelezen scheidingsteken."""
     for a in analyses_mod.get_all_summaries():

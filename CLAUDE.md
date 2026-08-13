@@ -83,6 +83,63 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 - **De module verwijdert niets uit Kansen.** Dat is een keuze, geen omissie: een lijst waar dingen ongemerkt uit verdwijnen ga je wantrouwen. Het oordeel wordt getoond, de rangorde blijft van de screener.
 - **Rapporten mengen Europese en Amerikaanse getalnotatie.** `1.239,40` (ASML) staat naast `93.79` (NVDA). Wie de punt blind als decimaalteken leest, maakt van ASML's koers 1,239 en krijgt een upside van +114476%. `engine/analyses.py:_parse_getal` handelt dit af: komma wint altijd als decimaalteken, een punt met precies drie cijfers erachter is een duizendtalscheiding.
 
+## Verkoopregels en bezit (2026-08-13)
+
+Het sluitstuk van de pijplijn: tussencheck → analyse → gekocht → **en dan?** `_routekaart()`
+eindigde bij "bijwerken wanneer de cijfers verouderen"; er was geen enkele regel die zei wanneer
+een aandeel weer weg mag. Tabblad **💼 Ik bezit** houdt twaalf regels tegen wat je bezit, plus één
+informatieve. Motor: [engine/exit_regels.py](engine/exit_regels.py), pagina in
+[templates/index.html](templates/index.html), tabel `bezit` in de database.
+
+- **Geen aankoopprijs, en dat is de kern van het ontwerp.** Er wordt geen aantal en geen
+  instapkoers opgeslagen; geen enkele regel kijkt ernaar. Wat je betaald hebt is geen eigenschap
+  van het bedrijf, en eraan vasthouden is de bekendste manier om winnaars te vroeg te verkopen.
+  Bijkomend voordeel: de repo is publiek en de site heeft geen afscherming, dus er staat niets
+  gevoeligs opgeslagen. **Wel zichtbaar voor iedereen met de URL: wélke aandelen je bezit.**
+- **Een geraakte regel is een onderzoeksopdracht, geen verkoopopdracht.** Die zin staat op de
+  pagina en hoort er te blijven staan, net als bij `/tussenchecks`.
+- **De momentopname is het ijkpunt.** Bij vastleggen bevriest `exit_regels.momentopname()` de
+  cijfers (kwaliteit, ROIC-mediaan, margetrend, omzet-CAGR, kasstroom, ingeprijsde groei).
+  `bezit_vastleggen` overschrijft die bij een herbevestiging **niet** — anders wist elke klik de
+  vergelijking. Gevolg dat je moet kennen: op dag één zijn de vergelijkende regels (B2, B3, B5)
+  per definitie stil; de absolute regels doen dan het werk. Bewaakt in `tests/test_exit_regels.py`.
+- **Geen absolute kwaliteitsvloer.** De verleiding is "kwaliteitsscore onder de 5 = verkopen".
+  Dat ís `sell_quality_floor`, in fase 2 geschrapt omdat 72,5% van het universum onder de 6
+  scoort. Kwaliteit telt alleen als *daling sinds vastleggen*.
+- **"Boven het optimistische scenario van de screener" is geen bruikbare regel** — stond zo in
+  het plan en is na narekenen vervangen. De multiples wegen 60% en bewegen niet mee met de
+  scenario's, dus `optimistic_fv` ligt maar 8% (Technology) tot 27% (Consumer Defensive) boven
+  `base_fv`. Die regel vuurt rond 108-127% van de fair value — lósser dan de SELL-drempel van
+  130% die de screener zelf hanteert. In plaats daarvan is A2 (de enige harde waarderingsregel)
+  `sell_pct_high_quality` uit config.yaml: 175%, de marge die compounders krijgen. Hergebruikte
+  drempel, geen nieuw getal.
+- **Eén regel per waarneming, anders telt het oordeel dubbel.** Rood vraagt twee geraakte regels
+  uit twee verschillende families (of één harde). Zouden ROIC-hoogte, standvastigheid en
+  margeërosie elk een eigen regel zijn, dan zou één instortend bedrijf drie "regels" scoren.
+  Daarom neemt B1 het gekalibreerde oordeel van `moat_profile` in z'n geheel over.
+- **De C-regels lezen de scenario's uit je eigen rapport** — `fair_value_kansgewogen` en de
+  scenariotabel, sinds nu geparst in `engine/analyses.py`. **Elk rapport bevat die tabel twee
+  keer**: in de samenvatting én in de DCF-sectie, met een andere kolomvolgorde (fair value staat
+  daar op kolom drie, vier of zes). Er wordt daarom alleen binnen de executive summary gezocht en
+  de kolom wordt uit de kop bepaald. Bewaakt in `tests/test_analyses.py`.
+- **C-regels zwijgen bij een andere valuta of een koppeling via de bedrijfsnaam.** Dezelfde
+  Silvano-les als in `oordelen._koers_verschil`: 4,49 PLN en 1,11 EUR zijn dezelfde waarde.
+- **De datapoort gaat vóór alles.** `data_status` bad/missing of twee boekjaren achterstand →
+  grijs, geen enkele regel getoetst. Elke afleiding die de motor overdoet moet dezelfde poorten
+  passeren.
+- **"Beter alternatief" (D1) telt nooit mee in het eindoordeel.** De rangorde schuift per
+  verversing; er een verkoopoordeel op bouwen geeft elk kwartaal vals alarm. Tonen, niet wegen.
+- **Twee eindpunten met opzet.** `GET /api/bezit/tickers` is één query en wordt bij elke
+  paginalading opgehaald voor de knopstand; `GET /api/bezit` doet de volledige toetsing (per
+  ticker een moat-profiel) en draait alleen als je het tabblad opent. `/api/dashboard` is
+  bewust níet uitgebreid — daar gaan 2.759 rijen doorheen en die respons heeft de machine al
+  eens in een OOM-crashloop gebracht.
+- **`_dashboard_rows(cfg)` is uit `api_dashboard` gelicht** zodat `/api/bezit` exact dezelfde
+  rijen gebruikt. Daar zit meer in dan een SELECT: live herrekend signaal, reden-labels,
+  `rank_score` en de oordeelkoppeling. Bouw die keten nergens na.
+- **Nog niet gedaan:** verkooplogboek, kalibratie-scorebord (hielp verkopen echt?), wekelijkse
+  toetsing met historie in `_run_weekly_tasks`, een blok op `stock.html`, en meldingen.
+
 ## `/start` — "Wat nu?"
 
 Ticker invullen, terugkrijgen waar dat aandeel staat in de pijplijn en wat de volgende stap is, met de tekst om te plakken erbij. Bedoeld om de route (tussencheck in Claude Code → research in cowork → stage 2 in Claude Code → publiceren) niet te hoeven onthouden.

@@ -135,6 +135,11 @@
   </table>
 </div>
 
+<!-- Verkoopregels per bezit — alleen op het tabblad "Ik bezit".
+     Geen tabel: de inhoud is per aandeel een lijstje regels met de getallen
+     waaruit ze volgen, en dat past niet in kolommen. -->
+<div id="bezit-view" class="hidden space-y-3"></div>
+
 <!-- Volledige tabel — alleen op het tabblad "Alles" -->
 <div id="alles-view" class="hidden overflow-x-auto rounded-xl border border-slate-800">
   <table class="w-full text-sm" id="main-table">
@@ -271,6 +276,55 @@ function togglePin(ticker, ev) {
   if (i >= 0) pins.splice(i, 1); else pins.push(ticker);
   localStorage.setItem(PINS_KEY, JSON.stringify(pins));
   renderActiveTab();
+}
+
+// ---- Bezit -----------------------------------------------------------------
+// Anders dan de pins staat bezit op de server. Twee redenen: de verkoopregels
+// worden server-side getoetst (de browser kan geen moat-profiel bouwen), en bij
+// het vastleggen wordt een momentopname van de cijfers bewaard die het ijkpunt
+// vormt voor "verslechterd sinds". Dat overleeft geen gewiste localStorage.
+//
+// Twee eindpunten met opzet: de tickerlijst is één query en wordt altijd
+// geladen, de volledige toetsing pas als je het tabblad opent.
+let _bezit = new Set();
+let _bezitRijen = null;      // null = nog niet opgehaald
+let _bezitBezig = false;
+
+fetch('/api/bezit/tickers')
+  .then(r => r.ok ? r.json() : [])
+  .then(lijst => { _bezit = new Set(lijst); renderTabs(); renderActiveTab(); })
+  .catch(() => {});
+
+async function toggleBezit(ticker, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const had = _bezit.has(ticker);
+  try {
+    const resp = await fetch(`/api/bezit/${encodeURIComponent(ticker)}`,
+                             { method: had ? 'DELETE' : 'POST' });
+    if (!resp.ok) throw new Error(await resp.text());
+    if (had) _bezit.delete(ticker); else _bezit.add(ticker);
+    _bezitRijen = null;                       // toetsing opnieuw ophalen
+    renderTabs();
+    if (_actieveTab === 'bezit') laadBezit(); else renderActiveTab();
+  } catch (e) {
+    // Zichtbaar falen: een stille catch laat je denken dat het gelukt is.
+    alert(`Bezit bijwerken voor ${ticker} mislukt.\n\n${e.message || e}`);
+  }
+}
+
+async function laadBezit() {
+  if (_bezitBezig) return;
+  _bezitBezig = true;
+  try {
+    const resp = await fetch('/api/bezit');
+    if (!resp.ok) throw new Error(`server gaf ${resp.status}`);
+    _bezitRijen = await resp.json();
+  } catch (e) {
+    _bezitRijen = { fout: e.message || String(e) };
+  } finally {
+    _bezitBezig = false;
+    renderActiveTab();
+  }
 }
 
 // ---- Landenfilter ----------------------------------------------------------
@@ -490,6 +544,17 @@ const TABS = [
       .sort((a, b) => (b.revenue_cagr || 0) - (a.revenue_cagr || 0)),
   },
   {
+    // Het sluitstuk van de pijplijn: tussencheck, analyse, gekocht — en dan?
+    // Dit tabblad houdt de verkoopregels uit engine/exit_regels.py tegen wat je
+    // bezit. De land- en sectorfilters gelden hier bewust niet: je wilt altijd
+    // álles zien wat je hebt, niet de Nederlandse helft ervan.
+    id: 'bezit', label: '💼 Ik bezit',
+    uitleg: 'Wat je bezit, met de verkoopregels ertegenaan gehouden. '
+      + 'Een geraakte regel is een onderzoeksopdracht, geen verkoopopdracht — '
+      + 'en de aankoopprijs speelt bewust nergens een rol.',
+    eigenWeergave: true,
+  },
+  {
     id: 'pins', label: '📌 Mijn lijst',
     uitleg: 'De aandelen die je zelf hebt gemarkeerd met een ster.',
     select: rows => {
@@ -519,7 +584,8 @@ function renderTabs() {
   const pins = getPins().length;
   document.getElementById('tabs').innerHTML = TABS.map(t => {
     const actief = t.id === _actieveTab;
-    const telling = t.id === 'pins' && pins ? ` (${pins})` : '';
+    const telling = t.id === 'pins' && pins ? ` (${pins})`
+                  : t.id === 'bezit' && _bezit.size ? ` (${_bezit.size})` : '';
     const klasse = actief
       ? 'border-blue-500 text-blue-400'
       : 'border-transparent text-slate-400 hover:text-slate-200';
@@ -548,13 +614,120 @@ function renderActiveTab() {
   const wis = document.getElementById('filter-wis');
   if (wis) wis.classList.toggle('hidden', !_actiefLand && !_actieveSector && !_actiefSignaal);
   const isAlles = tab.id === 'alles';
+  const isBezit = tab.id === 'bezit';
 
   document.getElementById('filterbalk').classList.toggle('hidden', !isAlles);
   document.getElementById('alles-view').classList.toggle('hidden', !isAlles);
-  document.getElementById('focus-view').classList.toggle('hidden', isAlles);
+  document.getElementById('bezit-view').classList.toggle('hidden', !isBezit);
+  document.getElementById('focus-view').classList.toggle('hidden', isAlles || isBezit);
 
   if (isAlles) { renderTable(); return; }
+  if (isBezit) { renderBezit(); return; }
   renderFocus(tab);
+}
+
+// ---- Weergave "Ik bezit" ---------------------------------------------------
+// Per aandeel het eindoordeel, daaronder de geraakte regels met hun getallen.
+// Twee dingen moeten expliciet in beeld staan, allebei omdat dit project daar
+// eerder op is misgegaan: hoevéél regels er getoetst zijn (een leeg blok is
+// anders niet te onderscheiden van een kapot blok — zo stond de beslisboom
+// maandenlang leeg), en dat een geraakte regel geen verkoopopdracht is.
+
+const NIVEAU_STIJL = {
+  rood:   { rand: 'border-red-500/50',     stip: 'bg-red-500',     tekst: 'text-red-300' },
+  oranje: { rand: 'border-amber-500/50',   stip: 'bg-amber-500',   tekst: 'text-amber-300' },
+  groen:  { rand: 'border-emerald-500/40', stip: 'bg-emerald-500', tekst: 'text-emerald-300' },
+  grijs:  { rand: 'border-slate-700',      stip: 'bg-slate-500',   tekst: 'text-slate-400' },
+};
+
+function bezitRegelRij(regel) {
+  const kleur = regel.geraakt === true ? 'text-amber-300'
+              : regel.geraakt === false ? 'text-slate-500' : 'text-slate-600';
+  const merk = regel.geraakt === true ? '●' : regel.geraakt === false ? '○' : '·';
+  const hard = regel.hard && regel.geraakt === true
+    ? ' <span class="text-red-400 text-[10px] uppercase tracking-wide">hard</span>' : '';
+  return `<li class="flex gap-2 ${kleur}">
+    <span class="w-3 shrink-0">${merk}</span>
+    <span><span class="font-medium">${regel.naam}</span>${hard}
+      <span class="text-slate-500"> — ${regel.uitleg}</span></span></li>`;
+}
+
+function renderBezit() {
+  const doel = document.getElementById('bezit-view');
+  document.getElementById('row-count').textContent = '';
+  // De onderzoekstrook hoort bij de tabel-tabbladen. Zonder wissen blijft de
+  // tekst van het vorige tabblad boven deze lijst staan ("1 van deze 4 is al
+  // onderzocht") en slaat hij op een selectie die je niet meer ziet.
+  toonOnderzoekStrook(null);
+
+  if (_bezitRijen === null) {
+    doel.innerHTML = `<p class="text-slate-500 py-8 text-center">Verkoopregels toetsen…</p>`;
+    laadBezit();
+    return;
+  }
+  if (_bezitRijen && _bezitRijen.fout) {
+    doel.innerHTML = `<p class="text-red-400 py-8 text-center">⚠ De verkoopregels konden niet
+      opgehaald worden: ${_bezitRijen.fout}</p>`;
+    return;
+  }
+  if (!_bezitRijen.length) {
+    doel.innerHTML = `<p class="text-slate-500 py-8 text-center">Nog niets vastgelegd.
+      Klik op 💼 naast een aandeel om het hier te volgen.</p>`;
+    return;
+  }
+
+  doel.innerHTML = _bezitRijen.map(r => {
+    const v = r.verkoop;
+    const stijl = NIVEAU_STIJL[v.niveau] || NIVEAU_STIJL.grijs;
+    const geraakt = (v.geraakt || []).map(bezitRegelRij).join('');
+    const rest = (v.regels || []).filter(x => !x.geraakt).map(bezitRegelRij).join('');
+    const info = (v.informatief || []).map(bezitRegelRij).join('');
+
+    const prijs = r.price !== undefined && r.price !== null
+      ? `${currencySymbol(r.currency)}${fmt(r.price)}` : '—';
+    const sinds = r.sinds ? `vastgelegd ${r.sinds}` : '';
+    const toelichting = v.toelichting
+      ? `<p class="text-slate-400 text-sm mt-2">${v.toelichting}</p>` : '';
+
+    return `<div class="rounded-lg border ${stijl.rand} bg-slate-900/40 p-4">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>
+          <span class="text-slate-300 ml-2">${r.name || ''}</span>
+          ${oordeelPil(r)}
+        </div>
+        <div class="text-right text-sm">
+          <div class="text-slate-300">${prijs}</div>
+          <div class="text-slate-600 text-xs">${sinds}</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 mt-3">
+        <span class="w-2 h-2 rounded-full ${stijl.stip}"></span>
+        <span class="${stijl.tekst} font-medium">${v.kop}</span>
+      </div>
+      ${toelichting}
+
+      ${geraakt ? `<ul class="mt-3 space-y-1 text-sm">${geraakt}</ul>` : ''}
+
+      ${v.aantal_regels ? `<details class="mt-3">
+        <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-300">
+          Getoetst op ${v.getoetst_op} · ${v.aantal_getoetst} van ${v.aantal_regels} regels toetsbaar
+        </summary>
+        <ul class="mt-2 space-y-1 text-sm">${rest}${info}</ul>
+      </details>` : ''}
+
+      <div class="mt-3 flex gap-3 text-xs">
+        <button onclick="toggleBezit('${r.ticker}', event)"
+          class="text-slate-500 hover:text-red-300">Uit bezit halen</button>
+      </div>
+    </div>`;
+  }).join('') +
+  `<p class="text-xs text-slate-500 pt-2">Een geraakte regel is een onderzoeksopdracht,
+   geen verkoopopdracht. De regels kijken bewust niet naar wat je betaald hebt.</p>`;
+
+  document.getElementById('row-count').textContent =
+    `${_bezitRijen.length} aandelen in bezit`;
 }
 
 // ---- Onderzoeksoordelen ----------------------------------------------------
@@ -813,8 +986,12 @@ function renderFocus(tab) {
     // daar niet ook nog achter de naam — anders staat dezelfde pil er twee keer.
     const naamExtra = (tab.id === 'kwaliteit' || tab.id === 'herstellers')
       ? noteringPil(r) : oordeelPil(r) + noteringPil(r);
-    const cel = `<td class="px-3 py-2"><button onclick="togglePin('${r.ticker}', event)"
-        class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button></td>
+    const heeft = _bezit.has(r.ticker);
+    const koffer = heeft ? 'opacity-100' : 'opacity-25 hover:opacity-70';
+    const cel = `<td class="px-3 py-2 whitespace-nowrap"><button onclick="togglePin('${r.ticker}', event)"
+        class="${sterKleur} text-lg leading-none" title="Bewaar in Mijn lijst">${ster}</button>
+      <button onclick="toggleBezit('${r.ticker}', event)" class="${koffer} text-sm leading-none ml-1"
+        title="${heeft ? 'Uit bezit halen' : 'Vastleggen dat je dit bezit'}">💼</button></td>
       <td class="px-3 py-2 whitespace-nowrap"><a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>${boekjaarBadge(r)}</td>
       <td class="px-3 py-2 text-slate-300">${r.name || ''}${naamExtra}</td>`;
 

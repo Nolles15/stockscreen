@@ -22,6 +22,7 @@ from flask import Flask, jsonify, render_template, request
 from engine import analyses as analyses_mod
 from engine import db
 from engine import data_quality
+from engine import exit_regels
 from engine import markets
 from engine import normalizer
 from engine import moat_profile
@@ -488,19 +489,24 @@ def _routekaart(ticker: str) -> tuple[dict | None, str | None]:
     }, None
 
 
-def _moat_niveau(ticker: str) -> str | None:
-    """Alleen het niveau (groen/geel/rood) uit het moat-profiel.
+def _moat_profiel(ticker: str) -> dict | None:
+    """Het volledige moat-profiel voor één ticker, of None als het niet lukt.
 
-    Zelfde bron als de detailpagina en de tussencheck-skill; hier is de rest
-    van dat object niet nodig.
+    Zelfde bron als de detailpagina en de tussencheck-skill. Bouwt de jaarrijen
+    mét overrides op — wie alleen `financials` leest mist de handmatig ingevoerde
+    jaren.
     """
     try:
         annual, _ = db.jaarrijen_met_overrides(ticker)
-        profiel = moat_profile.bouw_profiel(annual, db.get_price_history(ticker))
-        return (profiel or {}).get("niveau")
+        return moat_profile.bouw_profiel(annual, db.get_price_history(ticker))
     except Exception:
         log.warning("moat-profiel bouwen mislukt voor %s", ticker, exc_info=True)
         return None
+
+
+def _moat_niveau(ticker: str) -> str | None:
+    """Alleen het niveau (groen/geel/rood) uit het moat-profiel."""
+    return (_moat_profiel(ticker) or {}).get("niveau")
 
 
 @app.route("/start")
@@ -541,7 +547,20 @@ def tussencheck_detail(ticker):
 @app.route("/api/dashboard")
 def api_dashboard():
     """Return alle aandelen met scores en marktdata. Filtering gebeurt client-side."""
-    cfg = load_config()
+    return jsonify(_sanitize(_dashboard_rows(load_config())))
+
+
+def _dashboard_rows(cfg: dict) -> list[dict]:
+    """De rijen achter /api/dashboard.
+
+    Apart gezet zodat /api/bezit exact dezelfde rijen kan gebruiken. Hier zit
+    meer in dan een SELECT: het signaal en de korting worden live herrekend
+    tegen de verse koers, de reden-labels komen erbij, en `rank_score` en het
+    oordeel uit de rapporten worden aangehangen. Wie die keten voor een tweede
+    pagina nabouwt, bouwt een tweede waarheid — precies wat er misging toen de
+    waardering ergens anders werd nagerekend en er 140 uitkwam waar de motor
+    175 gebruikte.
+    """
     min_quality = cfg.get("screening", {}).get("min_quality_score", 7)
     new_days    = cfg.get("app", {}).get("new_ticker_days", 7)
     today       = datetime.now(timezone.utc).date()
@@ -662,7 +681,7 @@ def api_dashboard():
     # de rangorde niet — het maakt alleen zichtbaar wat er al bekend is.
     oordelen.verrijk(rows)
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
-    return jsonify(_sanitize(rows))
+    return rows
 
 
 def _add_rank_scores(rows: list[dict]) -> None:
@@ -698,6 +717,151 @@ def _add_rank_scores(rows: list[dict]) -> None:
         conf = vertrouwen.get(r.get("fv_confidence"), 0.3)
         score = 0.5 * positie[id(r)] + 0.3 * kwaliteit + 0.2 * conf
         r["rank_score"] = round(100 * score, 1)
+
+
+# ---------------------------------------------------------------------------
+# Bezit + verkoopregels
+#
+# De screener zegt wat aandacht verdient; hierna houdt de pijplijn op. Dit deel
+# vult dat gat: van wat je bezit wordt bijgehouden hoe het ervoor stond toen je
+# het vastlegde, en elke keer dat je kijkt worden de verkoopregels uit
+# engine/exit_regels.py er opnieuw tegenaan gehouden.
+#
+# Bewust géén aantallen en géén aankoopkoers: geen enkele regel kijkt ernaar,
+# en de site heeft geen afscherming.
+# ---------------------------------------------------------------------------
+
+
+def _rank_grens(rijen: list[dict]) -> float | None:
+    """Waar ligt de kop van Kansen? Grens voor de informatieve regel D1.
+
+    De mediaan van de tien hoogste rangscores, gehalveerd. Op de mediaan van de
+    top tien in plaats van de hoogste score, want die ene uitschieter schuift
+    per verversing; en gehalveerd omdat "iets lager dan de top" geen reden is om
+    iets te verkopen — "ver eronder" wel.
+    """
+    scores = sorted((r["rank_score"] for r in rijen if r.get("rank_score") is not None),
+                    reverse=True)
+    if len(scores) < 10:
+        return None
+    top = scores[:10]
+    mediaan = (top[4] + top[5]) / 2
+    return exit_regels.RANK_FACTOR * mediaan
+
+
+def _bezit_rijen(cfg: dict) -> list[dict]:
+    """Elk vastgelegd aandeel met de uitslag van de verkoopregels erbij."""
+    vastgelegd = {b["ticker"]: b for b in db.bezit_lijst()}
+    if not vastgelegd:
+        return []
+
+    alle = _dashboard_rows(cfg)
+    grens = _rank_grens(alle)
+    per_ticker = {r["ticker"]: r for r in alle}
+
+    uit = []
+    for ticker, vastlegging in vastgelegd.items():
+        rij = per_ticker.get(ticker)
+        if rij is None:
+            # Vastgelegd, maar de screener kent hem niet (meer). Dat is precies
+            # het geval dat je wilt zien — delisting, hernoeming, of per ongeluk
+            # gedeactiveerd — dus tonen in plaats van overslaan.
+            uit.append({
+                "ticker": ticker, "name": ticker, "ontbreekt": True,
+                "sinds": vastlegging.get("sinds"), "notitie": vastlegging.get("notitie"),
+                "verkoop": {
+                    "niveau": "grijs",
+                    "kop": "Staat niet in de screener",
+                    "toelichting": ("Dit aandeel is vastgelegd als bezit maar komt niet voor in "
+                                    "de screener. Mogelijk gedeactiveerd, hernoemd of van de "
+                                    "beurs. Zoek de juiste notering op via /start."),
+                    "regels": [], "geraakt": [], "informatief": [],
+                    "getoetst_op": datetime.now(timezone.utc).date().isoformat(),
+                    "aantal_regels": 0, "aantal_getoetst": 0,
+                },
+            })
+            continue
+
+        rij = dict(rij)
+        oordeel = rij.get("oordeel")
+        analyse = None
+        if oordeel and oordeel.get("soort") == "analyse" and oordeel.get("rapport_ticker"):
+            analyse = analyses_mod.get_analyse(oordeel["rapport_ticker"])
+        moat = _moat_profiel(ticker)
+        snapshot = vastlegging.get("these_snapshot") or {}
+
+        rij["sinds"] = vastlegging.get("sinds")
+        rij["notitie"] = vastlegging.get("notitie")
+        rij["these_snapshot"] = snapshot
+        rij["moat_niveau"] = (moat or {}).get("niveau")
+        rij["verkoop"] = exit_regels.toets(
+            rij, snapshot=snapshot, moat=moat, analyse=analyse, oordeel=oordeel,
+            config=cfg, rank_grens=grens,
+        )
+        uit.append(rij)
+
+    # Rood eerst: waar iets speelt hoort bovenaan te staan.
+    volgorde = {"rood": 0, "oranje": 1, "grijs": 2, "groen": 3}
+    uit.sort(key=lambda r: (volgorde.get(r["verkoop"]["niveau"], 9), r["ticker"]))
+    return uit
+
+
+@app.route("/api/bezit")
+def api_bezit():
+    """Wat je bezit, met de verkoopregels ertegenaan gehouden.
+
+    Eigen eindpunt in plaats van een uitbreiding van /api/dashboard: daar gaan
+    ruim 2.700 rijen doorheen en die respons heeft de machine al eens in een
+    OOM-crashloop gebracht. Een moat-profiel per ticker bouwen is voor vijftien
+    aandelen verwaarloosbaar en voor het hele universum niet.
+    """
+    return jsonify(_sanitize(_bezit_rijen(load_config())))
+
+
+@app.route("/api/bezit/tickers")
+def api_bezit_tickers():
+    """Alleen de tickers die als bezit vastliggen — één query, geen berekening.
+
+    Het dashboard heeft dit bij élke paginalading nodig om de bezitknop de juiste
+    stand te geven. Daarvoor `/api/bezit` aanroepen zou per aandeel een
+    moat-profiel bouwen (jaarrijen plus koershistorie) terwijl er alleen een
+    vinkje nodig is.
+    """
+    return jsonify([b["ticker"] for b in db.bezit_lijst()])
+
+
+@app.route("/api/bezit/<ticker>", methods=["POST"])
+def api_bezit_vastleggen(ticker):
+    """Leg vast dat je dit aandeel bezit, inclusief momentopname van de these.
+
+    De momentopname is het ijkpunt waartegen de vergelijkende regels meten. Hij
+    wordt bij een bestaande vastlegging niet overschreven — dan zou elke
+    herbevestiging de geschiedenis wissen en zou 'verslechterd sinds' nooit
+    kunnen afgaan.
+    """
+    stock = db.get_stock(ticker)
+    if not stock:
+        return jsonify({"error": f"{ticker} staat niet in de screener"}), 404
+
+    cfg = load_config()
+    rij = next((r for r in _dashboard_rows(cfg) if r["ticker"] == ticker), None)
+    if rij is None:
+        return jsonify({"error": f"Geen dashboardrij voor {ticker}"}), 404
+
+    snapshot = exit_regels.momentopname(rij, _moat_profiel(ticker))
+    notitie = (request.get_json(silent=True) or {}).get("notitie")
+    db.bezit_vastleggen(ticker, snapshot, notitie)
+    db.log_activity("bezit", ticker, "vastgelegd", {"snapshot": snapshot})
+    return jsonify({"ticker": ticker, "snapshot": snapshot})
+
+
+@app.route("/api/bezit/<ticker>", methods=["DELETE"])
+def api_bezit_verwijderen(ticker):
+    """Haal een aandeel uit het bezit."""
+    weg = db.bezit_verwijderen(ticker)
+    if weg:
+        db.log_activity("bezit", ticker, "verwijderd", None)
+    return jsonify({"ticker": ticker, "verwijderd": weg})
 
 
 def _fv_price_ratio(price, fv):

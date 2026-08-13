@@ -213,6 +213,11 @@ def verrijk(rijen: list[dict]) -> None:
             "soort": rapport["soort"],
             "datum": rapport["datum"],
             "link": rapport["link"],
+            # Onder welke ticker het rapport zelf ligt. Nodig om er méér uit te
+            # halen dan het oordeel (de verkoopregels lezen de scenario's), en
+            # dat moet via dezelfde koppeling lopen als hier — een tweede
+            # zoekweg naar hetzelfde rapport gaat gegarandeerd afwijken.
+            "rapport_ticker": rapport["ticker"],
             "via": via,
             "via_naam": via_naam,
             "verouderd": _verouderd(rapport["datum"]),
