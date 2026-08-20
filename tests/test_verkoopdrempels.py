@@ -65,5 +65,34 @@ ok = exit_regels.verkoopdrempels({"price": None, "currency": "EUR"}, verkoop) ==
 fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] zonder koers geen drempels")
 
-print("\nFALEND:", fout)
+
+# --- De datapoort mag een eigen analyse niet wegdrukken -----------------------
+#
+# Puig had een volledige analyse met scenario's van 9,58 tot 27,31 en kreeg toch
+# "geen oordeel over verkopen", omdat de screener geen fair value had. Precies
+# andersom: waar het model het niet aankan is de eigen analyse het enige
+# bruikbare oordeel.
+
+analyse = {"valuta": "EUR", "fair_value_kansgewogen": 18.13,
+           "scenarios": {"pessimistisch": 9.58, "basis": 19.58, "optimistisch": 27.31}}
+geblokkeerd = {"ticker": "PUIG.MC", "price": 17.12, "currency": "EUR",
+               "data_status": "missing", "combined_fv": None}
+
+uitslag = exit_regels.toets(geblokkeerd, analyse=analyse,
+                            oordeel={"via_naam": False}, config={})
+d2 = exit_regels.verkoopdrempels(geblokkeerd, uitslag)
+
+ok = uitslag["niveau"] != "grijs" and uitslag["aantal_getoetst"] > 0
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] analyse overleeft de datapoort: {uitslag['kop']}")
+
+ok = [x["grens"] for x in d2] == [18.13, 27.31]
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] grenzen uit het rapport: {[x['grens'] for x in d2]}")
+
+ok = "Alleen je eigen analyse" in (uitslag["toelichting"] or "")
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] toelichting zegt dat alleen de analyse is getoetst")
+
+print("\nFALEND (totaal):", fout)
 sys.exit(1 if fout else 0)

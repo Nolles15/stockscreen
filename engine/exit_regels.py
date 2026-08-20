@@ -513,6 +513,32 @@ def toets(rij: dict, snapshot: Optional[dict] = None, moat: Optional[dict] = Non
     getoetst_op = (vandaag or date.today()).isoformat()
 
     blokkade = datapoort(rij)
+    # De poort geldt voor wat de screener zelf berekent. Een eigen analyse steunt
+    # daar niet op: die heeft alleen de koers en het rapport nodig, en is bij een
+    # aandeel dat het model niet aankan juist het enige bruikbare oordeel dat er
+    # is. Puig had een volledige analyse met scenario's van 9,58 tot 27,31, en
+    # kreeg toch "geen oordeel over verkopen" omdat de screener geen fair value
+    # had — precies andersom dus.
+    if blokkade and analyse and rij.get("price"):
+        c_regels = _analyse_regels(rij, analyse, oordeel)
+        bruikbaar = [r for r in c_regels if r["geraakt"] is not None]
+        if bruikbaar:
+            geraakt_c = [r for r in c_regels if r["geraakt"] is True]
+            hard_c = [r for r in geraakt_c if r["hard"]]
+            return {
+                "niveau": "rood" if hard_c else ("oranje" if geraakt_c else "groen"),
+                "kop": (hard_c[0]["naam"] if hard_c else
+                        geraakt_c[0]["naam"] if geraakt_c else
+                        "Binnen de bandbreedte van je eigen analyse"),
+                "toelichting": ("Alleen je eigen analyse is getoetst. " + blokkade),
+                "regels": c_regels,
+                "geraakt": geraakt_c,
+                "informatief": [],
+                "getoetst_op": getoetst_op,
+                "aantal_regels": len(c_regels),
+                "aantal_getoetst": len(bruikbaar),
+            }
+
     if blokkade:
         return {
             "niveau": "grijs",
