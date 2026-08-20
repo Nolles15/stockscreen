@@ -31,14 +31,26 @@ from . import db
 
 log = logging.getLogger(__name__)
 
-# Oordelen die om een beslissing vragen. TWIJFEL en OVERSLAAN niet: daar ís de
-# conclusie "nu niets doen", dus niet-handelen is er geen stille beslissing maar
-# gewoon de uitvoering ervan.
+# Oordelen waarbij een daad verwacht wordt. Die staan bovenaan in de lijst,
+# omdat daar het gat zit tussen wat je concludeert en wat je doet.
 VRAAGT_BESLISSING = {"VERDIEPEN", "KOOP", "STERKE KOOP"}
 
-# Hoelang een oordeel mag liggen voordat het als openstaand telt. Kort genoeg om
-# nog te kunnen handelen, lang genoeg om niet te zeuren over iets van gisteren.
-RIJPINGSDAGEN = 14
+# Een afgeronde volledige analyse hoort altijd in het overzicht, ook bij HOLD of
+# PASS. Niet omdat er dan iets moet gebeuren, maar omdat je later wilt kunnen
+# nakijken of je HOLD-oordelen klopten. Zonder die regels meet je alleen je
+# koopbeslissingen en blijft negentien twintigste van je werk onzichtbaar.
+#
+# Een tussencheck telt alleen mee bij VERDIEPEN: TWIJFEL en OVERSLAAN zijn een
+# voorselectie waarbij niets doen de conclusie zélf is.
+def _hoort_erin(soort: str | None, oordeel: str | None) -> bool:
+    return (soort or "") == "analyse" or (oordeel or "").upper() in VRAAGT_BESLISSING
+
+
+# Vanaf wanneer niets doen "stil gebleven" heet in plaats van "nog vers". Dit is
+# uitsluitend een oordeelsdrempel: een besluit is meteen zichtbaar zodra de
+# analyse af is (dat was Janco's expliciete wens), maar je pas op verzuim wijzen
+# als er echt tijd overheen is gegaan.
+STILTE_DAGEN = 14
 
 KEUZES = ("gekocht", "bewust_niet", "uitgesteld")
 
@@ -66,7 +78,7 @@ def synchroniseer(rijen: list[dict]) -> int:
     for rij in rijen:
         oordeel = rij.get("oordeel") or {}
         soort_oordeel = (oordeel.get("oordeel") or "").upper()
-        if soort_oordeel not in VRAAGT_BESLISSING:
+        if not _hoort_erin(oordeel.get("soort"), soort_oordeel):
             continue
         try:
             db.besluit_vastleggen(
@@ -98,18 +110,20 @@ def openstaand(rijen: list[dict] | None = None) -> list[dict]:
         if b["ticker"] in bezit:
             continue
         dagen = _dagen_sinds(b.get("datum_oordeel"))
-        if dagen is None or dagen < RIJPINGSDAGEN:
+        if dagen is None:
             continue
         rij = per_ticker.get(b["ticker"], {})
         uit.append({
             **b,
             "dagen_open": dagen,
+            "vraagt_daad": (b.get("oordeel") or "").upper() in VRAAGT_BESLISSING,
             "naam": rij.get("name"),
             "koers_nu": rij.get("price"),
             "signaal_nu": rij.get("signal"),
             "korting_nu": rij.get("margin_of_safety"),
         })
-    return sorted(uit, key=lambda b: b["dagen_open"], reverse=True)
+    # Waar een daad verwacht wordt eerst, daarbinnen het langst liggende bovenaan.
+    return sorted(uit, key=lambda b: (b["vraagt_daad"], b["dagen_open"]), reverse=True)
 
 
 def actiekloof(rijen: list[dict] | None = None) -> dict:
@@ -137,7 +151,7 @@ def actiekloof(rijen: list[dict] | None = None) -> dict:
             vak["bewust_niet"] += 1
         elif b.get("keuze") == "uitgesteld":
             vak["uitgesteld"] += 1
-        elif (_dagen_sinds(b.get("datum_oordeel")) or 0) < RIJPINGSDAGEN:
+        elif (_dagen_sinds(b.get("datum_oordeel")) or 0) < STILTE_DAGEN:
             # Een oordeel van vorige week is nog geen verzuim. Zonder dit
             # onderscheid telt alles wat net af is meteen als stilte, en dan
             # meet de kloof deels je eigen doorlooptijd in plaats van je gedrag.

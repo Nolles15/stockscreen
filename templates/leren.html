@@ -34,22 +34,34 @@
 <div class="leerblok">
   <h2 class="font-semibold mb-1">Wachten op een beslissing</h2>
   <p class="text-slate-400 text-xs mb-3">
-    Deze oordelen liggen er langer dan twee weken zonder dat er iets mee gebeurd is.
-    Niets doen is ook een keuze — maar dan wel graag een bewuste.
+    Elke afgeronde analyse komt hier te staan, meteen na afronding. Bij KOOP en
+    VERDIEPEN wordt een daad verwacht — die staan bovenaan. Bij HOLD en PASS is
+    niets doen meestal de conclusie zelf; leg dat dan vast, dan weet je later
+    waarom. Niets doen is ook een keuze, maar dan wel graag een bewuste.
   </p>
 
   {% if not openstaand %}
     <p class="text-slate-500 text-sm">Niets openstaand. Alles wat je concludeerde is afgehandeld.</p>
   {% else %}
+    {% set ns_kop = namespace(getoond=false) %}
     {% for b in openstaand %}
+    {% if not b.vraagt_daad and not ns_kop.getoond %}
+      {% set ns_kop.getoond = true %}
+      <p class="text-slate-500 text-xs mt-4 mb-1 pt-3" style="border-top:1px solid var(--border)">
+        Hieronder: analyses waar geen daad van je verwacht wordt. Vastleggen mag,
+        hoeft niet — het maakt je overzicht later wel compleet.
+      </p>
+    {% endif %}
     <div class="open-rij" data-ticker="{{ b.ticker }}">
       <div style="flex: 1 1 300px;">
         <div>
           <a href="/stock/{{ b.ticker }}" class="text-blue-400 hover:underline font-medium">{{ b.ticker }}</a>
+          <span class="oordeel oordeel-{{ b.oordeel }}">{{ b.oordeel }}</span>
           <span class="text-slate-300">{{ b.naam or '' }}</span>
         </div>
         <div class="text-slate-500 text-xs mt-0.5">
-          {{ b.oordeel }} op {{ b.datum_oordeel }} &middot; {{ b.dagen_open }} dagen geleden
+          {{ b.aanleiding }} op {{ b.datum_oordeel }} &middot;
+          {% if b.dagen_open == 0 %}vandaag{% else %}{{ b.dagen_open }} dagen geleden{% endif %}
           {% if b.koers_toen %}&middot; toen {{ '%.2f'|format(b.koers_toen) }}{% endif %}
           {% if b.koers_nu %}&middot; nu {{ '%.2f'|format(b.koers_nu) }}{% endif %}
         </div>

@@ -3,8 +3,9 @@ Herkent het systeem een stille beslissing, en houdt het de juiste dingen buiten 
 
 Het gaat hier om één ding: een oordeel waar nooit iets mee gedaan is moet
 zichtbaar worden, maar zonder vals alarm. Een aandeel dat je bezit is afgehandeld
-ook al legde je nooit een keuze vast, een oordeel van gisteren is nog geen
-verzuim, en OVERSLAAN vraagt niet om een daad.
+ook al legde je nooit een keuze vast, een tussencheck met OVERSLAAN vraagt niet om
+een daad, en een oordeel van gisteren mag wel zichtbaar zijn maar heet nog geen
+verzuim.
 """
 
 import os
@@ -56,9 +57,11 @@ besluiten.db = nep
 fout = 0
 open_lijst = besluiten.openstaand([])
 tickers = [b["ticker"] for b in open_lijst]
-ok = tickers == ["ACN"]
+# Zichtbaar zodra het oordeel er ligt: ACN (40 dagen) en WTN (1 dag), met de
+# oudste bovenaan. EVO valt af omdat je het bezit, PAY omdat het is afgesloten.
+ok = tickers == ["ACN", "WTN.WA"]
 fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] openstaand = {tickers} (verwacht ['ACN'])")
+print(f"  [{'OK ' if ok else 'FOUT'}] openstaand = {tickers} (verwacht ['ACN', 'WTN.WA'])")
 
 kloof = besluiten.actiekloof([])
 v = kloof["per_oordeel"]["VERDIEPEN"]
@@ -80,12 +83,15 @@ besluiten.synchroniseer([
                  "datum": dagen_terug(30), "koers_toen": 10.0, "valuta_toen": "EUR"}},
     {"ticker": "B.AS", "currency": "EUR",
      "oordeel": {"oordeel": "OVERSLAAN", "soort": "tussencheck", "datum": dagen_terug(30)}},
+    {"ticker": "D.AS", "currency": "EUR",
+     "oordeel": {"oordeel": "HOLD", "soort": "analyse", "datum": dagen_terug(30)}},
     {"ticker": "C.AS", "currency": "EUR"},
 ])
 vast = [v["ticker"] for v in nep.vastgelegd]
-ok = vast == ["A.AS"]
+ok = vast == ["A.AS", "D.AS"]
 fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] vastgelegd = {vast} (OVERSLAAN en zonder oordeel overgeslagen)")
+print(f"  [{'OK ' if ok else 'FOUT'}] vastgelegd = {vast} "
+      f"(volledige analyse telt ook bij HOLD; tussencheck-OVERSLAAN niet)")
 
 ok = nep.vastgelegd and nep.vastgelegd[0]["koers_toen"] == 10.0
 fout += not ok
