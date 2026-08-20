@@ -98,16 +98,23 @@
           <td class="text-xs">
             {% if not b.verloop.these.meetbaar %}
               <span class="text-slate-500">geen momentopname van toen</span>
+            {% elif b.verloop.snapshot_dagen is not none and b.verloop.snapshot_dagen < 1 %}
+              <span class="text-slate-500">momentopname is van vandaag &mdash; vergelijking volgt</span>
             {% else %}
+              {% set ns = namespace(getoond=false) %}
               {% for label, waarde in [('kwaliteit', b.verloop.these.kwaliteit),
                                        ('rendement op kapitaal', b.verloop.these.roic),
                                        ('kasstroom', b.verloop.these.kasstroom)] %}
-                {% if waarde is not none %}
-                  <div class="{{ 'text-emerald-400' if waarde > 0 else ('text-red-400' if waarde < 0 else 'text-slate-400') }}">
+                {% if waarde %}
+                  {% set ns.getoond = true %}
+                  <div class="{{ 'text-emerald-400' if waarde > 0 else 'text-red-400' }}">
                     {{ label }} {{ '%+g'|format(waarde) }}
                   </div>
                 {% endif %}
               {% endfor %}
+              {% if not ns.getoond %}
+                <span class="text-slate-500">onveranderd</span>
+              {% endif %}
             {% endif %}
           </td>
           <td style="text-align:right" class="text-xs">

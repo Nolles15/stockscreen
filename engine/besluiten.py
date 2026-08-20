@@ -183,8 +183,14 @@ def sinds_het_oordeel(besluit: dict, rij: dict | None) -> dict:
         except (TypeError, ZeroDivisionError, ValueError):
             rendement = None
 
+    # De momentopname wordt gemaakt op het moment dat je de beslissing erkent,
+    # niet toen het oordeel ontstond. Voor een net afgesloten besluit vergelijk je
+    # dus vandaag met vandaag, en dan is "+0" geen bevinding maar een artefact.
+    snapshot_dagen = _dagen_sinds(snapshot.get("op")) if snapshot.get("op") else None
+
     return {
         "dagen": dagen,
+        "snapshot_dagen": snapshot_dagen,
         "these": {
             "kwaliteit": _verschil("quality_score"),
             "kasstroom": _verschil("normalized_fcf_m"),
