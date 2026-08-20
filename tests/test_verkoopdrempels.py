@@ -32,9 +32,11 @@ verkoop = {"regels": [
 d = exit_regels.verkoopdrempels(rij, verkoop)
 fout = 0
 
-ok = [x["id"] for x in d] == ["C1", "C2", "A2"]
+# Met een analyse wijkt de modelgrens: die zou als derde regel verschijnen met
+# het label "geen analyse" terwijl die er juist wel is.
+ok = [x["id"] for x in d] == ["C1", "C2"]
 fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] volgorde laagste grens eerst: {[x['id'] for x in d]}")
+print(f"  [{'OK ' if ok else 'FOUT'}] met analyse alleen de analyse-grenzen: {[x['id'] for x in d]}")
 
 c1 = next(x for x in d if x["id"] == "C1")
 ok = c1["grens"] == 1008.64 and c1["geraakt"] and c1["afstand_pct"] < 0
@@ -45,11 +47,6 @@ c2 = next(x for x in d if x["id"] == "C2")
 ok = c2["grens"] == 1414.04 and c2["bron"] == "analyse" and c2["afstand_pct"] == 34.1
 fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] verkopen boven {c2['grens']} — nog {c2['afstand_pct']}% te gaan")
-
-a2 = next(x for x in d if x["id"] == "A2")
-ok = a2["grens"] == round(1129.0 * 1.75, 2) and a2["bron"] == "model"
-fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] modelgrens {a2['grens']} = 175% van de fair value")
 
 ok = not any(x["id"].startswith("B") for x in d)
 fout += not ok

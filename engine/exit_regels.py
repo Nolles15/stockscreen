@@ -613,13 +613,16 @@ def verkoopdrempels(rij: dict, verkoop: dict) -> list[dict]:
     _voeg("C1", c1.get("kansgewogen"), "analyse", "aandacht boven")
     _voeg("C2", c2.get("optimistisch"), "analyse", "verkopen boven")
 
-    # Uit het model. De grens is een percentage van de fair value; die rekenen we
-    # terug naar een bedrag zodat hij naast de analyse-grenzen leesbaar is.
-    fv = _getal(rij.get("combined_fv"))
-    a2 = per_id.get("A2", {}).get("waarden") or {}
-    grens_pct = _getal(a2.get("grens_pct"))
-    if fv and grens_pct:
-        _voeg("A2", fv * grens_pct / 100.0, "model", "verkopen boven")
+    # Het model alleen als er géén analyse ligt. Ligt die er wel, dan is hij
+    # leidend: een doorgerekend scenario voor dít bedrijf weegt zwaarder dan een
+    # sectorgemiddelde, en beide naast elkaar tonen leverde bij Adyen een derde
+    # grens op met het label "geen analyse" terwijl die er juist wél was.
+    if not uit:
+        fv = _getal(rij.get("combined_fv"))
+        a2 = per_id.get("A2", {}).get("waarden") or {}
+        grens_pct = _getal(a2.get("grens_pct"))
+        if fv and grens_pct:
+            _voeg("A2", fv * grens_pct / 100.0, "model", "verkopen boven")
 
     return sorted(uit, key=lambda d: d["grens"])
 
