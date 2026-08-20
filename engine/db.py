@@ -313,6 +313,26 @@ def init_db() -> None:
             )
         """)
 
+        # Analyses en tussenchecks als inhoud, niet als bestand in het image.
+        #
+        # Ze stonden in de Docker-build, dus een nieuwe analyse vroeg om syncen,
+        # committen én deployen — drie handelingen op precies het moment dat het
+        # echte werk klaar is, en dus werden ze vergeten. Op 20 augustus bleek
+        # dat: vier analyses stonden alleen op de laptop, niet eens gecommit.
+        #
+        # De database is hier het transport. Bij het opstarten worden de
+        # bestanden teruggeschreven naar schijf, zodat de leeslaag in
+        # analyses.py onveranderd blijft werken.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS analyse_bestand (
+                soort     TEXT NOT NULL,
+                naam      TEXT NOT NULL,
+                inhoud    TEXT NOT NULL,
+                gewijzigd TEXT,
+                PRIMARY KEY (soort, naam)
+            )
+        """)
+
         # Wat je met een oordeel gedaan hebt — en vooral: wat je niet gedaan hebt.
         #
         # Aanleiding: vijf VERDIEPEN-oordelen, geen daarvan gekocht. Janco's eigen
@@ -359,6 +379,39 @@ def set_refresh_state(key: str, value: str) -> None:
             """,
             (key, value),
         )
+
+
+# ---------------------------------------------------------------------------
+# Analyse-bestanden
+# ---------------------------------------------------------------------------
+
+def analyse_bestand_opslaan(soort: str, naam: str, inhoud: str) -> bool:
+    """Sla een analyse of tussencheck op. True als de inhoud veranderd is."""
+    with _cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO analyse_bestand (soort, naam, inhoud, gewijzigd)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT(soort, naam) DO UPDATE
+               SET inhoud = excluded.inhoud, gewijzigd = excluded.gewijzigd
+             WHERE analyse_bestand.inhoud IS DISTINCT FROM excluded.inhoud
+            """,
+            (soort, naam, inhoud, datetime.utcnow().isoformat()),
+        )
+        return cur.rowcount > 0
+
+
+def analyse_bestanden() -> list[dict]:
+    """Alle opgeslagen analyses en tussenchecks, met inhoud."""
+    with _cursor() as cur:
+        cur.execute("SELECT soort, naam, inhoud, gewijzigd FROM analyse_bestand")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def analyse_bestand_verwijderen(soort: str, naam: str) -> bool:
+    with _cursor() as cur:
+        cur.execute("DELETE FROM analyse_bestand WHERE soort=%s AND naam=%s", (soort, naam))
+        return cur.rowcount > 0
 
 
 # ---------------------------------------------------------------------------

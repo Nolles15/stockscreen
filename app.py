@@ -849,6 +849,97 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
     return uit
 
 
+def _analyse_map(soort: str) -> str:
+    return (analyses_mod.ANALYSES_DIR if soort == "analyse"
+            else analyses_mod.TUSSENCHECKS_DIR)
+
+
+def _schrijf_analyse_bestand(soort: str, naam: str, inhoud: str) -> bool:
+    """Zet één document op schijf. True als er iets veranderd is.
+
+    De leeslaag in analyses.py leest van schijf en cachet op bestandstijd, dus
+    alleen schrijven bij echte wijziging — anders vervalt de cache elke keer
+    zonder reden.
+    """
+    map_pad = _analyse_map(soort)
+    os.makedirs(map_pad, exist_ok=True)
+    pad = os.path.join(map_pad, naam)
+    try:
+        if os.path.exists(pad):
+            with open(pad, encoding="utf-8") as f:
+                if f.read() == inhoud:
+                    return False
+        with open(pad, "w", encoding="utf-8") as f:
+            f.write(inhoud)
+        return True
+    except OSError:
+        log.exception("Wegschrijven van %s/%s mislukt", soort, naam)
+        return False
+
+
+def _herstel_analyses_uit_db() -> int:
+    """Zet de opgeslagen analyses terug op schijf.
+
+    Nodig bij elke start: het bestandssysteem van de container is vluchtig, dus
+    alles wat na de laatste deploy is binnengekomen zou anders weg zijn.
+    """
+    try:
+        bestanden = db.analyse_bestanden()
+    except Exception:
+        log.exception("Analyses uit de database halen mislukt")
+        return 0
+    n = sum(1 for b in bestanden
+            if _schrijf_analyse_bestand(b["soort"], b["naam"], b["inhoud"]))
+    if n:
+        log.info("%d analyse-bestanden teruggezet uit de database", n)
+    return n
+
+
+@app.route("/api/analyses/sync", methods=["POST"])
+def api_analyses_sync():
+    """Neem analyses en tussenchecks aan, zodat publiceren geen deploy vraagt.
+
+    Body: {"bestanden": [{"soort": "analyse"|"tussencheck",
+                          "naam": "ACN.md", "inhoud": "..."}]}
+
+    Wordt aangeroepen door de GitHub Action in de analyses-repo. Auth via
+    dezelfde X-Cron-Token als de andere machine-endpoints.
+    """
+    auth_err = _check_cron_auth()
+    if auth_err is not None:
+        return auth_err
+
+    data = request.get_json(silent=True) or {}
+    bestanden = data.get("bestanden")
+    if not isinstance(bestanden, list) or not bestanden:
+        return jsonify({"error": "bestanden moet een niet-lege array zijn"}), 400
+
+    bijgewerkt, ongewijzigd, geweigerd = [], [], []
+    for b in bestanden:
+        soort = (b or {}).get("soort")
+        naam = (b or {}).get("naam") or ""
+        inhoud = (b or {}).get("inhoud")
+        # Alleen platte .md-namen: een pad met schuine strepen of puntjes zou
+        # buiten de bedoelde map kunnen schrijven.
+        if (soort not in ("analyse", "tussencheck") or not inhoud
+                or not re.fullmatch(r"[A-Za-z0-9._-]+\.md", naam) or ".." in naam):
+            geweigerd.append(naam or "(naamloos)")
+            continue
+        db.analyse_bestand_opslaan(soort, naam, inhoud)
+        if _schrijf_analyse_bestand(soort, naam, inhoud):
+            bijgewerkt.append(naam)
+        else:
+            ongewijzigd.append(naam)
+
+    if bijgewerkt:
+        analyses_mod.leeg_cache()
+        db.log_activity("analyses_sync", None, "ok",
+                        {"bijgewerkt": bijgewerkt, "ongewijzigd": len(ongewijzigd)})
+
+    return jsonify({"bijgewerkt": bijgewerkt, "ongewijzigd": len(ongewijzigd),
+                    "geweigerd": geweigerd})
+
+
 @app.route("/leren")
 def leren():
     """Wat je met je eigen oordelen deed."""
@@ -3075,6 +3166,11 @@ def _on_startup() -> None:
     if _startup_done:
         return
     _startup_done = True
+
+    # Analyses terug op schijf voordat er iets gelezen wordt: het bestandssysteem
+    # van de container is vluchtig, dus alles wat na de laatste deploy via
+    # /api/analyses/sync binnenkwam zou anders bij elke herstart weg zijn.
+    _herstel_analyses_uit_db()
 
     cfg = load_config()
 

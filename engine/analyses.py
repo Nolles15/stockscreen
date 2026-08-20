@@ -359,6 +359,17 @@ def _parse_bestand(pad: str) -> dict:
     return analyse
 
 
+def leeg_cache() -> None:
+    """Gooi de parse-cache weg.
+
+    Nodig na /api/analyses/sync: die schrijft nieuwe bestanden weg, en hoewel de
+    cache op bestandstijd controleert is expliciet legen zekerder dan vertrouwen
+    op de tijdstempel-resolutie van het onderliggende bestandssysteem.
+    """
+    with _cache_lock:
+        _cache.clear()
+
+
 def _laad(map_pad: str, bestandsnaam: str, parser) -> dict | None:
     """Geparst document uit de cache, of opnieuw parsen als het bestand
     veranderde. De sleutel is het volledige pad, zodat analyses en
