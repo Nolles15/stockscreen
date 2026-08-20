@@ -62,9 +62,10 @@ print(f"  [{'OK ' if ok else 'FOUT'}] openstaand = {tickers} (verwacht ['ACN'])"
 
 kloof = besluiten.actiekloof([])
 v = kloof["per_oordeel"]["VERDIEPEN"]
-ok = v["totaal"] == 3 and v["gehandeld"] == 1 and v["stil"] == 2
+ok = v["totaal"] == 3 and v["gehandeld"] == 1 and v["stil"] == 1 and v["vers"] == 1
 fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] VERDIEPEN: {v['gehandeld']}/{v['totaal']} gehandeld, {v['stil']} stil")
+print(f"  [{'OK ' if ok else 'FOUT'}] VERDIEPEN: {v['gehandeld']}/{v['totaal']} gehandeld, "
+      f"{v['stil']} stil, {v['vers']} nog vers (die van gisteren telt niet als verzuim)")
 
 k = kloof["per_oordeel"]["KOOP"]
 ok = k["bewust_niet"] == 1 and k["stil"] == 0

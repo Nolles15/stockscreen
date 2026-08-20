@@ -127,7 +127,8 @@ def actiekloof(rijen: list[dict] | None = None) -> dict:
     per_oordeel: dict[str, dict] = {}
     for b in alle:
         vak = per_oordeel.setdefault(b["oordeel"] or "onbekend", {
-            "totaal": 0, "gehandeld": 0, "bewust_niet": 0, "stil": 0, "uitgesteld": 0,
+            "totaal": 0, "gehandeld": 0, "bewust_niet": 0, "stil": 0,
+            "uitgesteld": 0, "vers": 0,
         })
         vak["totaal"] += 1
         if b["ticker"] in bezit or b.get("keuze") == "gekocht":
@@ -136,6 +137,11 @@ def actiekloof(rijen: list[dict] | None = None) -> dict:
             vak["bewust_niet"] += 1
         elif b.get("keuze") == "uitgesteld":
             vak["uitgesteld"] += 1
+        elif (_dagen_sinds(b.get("datum_oordeel")) or 0) < RIJPINGSDAGEN:
+            # Een oordeel van vorige week is nog geen verzuim. Zonder dit
+            # onderscheid telt alles wat net af is meteen als stilte, en dan
+            # meet de kloof deels je eigen doorlooptijd in plaats van je gedrag.
+            vak["vers"] += 1
         else:
             vak["stil"] += 1
 
