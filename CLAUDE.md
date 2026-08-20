@@ -182,6 +182,30 @@ Toont de fundamentele analyses uit de aandelenanalyse-pipeline; publiek, geen af
 
 ## Huidige plan / status
 
+**Analyses publiceren (2026-08-20) — geen deploy meer nodig.**
+`POST /api/analyses/sync` (X-Cron-Token) neemt analyses en tussenchecks aan, zet ze in
+tabel `analyse_bestand` en schrijft ze naar schijf. Bij het opstarten herstelt
+`_herstel_analyses_uit_db()` ze, want het bestandssysteem van de container is vluchtig.
+De database is hier **transport**, schijf blijft de leeslaag — de parsers in
+[engine/analyses.py](engine/analyses.py) lezen van pad, en die verbouwen was een groter
+risico dan de winst. Een GitHub Action in de **fundamenteleanalyses**-repo
+(`publiceer-analyses.yml`) stuurt gewijzigde documenten bij elke push. Intrekken kan met
+de `verwijderen`-lijst. `scripts/sync_analyses.py` werkt nog steeds als handmatige weg.
+
+**Bezitspagina (2026-08-20).** Beantwoordt nu twee gescheiden vragen: *bij welke koers
+verkoop je* (`exit_regels.verkoopdrempels()` rekent de prijsgebonden regels om naar
+bedragen — C1 kansgewogen, C2 optimistisch scenario, A2 model) en *is dit nog hetzelfde
+bedrijf* (these-regels met toen→nu uit de momentopname). **Ligt er een analyse, dan wijkt
+de modelgrens** — anders staat er een derde grens met het label "geen analyse" terwijl
+die er juist wel is. These-regels krijgen bewust geen prijs.
+
+**Kleuren: gebruik de tokens uit base.html, niet de Tailwind-schaal.** Die schaal is voor
+een donkere achtergrond; op de crèmekleurige pagina haalde `amber-300` een contrast van
+1,4:1 (21× in gebruik) en `#999` 2,8:1 (43×). Meer dan de helft van de bezitskaart stond
+onder de leesbaarheidsgrens — vandaar "het lijkt wel Paint". `--pass`/`--hold`/`--buy` en
+`--text-1/2` zitten op 7 à 8:1. `--text-3` alleen voor kleine labels, nooit voor inhoud.
+
+
 **Leren van je eigen beslissingen (2026-08-20).** [engine/besluiten.py](engine/besluiten.py) + `/leren`.
 
 Aanleiding: vijf VERDIEPEN-oordelen, geen daarvan in de portefeuille. Janco's
