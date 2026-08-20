@@ -633,23 +633,27 @@ function renderActiveTab() {
 // anders niet te onderscheiden van een kapot blok — zo stond de beslisboom
 // maandenlang leeg), en dat een geraakte regel geen verkoopopdracht is.
 
+// Kleuren uit de tokens van base.html, niet uit de Tailwind-schaal. Die schaal
+// is voor een donkere achtergrond gemaakt: amber-300 haalt op wit een contrast
+// van 1,4:1 en was hier 21 keer in gebruik, text-slate-500 (#999) 43 keer op
+// 2,8:1. Meer dan de helft van de kaart stond daarmee onder de leesbaarheids-
+// grens, en dan vindt het oog geen hiërarchie meer. De tokens zitten op 7 à 8:1.
 const NIVEAU_STIJL = {
-  rood:   { rand: 'border-red-500/50',     stip: 'bg-red-500',     tekst: 'text-red-300' },
-  oranje: { rand: 'border-amber-500/50',   stip: 'bg-amber-500',   tekst: 'text-amber-300' },
-  groen:  { rand: 'border-emerald-500/40', stip: 'bg-emerald-500', tekst: 'text-emerald-300' },
-  grijs:  { rand: 'border-slate-700',      stip: 'bg-slate-500',   tekst: 'text-slate-400' },
+  rood:   { rand: 'var(--pass-border)', stip: 'var(--pass)', tekst: 'var(--pass)' },
+  oranje: { rand: 'var(--hold-border)', stip: 'var(--hold)', tekst: 'var(--hold)' },
+  groen:  { rand: 'var(--buy-border)',  stip: 'var(--buy)',  tekst: 'var(--buy)' },
+  grijs:  { rand: 'var(--border)',      stip: 'var(--text-3)', tekst: 'var(--text-2)' },
 };
 
 function bezitRegelRij(regel) {
-  const kleur = regel.geraakt === true ? 'text-amber-300'
-              : regel.geraakt === false ? 'text-slate-500' : 'text-slate-600';
+  const kleur = regel.geraakt === true ? 'var(--hold)' : 'var(--text-3)';
   const merk = regel.geraakt === true ? '●' : regel.geraakt === false ? '○' : '·';
   const hard = regel.hard && regel.geraakt === true
-    ? ' <span class="text-red-400 text-[10px] uppercase tracking-wide">hard</span>' : '';
-  return `<li class="flex gap-2 ${kleur}">
+    ? ` <span style="color:var(--pass); font-size:10px; text-transform:uppercase; letter-spacing:.4px">hard</span>` : '';
+  return `<li class="flex gap-2" style="color:${kleur}">
     <span class="w-3 shrink-0">${merk}</span>
     <span><span class="font-medium">${regel.naam}</span>${hard}
-      <span class="text-slate-400"> — ${regel.uitleg}</span></span></li>`;
+      <span style="color:var(--text-2)"> — ${regel.uitleg}</span></span></li>`;
 }
 
 // ---- De twee vragen bij een bezit ------------------------------------------
@@ -661,31 +665,42 @@ function prijsBlok(r) {
   const d = r.drempels || [];
   const sym = currencySymbol(r.currency);
   if (!d.length) {
-    return `<p class="text-slate-500 text-sm mt-3">Geen prijsgrens te bepalen —
+    return `<p style="color:var(--text-2)" class="text-sm">Geen prijsgrens te bepalen —
       er is geen fair value en geen analyse om hem uit af te leiden.</p>`;
   }
 
-  const regels = d.map(x => {
-    const bereikt = x.afstand_pct <= 0;
-    const kleur = bereikt ? 'text-red-400' : 'text-slate-300';
-    const afstand = bereikt
-      ? `<span class="text-red-400">al ${Math.abs(x.afstand_pct)}% voorbij</span>`
-      : `<span class="text-slate-500">nog ${x.afstand_pct}% te gaan</span>`;
-    const bron = x.bron === 'analyse'
-      ? '<span class="text-slate-500">uit je analyse</span>'
-      : '<span class="text-amber-400">uit het model, geen analyse</span>';
-    return `<div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      <span class="text-slate-500 text-sm w-32 shrink-0">${x.label}</span>
-      <span class="${kleur} font-medium tabular-nums">${sym}${fmt(x.grens)}</span>
-      ${afstand} · ${bron}
-    </div>`;
-  }).join('');
+  // De grens waarop je verkoopt is het antwoord op de vraag, dus die krijgt het
+  // meeste gewicht. De rest is toelichting eromheen.
+  const hoofd = d[d.length - 1];
+  const eerder = d.slice(0, -1);
 
-  const knop = r.heeft_analyse ? '' :
-    `<p class="text-xs text-amber-400 mt-2">Er ligt nog geen fundamentele analyse voor
-     dit aandeel — de grens hierboven komt uit het generieke model en is navenant grof.</p>`;
+  const afstandTekst = (x) => x.afstand_pct <= 0
+    ? `<span style="color:var(--pass)">al ${Math.abs(x.afstand_pct)}% voorbij</span>`
+    : `<span style="color:var(--text-2)">nog ${x.afstand_pct}% te gaan</span>`;
 
-  return `<div class="mt-3 space-y-1">${regels}${knop}</div>`;
+  const bronTekst = (x) => x.bron === 'analyse'
+    ? (x.id === 'C2' ? 'optimistisch scenario uit je analyse' : 'kansgewogen waarde uit je analyse')
+    : 'grens uit het model';
+
+  const eerdereRegels = eerder.map(x => `
+    <div class="text-sm mt-1.5" style="color:var(--text-2)">
+      <span style="color:var(--hold)">▲</span>
+      <span class="font-medium tabular-nums">${sym}${fmt(x.grens)}</span>
+      &nbsp;${afstandTekst(x)} · ${bronTekst(x)}
+    </div>`).join('');
+
+  const waarschuwing = r.heeft_analyse ? '' : `
+    <p class="text-xs mt-2" style="color:var(--hold)">
+      Nog geen fundamentele analyse — deze grens komt uit het generieke model en is grof.
+    </p>`;
+
+  return `
+    <div class="flex items-baseline gap-3 flex-wrap">
+      <span class="text-2xl font-semibold tabular-nums" style="color:var(--text-1)">${sym}${fmt(hoofd.grens)}</span>
+      <span class="text-sm">${afstandTekst(hoofd)}</span>
+    </div>
+    <div class="text-xs mt-0.5" style="color:var(--text-3)">${bronTekst(hoofd)}</div>
+    ${eerdereRegels}${waarschuwing}`;
 }
 
 function theseBlok(r) {
@@ -694,8 +709,6 @@ function theseBlok(r) {
   if (!these.length) return '';
 
   const snap = r.these_snapshot || {};
-  // Toon per regel wat er sinds het vastleggen bewoog. "Kwaliteitsscore gezakt"
-  // zegt niets; "kwaliteit 7 → 5 sinds 13 augustus" is de hele mededeling.
   const paren = [
     ['quality_score', 'kwaliteit', r.quality_score],
     ['roic_mediaan', 'rendement op kapitaal', r.moat_roic],
@@ -706,22 +719,27 @@ function theseBlok(r) {
     if (toen === undefined || toen === null || nu === undefined || nu === null) return '';
     const verschil = nu - toen;
     if (Math.abs(verschil) < 0.05) return '';
-    const kleur = verschil < 0 ? 'text-red-400' : 'text-emerald-400';
-    return `<div class="text-xs ${kleur}">${label} ${fmt(toen)} → ${fmt(nu)}</div>`;
-  }).filter(Boolean).join('');
+    const kleur = verschil < 0 ? 'var(--pass)' : 'var(--buy)';
+    return `<span style="color:${kleur}">${label} ${fmt(toen)} → ${fmt(nu)}</span>`;
+  }).filter(Boolean).join('<span style="color:var(--text-3)"> · </span>');
 
   const geraakt = these.filter(x => x.geraakt === true);
   const kop = geraakt.length
-    ? `<span class="text-amber-300">${geraakt.length} van de ${these.length} these-regels geraakt</span>`
-    : `<span class="text-slate-400">Geen van de ${these.length} these-regels geraakt</span>`;
+    ? `<span style="color:var(--hold)">${geraakt.length} van de ${these.length} these-regels geraakt</span>`
+    : `<span style="color:var(--text-2)">Geen van de ${these.length} these-regels geraakt</span>`;
 
   return `<div class="mt-4 pt-3" style="border-top:1px solid var(--border)">
-    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Is dit nog hetzelfde bedrijf?</div>
-    <div class="text-sm">${kop}</div>
-    ${bewogen ? `<div class="mt-1 space-y-0.5">${bewogen}</div>`
-              : `<div class="text-xs text-slate-500 mt-1">Niets wezenlijks bewogen sinds ${r.sinds || 'het vastleggen'}.</div>`}
+    ${blokLabel('Is dit nog hetzelfde bedrijf?')}
+    <div class="text-sm mt-1">${kop}</div>
+    <div class="text-xs mt-1">${bewogen ||
+      `<span style="color:var(--text-3)">Niets wezenlijks bewogen sinds ${r.sinds || 'het vastleggen'}.</span>`}</div>
     ${geraakt.length ? `<ul class="mt-2 space-y-1 text-sm">${geraakt.map(bezitRegelRij).join('')}</ul>` : ''}
   </div>`;
+}
+
+function blokLabel(tekst) {
+  return `<div class="text-xs font-semibold" style="color:var(--text-3);
+    text-transform:uppercase; letter-spacing:.6px">${tekst}</div>`;
 }
 
 function renderBezit() {
@@ -761,42 +779,46 @@ function renderBezit() {
     const toelichting = v.toelichting
       ? `<p class="text-slate-400 text-sm mt-2">${v.toelichting}</p>` : '';
 
-    return `<div class="rounded-lg border ${stijl.rand} bg-slate-900/40 p-4">
+    return `<div style="background:var(--surface); border:1px solid ${stijl.rand};
+                        border-radius:var(--radius-sm); padding:20px; box-shadow:var(--shadow)">
       <div class="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <a href="/stock/${r.ticker}" class="text-blue-400 hover:underline font-medium">${r.ticker}</a>
-          <span class="text-slate-300 ml-2">${r.name || ''}</span>
-          ${oordeelPil(r)}
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <a href="/stock/${r.ticker}" class="font-semibold hover:underline"
+               style="color:var(--text-1)">${r.ticker}</a>
+            ${oordeelPil(r)}
+          </div>
+          <div class="text-sm mt-0.5" style="color:var(--text-2)">${r.name || ''}</div>
         </div>
-        <div class="text-right text-sm">
-          <div class="text-slate-300">${prijs}</div>
-          <div class="text-slate-600 text-xs">${sinds}</div>
+        <div class="text-right">
+          <div class="text-lg font-medium tabular-nums" style="color:var(--text-1)">${prijs}</div>
+          <div class="text-xs" style="color:var(--text-3)">${sinds}</div>
         </div>
       </div>
 
       <div class="flex items-center gap-2 mt-3">
-        <span class="w-2 h-2 rounded-full ${stijl.stip}"></span>
-        <span class="${stijl.tekst} font-medium">${v.kop}</span>
+        <span style="width:8px; height:8px; border-radius:9999px; background:${stijl.stip}"></span>
+        <span class="font-medium text-sm" style="color:${stijl.tekst}">${v.kop}</span>
       </div>
       ${toelichting}
 
       <div class="mt-4">
-        <div class="text-xs text-slate-500 uppercase tracking-wide">Bij welke koers verkoop je?</div>
-        ${prijsBlok(r)}
+        ${blokLabel('Verkopen boven')}
+        <div class="mt-1">${prijsBlok(r)}</div>
       </div>
 
       ${theseBlok(r)}
 
-      ${v.aantal_regels ? `<details class="mt-3">
-        <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-300">
-          Alle regels · getoetst op ${v.getoetst_op} · ${v.aantal_getoetst} van ${v.aantal_regels} toetsbaar
-        </summary>
-        <ul class="mt-2 space-y-1 text-sm">${geraakt}${rest}${info}</ul>
-      </details>` : ''}
-
-      <div class="mt-3 flex gap-3 text-xs">
+      <div class="mt-4 pt-3 flex items-center justify-between gap-3 flex-wrap"
+           style="border-top:1px solid var(--border)">
+        ${v.aantal_regels ? `<details>
+          <summary class="text-xs cursor-pointer" style="color:var(--text-3)">
+            Alle ${v.aantal_regels} regels · ${v.aantal_getoetst} toetsbaar · ${v.getoetst_op}
+          </summary>
+          <ul class="mt-2 space-y-1 text-sm">${geraakt}${rest}${info}</ul>
+        </details>` : '<span></span>'}
         <button onclick="toggleBezit('${r.ticker}', event)"
-          class="text-slate-500 hover:text-red-300">Uit bezit halen</button>
+          class="text-xs" style="color:var(--text-3)">Uit bezit halen</button>
       </div>
     </div>`;
   }).join('') +
