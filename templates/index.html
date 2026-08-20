@@ -782,8 +782,16 @@ function oordeelPil(r) {
 // negentien bedrijven maakte terwijl er twintig regels stonden. Ze verdwijnen
 // niet — ze worden alleen als zodanig aangewezen.
 function markeerDubbeleNoteringen(rows) {
+  // De server bepaalt dit over de hele universe en kent ook ISIN, naamvarianten
+  // ('N.V.' tegen 'NV') en het verschil tussen een tweede notering en een
+  // aandelenklasse. Deze functie gebruikt dat als het er is; de naamvergelijking
+  // hieronder blijft als terugval, maar die ziet alleen de rijen van dit tabblad.
   const eerste = new Map();
   for (const r of rows) {
+    if (r.dubbel_van && r.dubbel_van.length) {
+      r._tweede_notering = r.dubbel_van[0];
+      continue;
+    }
     const naam = (r.name || '').trim().toLowerCase();
     r._tweede_notering = naam ? (eerste.get(naam) || null) : null;
     if (naam && !eerste.has(naam)) eerste.set(naam, r.ticker);
@@ -792,7 +800,12 @@ function markeerDubbeleNoteringen(rows) {
 
 function noteringPil(r) {
   if (!r._tweede_notering) return '';
-  return ` <span class="oordeel oordeel-neutraal" title="Zelfde bedrijf als ${r._tweede_notering}, andere beurs — dit is geen extra bedrijf in de lijst.">2e notering</span>`;
+  const klasse = r.dubbel_soort === 'aandelenklasse';
+  const label = klasse ? 'andere klasse' : '2e notering';
+  const uitleg = klasse
+    ? `Zelfde bedrijf als ${r._tweede_notering}, andere aandelenklasse — eigen koers en stemrecht, dus niet zomaar inwisselbaar.`
+    : `Zelfde bedrijf als ${r._tweede_notering}, andere beurs — dit is geen extra bedrijf in de lijst.`;
+  return ` <span class="oordeel oordeel-neutraal" title="${uitleg}">${label}</span>`;
 }
 
 function onderzoekStrook(rows) {

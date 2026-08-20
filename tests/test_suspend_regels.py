@@ -4,6 +4,11 @@ Controleert wanneer een ticker wel en niet op non-actief mag.
 Dit is de gevoeligste logica in het project: te streng en er verdwijnen goede
 aandelen uit beeld (dat gebeurde in april 2026 met 115 stuks), te soepel en
 dode symbolen blijven eeuwig rotatiecapaciteit opsouperen.
+
+De maat is verstreken tijd, niet het aantal pogingen. Een drempel op pogingen
+schaalt namelijk mee met de omvang van de universe: dezelfde drie mislukkingen
+betekenden bij 909 tickers vier weken en bij 2.812 drie maanden, waardoor de
+archivering stilviel zonder dat er iets was gewijzigd.
 """
 
 import os
@@ -41,11 +46,12 @@ class NepDB:
 
 gevallen = [
     # (omschrijving, fouten, eerste fout, jaarrijen, mag suspenderen)
-    ("te weinig mislukkingen",          2, _dagen_geleden(60), 0, False),
+    ("eenmalige hapering",              1, _dagen_geleden(60), 0, False),
     ("reeks nog te kort",               5, _dagen_geleden(10), 0, False),
+    ("net onder de maand",              4, _dagen_geleden(29), 0, False),
     ("heeft wel jaarcijfers",          20, _dagen_geleden(90), 4, False),
     ("startdatum onbekend",             9, None,               0, False),
-    ("structureel leeg, lang genoeg",   3, _dagen_geleden(25), 0, True),
+    ("een maand structureel leeg",      2, _dagen_geleden(31), 0, True),
     ("ruim over alle drempels",        12, _dagen_geleden(120), 0, True),
 ]
 

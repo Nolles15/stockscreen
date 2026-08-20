@@ -424,13 +424,24 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
 # De echte bescherming tegen massa-suspensies zit niet in deze drempels maar in de
 # storm-guard: bij een storing worden de tellers helemaal niet opgehoogd. Daarom
 # kunnen deze getallen omlaag zonder het risico terug te halen dat in april speelde.
-SUSPEND_MIN_FAILURES = 3
-SUSPEND_MIN_DAYS = 21
+# Tijd is de maat, niet het aantal pogingen. Een drempel op pogingen schaalt mee
+# met de omvang van de universe: bij 909 tickers en 100 per nacht kwam elke ticker
+# elke negen dagen aan de beurt, bij 2.812 nog maar eens per 28 dagen. Dezelfde
+# "drie mislukkingen" betekende daardoor eerst vier weken en later drie maanden,
+# en de archivering kwam stil te liggen zonder dat er iets veranderd was.
+#
+# Het aantal pogingen blijft er als ondergrens naast staan, zodat één enkele
+# hapering vlak voor de dertigste dag niet meteen tot suspenderen leidt.
+SUSPEND_MIN_DAYS = 30
+SUSPEND_MIN_FAILURES = 2
 DELISTED_AFTER_DAYS = 45
 
 
 def maybe_auto_suspend(ticker: str) -> bool:
-    """Suspendeer een ticker alleen als hij aan alle drie de voorwaarden voldoet."""
+    """Suspendeer een ticker alleen als hij aan alle drie de voorwaarden voldoet:
+    hij faalt al minstens een maand, is meer dan eens geprobeerd, en er staat geen
+    enkel jaarcijfer in de database.
+    """
     dq = db.get_data_quality(ticker) or {}
     if (dq.get("consecutive_failures") or 0) < SUSPEND_MIN_FAILURES:
         return False

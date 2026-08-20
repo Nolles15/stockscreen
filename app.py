@@ -22,6 +22,7 @@ from flask import Flask, jsonify, render_template, request
 from engine import analyses as analyses_mod
 from engine import db
 from engine import data_quality
+from engine import dubbelingen
 from engine import exit_regels
 from engine import markets
 from engine import normalizer
@@ -689,6 +690,7 @@ def _dashboard_rows(cfg: dict) -> list[dict]:
             "is_growth_lossmaker":  is_growth_lossmaker,
         })
 
+    _markeer_dubbelingen(rows)
     _add_rank_scores(rows)
     # Wat jij al onderzocht hebt weegt zwaarder dan wat de screener rekent, dus
     # het oordeel uit de rapporten reist mee naar het dashboard. Het verandert
@@ -696,6 +698,24 @@ def _dashboard_rows(cfg: dict) -> list[dict]:
     oordelen.verrijk(rows)
     rows.sort(key=lambda x: x.get("margin_of_safety") or -9999, reverse=True)
     return rows
+
+
+def _markeer_dubbelingen(rows: list[dict]) -> None:
+    """Zet `dubbel_van` en `dubbel_soort` op rijen die hetzelfde bedrijf zijn.
+
+    Alleen markeren, niet weglaten: AS Silvano Fashion Group bezette twee van de
+    tien plekken in de kansenlijst, en het probleem was niet dat beide tickers er
+    stonden maar dat je niet kon zien dat het één bedrijf was.
+    """
+    try:
+        gevonden = dubbelingen.vind(rows)
+    except Exception:
+        log.exception("Dubbelingen bepalen mislukt")
+        return
+    for rij in rows:
+        merk = gevonden.get(rij.get("ticker"))
+        if merk:
+            rij.update(merk)
 
 
 def _add_rank_scores(rows: list[dict]) -> None:
