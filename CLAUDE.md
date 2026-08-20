@@ -182,6 +182,18 @@ Toont de fundamentele analyses uit de aandelenanalyse-pipeline; publiek, geen af
 
 ## Huidige plan / status
 
+**GEPARKEERD (20 aug, besluit Janco): CRON_TOKEN-rotatie.** Het huidige token staat in
+leesbare tekst in `~/.claude/settings.json` als toestemmingsregel en is door een sessie
+gegaan. Roteren is hygiëne, geen storing — Janco heeft het bewust uitgesteld. **Niet
+ongevraagd oppakken.** Wie het later doet: nieuwe waarde op Fly, in beide GitHub-repo's,
+en daarna de oude regels uit settings.json halen.
+
+**Openstaand: de publiceer-workflow is nog niet actief.** `publiceer-analyses.yml` staat in
+de fundamenteleanalyses-repo en `APP_URL` is gezet, maar `CRON_TOKEN` ontbreekt daar nog.
+Daarvoor is **geen nieuw token nodig** — de bestaande waarde volstaat; dat is een andere
+handeling dan de geparkeerde rotatie. Tot die er staat blijft `scripts/sync_analyses.py`
+plus deploy de weg.
+
 **Analyses publiceren (2026-08-20) — geen deploy meer nodig.**
 `POST /api/analyses/sync` (X-Cron-Token) neemt analyses en tussenchecks aan, zet ze in
 tabel `analyse_bestand` en schrijft ze naar schijf. Bij het opstarten herstelt
