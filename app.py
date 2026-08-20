@@ -849,6 +849,12 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
     return uit
 
 
+def _veilige_naam(naam: str) -> bool:
+    """Alleen platte .md-bestandsnamen: een pad met schuine strepen of puntjes
+    zou buiten de bedoelde map kunnen schrijven of wissen."""
+    return bool(re.fullmatch(r"[A-Za-z0-9._-]+\.md", naam or "")) and ".." not in naam
+
+
 def _analyse_map(soort: str) -> str:
     return (analyses_mod.ANALYSES_DIR if soort == "analyse"
             else analyses_mod.TUSSENCHECKS_DIR)
@@ -921,8 +927,7 @@ def api_analyses_sync():
         inhoud = (b or {}).get("inhoud")
         # Alleen platte .md-namen: een pad met schuine strepen of puntjes zou
         # buiten de bedoelde map kunnen schrijven.
-        if (soort not in ("analyse", "tussencheck") or not inhoud
-                or not re.fullmatch(r"[A-Za-z0-9._-]+\.md", naam) or ".." in naam):
+        if soort not in ("analyse", "tussencheck") or not inhoud or not _veilige_naam(naam):
             geweigerd.append(naam or "(naamloos)")
             continue
         db.analyse_bestand_opslaan(soort, naam, inhoud)
@@ -931,13 +936,31 @@ def api_analyses_sync():
         else:
             ongewijzigd.append(naam)
 
-    if bijgewerkt:
+    # Intrekken moet ook kunnen: een teruggetrokken analyse hoort van de site te
+    # verdwijnen. Expliciet meegeven en niet afleiden uit wat er ontbreekt — bij
+    # een half verzonden lijst zou dat de hele verzameling wissen.
+    verwijderd = []
+    for weg in (data.get("verwijderen") or []):
+        soort = (weg or {}).get("soort")
+        naam = (weg or {}).get("naam") or ""
+        if soort not in ("analyse", "tussencheck") or not _veilige_naam(naam):
+            geweigerd.append(naam or "(naamloos)")
+            continue
+        db.analyse_bestand_verwijderen(soort, naam)
+        try:
+            os.remove(os.path.join(_analyse_map(soort), naam))
+        except OSError:
+            pass
+        verwijderd.append(naam)
+
+    if bijgewerkt or verwijderd:
         analyses_mod.leeg_cache()
         db.log_activity("analyses_sync", None, "ok",
-                        {"bijgewerkt": bijgewerkt, "ongewijzigd": len(ongewijzigd)})
+                        {"bijgewerkt": bijgewerkt, "verwijderd": verwijderd,
+                         "ongewijzigd": len(ongewijzigd)})
 
-    return jsonify({"bijgewerkt": bijgewerkt, "ongewijzigd": len(ongewijzigd),
-                    "geweigerd": geweigerd})
+    return jsonify({"bijgewerkt": bijgewerkt, "verwijderd": verwijderd,
+                    "ongewijzigd": len(ongewijzigd), "geweigerd": geweigerd})
 
 
 @app.route("/leren")
