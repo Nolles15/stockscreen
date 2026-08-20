@@ -830,10 +830,17 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
         rij["notitie"] = vastlegging.get("notitie")
         rij["these_snapshot"] = snapshot
         rij["moat_niveau"] = (moat or {}).get("niveau")
+        # Nodig om "toen → nu" te kunnen tonen: de momentopname bewaart
+        # roic_mediaan, dus de huidige waarde moet er ook bij staan.
+        rij["moat_roic"] = (moat or {}).get("roic_mediaan")
         rij["verkoop"] = exit_regels.toets(
             rij, snapshot=snapshot, moat=moat, analyse=analyse, oordeel=oordeel,
             config=cfg, rank_grens=grens, annual=annual,
         )
+        # De prijsgebonden regels als bedrag, zodat de kaart de vraag "wat is de
+        # verkoopprijs" kan beantwoorden in plaats van alleen regelnamen te tonen.
+        rij["drempels"] = exit_regels.verkoopdrempels(rij, rij["verkoop"])
+        rij["heeft_analyse"] = analyse is not None
         uit.append(rij)
 
     # Rood eerst: waar iets speelt hoort bovenaan te staan.

@@ -563,6 +563,67 @@ def toets(rij: dict, snapshot: Optional[dict] = None, moat: Optional[dict] = Non
     }
 
 
+def verkoopdrempels(rij: dict, verkoop: dict) -> list[dict]:
+    """
+    De prijsgebonden regels omgerekend naar bedragen: bij welke koers gaat deze af?
+
+    Aanleiding: de kaart toonde regelnamen ("Ver boven de fair value") en Janco's
+    vraag was simpelweg *wat is dan de verkoopprijs?* Die stond nergens, terwijl
+    elke regel zijn eigen grens al in `waarden` meedraagt — het was een kwestie
+    van omrekenen, niet van een nieuwe waardering.
+
+    Alleen regels waarvan de grens een koers ís komen hier terug. De these-regels
+    (B-familie) gaan over of dit nog hetzelfde bedrijf is; daar bestaat geen prijs
+    voor en er een verzinnen zou de vraag verkeerd stellen.
+
+    Volgorde is de laagste grens eerst, zodat je leest wat je het eerst tegenkomt.
+    `bron` is 'analyse' waar het uit het eigen onderzoek komt en 'model' waar het
+    uit de screener komt — dat verschil hoort zichtbaar te zijn, want een grens
+    uit een doorgerekend scenario weegt zwaarder dan een sectorgemiddelde.
+    """
+    koers = _getal(rij.get("price"))
+    valuta = rij.get("currency")
+    if not koers or koers <= 0:
+        return []
+
+    per_id = {r["id"]: r for r in (verkoop.get("regels") or [])}
+    uit = []
+
+    def _voeg(regel_id, grens, bron, label):
+        regel = per_id.get(regel_id)
+        grens = _getal(grens)
+        if regel is None or not grens or grens <= 0:
+            return
+        uit.append({
+            "id": regel_id,
+            "label": label,
+            "grens": round(grens, 2),
+            "valuta": valuta,
+            "bron": bron,
+            "geraakt": regel.get("geraakt") is True,
+            # Positief: zoveel procent moet de koers nog stijgen om de grens te
+            # raken. Negatief: je staat er al voorbij.
+            "afstand_pct": round(100 * (grens / koers - 1), 1),
+            "hard": bool(regel.get("hard")),
+        })
+
+    # Uit de eigen analyse — die weegt het zwaarst.
+    c1 = per_id.get("C1", {}).get("waarden") or {}
+    c2 = per_id.get("C2", {}).get("waarden") or {}
+    _voeg("C1", c1.get("kansgewogen"), "analyse", "aandacht boven")
+    _voeg("C2", c2.get("optimistisch"), "analyse", "verkopen boven")
+
+    # Uit het model. De grens is een percentage van de fair value; die rekenen we
+    # terug naar een bedrag zodat hij naast de analyse-grenzen leesbaar is.
+    fv = _getal(rij.get("combined_fv"))
+    a2 = per_id.get("A2", {}).get("waarden") or {}
+    grens_pct = _getal(a2.get("grens_pct"))
+    if fv and grens_pct:
+        _voeg("A2", fv * grens_pct / 100.0, "model", "verkopen boven")
+
+    return sorted(uit, key=lambda d: d["grens"])
+
+
 def momentopname(rij: dict, moat: Optional[dict] = None) -> dict:
     """Wat er bewaard wordt op het moment dat je bezit vastlegt.
 
