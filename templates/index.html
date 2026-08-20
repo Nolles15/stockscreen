@@ -661,6 +661,19 @@ function bezitRegelRij(regel) {
 // vragen met verschillende antwoorden. De kaart toonde ze door elkaar als één
 // lijst regelnamen, waardoor geen van beide werd beantwoord.
 
+function conclusieBlok(r) {
+  const c = r.conclusie;
+  if (!c) return '';
+  const kleur = { rood: 'var(--pass)', oranje: 'var(--hold)', groen: 'var(--buy)' }[c.kleur]
+             || 'var(--text-2)';
+  const achtergrond = { rood: 'var(--pass-bg)', oranje: 'var(--hold-bg)', groen: 'var(--buy-bg)' }[c.kleur]
+             || 'var(--surface-2)';
+  return `<div class="mt-3 rounded-lg px-3 py-2" style="background:${achtergrond}">
+    <div class="font-semibold" style="color:${kleur}">${c.kop}</div>
+    <div class="text-sm mt-0.5" style="color:var(--text-2)">${c.uitleg}</div>
+  </div>`;
+}
+
 function prijsBlok(r) {
   const d = r.drempels || [];
   const sym = currencySymbol(r.currency);
@@ -684,7 +697,7 @@ function prijsBlok(r) {
 
   const eerdereRegels = eerder.map(x => `
     <div class="text-sm mt-1.5" style="color:var(--text-2)">
-      <span style="color:var(--hold)">▲</span>
+      <span style="color:var(--text-3)">daarvoor al:</span>
       <span class="font-medium tabular-nums">${sym}${fmt(x.grens)}</span>
       &nbsp;${afstandTekst(x)} · ${bronTekst(x)}
     </div>`).join('');
@@ -796,10 +809,7 @@ function renderBezit() {
         </div>
       </div>
 
-      <div class="flex items-center gap-2 mt-3">
-        <span style="width:8px; height:8px; border-radius:9999px; background:${stijl.stip}"></span>
-        <span class="font-medium text-sm" style="color:${stijl.tekst}">${v.kop}</span>
-      </div>
+      ${conclusieBlok(r)}
       ${toelichting}
 
       <div class="mt-4">

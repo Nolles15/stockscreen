@@ -589,6 +589,69 @@ def toets(rij: dict, snapshot: Optional[dict] = None, moat: Optional[dict] = Non
     }
 
 
+def conclusie(rij: dict, verkoop: dict, heeft_analyse: bool) -> dict:
+    """
+    Wat volgt er nu uit? Eén zin, met de tegenspraak opgelost.
+
+    De kaart toonde losse bevindingen en liet het aan de lezer om ze te wegen.
+    Bij T-Mobile stond bovenaan "verkoopsignaal van de screener" en eronder dat
+    je pas 141% hoger moet verkopen — twee tegengestelde beweringen zonder
+    uitspraak. Dat is geen overzicht maar huiswerk.
+
+    De rangorde die hier gehanteerd wordt:
+
+    1. **These eerst.** Is het bedrijf veranderd, dan doet de prijs er minder toe:
+       een goedkoop aandeel van een verslechterend bedrijf is geen koopje.
+    2. **Je eigen analyse boven het model.** Een doorgerekend scenario voor dít
+       bedrijf weegt zwaarder dan een sectorgemiddelde. Spreken ze elkaar tegen,
+       dan wint de analyse en wordt de tegenspraak benoemd in plaats van verstopt.
+    3. **Het model alleen als er niets beters is.**
+    """
+    regels = {r["id"]: r for r in (verkoop.get("regels") or [])}
+    def geraakt(prefix):
+        return [r for r in regels.values() if r["id"].startswith(prefix) and r["geraakt"] is True]
+
+    these, analyse_g, waardering = geraakt("B"), geraakt("C"), geraakt("A")
+    # C3 (analyse verouderd) en C4 (oordeel spreekt tegen) zijn geen prijssignaal.
+    prijs_analyse = [r for r in analyse_g if r["id"] in ("C1", "C2")]
+
+    if these:
+        return {"kleur": "rood", "kop": "Kijk of je these nog klopt",
+                "uitleg": f"{len(these)} van de regels over het bedrijf zelf is geraakt. "
+                          "Bij een veranderend bedrijf zegt de prijs weinig — begin daar."}
+
+    if any(r["id"] == "C2" for r in prijs_analyse):
+        return {"kleur": "rood", "kop": "Overweeg verkopen",
+                "uitleg": "De koers staat boven het optimistische scenario van je eigen "
+                          "analyse. Ook in het gunstigste geval is dit niet meer te "
+                          "verdedigen met je eigen cijfers."}
+
+    if prijs_analyse:
+        return {"kleur": "oranje", "kop": "Let op, maar nog niet verkopen",
+                "uitleg": "De koers is je kansgewogen waarde gepasseerd, maar blijft onder "
+                          "het optimistische scenario. Dit is het gebied waarin je zou "
+                          "kunnen afbouwen, niet waarin je moet."}
+
+    if heeft_analyse and waardering:
+        return {"kleur": "groen", "kop": "Houden",
+                "uitleg": "De screener geeft een verkoopsignaal, maar dat komt uit het "
+                          "generieke model. Je eigen analyse ziet meer waarde dan de "
+                          "huidige koers, en die weegt zwaarder."}
+
+    if heeft_analyse:
+        return {"kleur": "groen", "kop": "Houden",
+                "uitleg": "Niets geraakt: de koers zit onder je eigen waardering en het "
+                          "bedrijf is niet wezenlijk veranderd."}
+
+    if waardering:
+        return {"kleur": "oranje", "kop": "Uitzoeken",
+                "uitleg": "Het model vindt dit te duur, maar er ligt geen eigen analyse om "
+                          "dat tegen af te zetten. Een analyse maken is hier de volgende stap."}
+
+    return {"kleur": "groen", "kop": "Niets te doen",
+            "uitleg": "Geen enkele verkoopregel geraakt."}
+
+
 def verkoopdrempels(rij: dict, verkoop: dict) -> list[dict]:
     """
     De prijsgebonden regels omgerekend naar bedragen: bij welke koers gaat deze af?

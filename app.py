@@ -841,6 +841,7 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
         # verkoopprijs" kan beantwoorden in plaats van alleen regelnamen te tonen.
         rij["drempels"] = exit_regels.verkoopdrempels(rij, rij["verkoop"])
         rij["heeft_analyse"] = analyse is not None
+        rij["conclusie"] = exit_regels.conclusie(rij, rij["verkoop"], analyse is not None)
         uit.append(rij)
 
     # Rood eerst: waar iets speelt hoort bovenaan te staan.
