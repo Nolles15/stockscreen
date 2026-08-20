@@ -95,6 +95,27 @@ def synchroniseer(rijen: list[dict]) -> int:
     return nieuw
 
 
+def _tweede_noteringen(rijen: list[dict] | None) -> set[str]:
+    """Tickers die een tweede notering zijn van een bedrijf dat er ook al staat.
+
+    Eén analyse kan aan meerdere noteringen gekoppeld zijn (ASML en ASML.AS
+    verwijzen naar hetzelfde rapport). Zonder deze filter staat hetzelfde besluit
+    twee keer in de lijst en telt het twee keer mee in de kloof, terwijl je het
+    bedrijf één keer hebt onderzocht en één keer een beslissing neemt.
+
+    De keuze welke notering blijft staan is willekeurig maar stabiel: de
+    alfabetisch eerste. Wat telt is dat het er één is.
+    """
+    weg: set[str] = set()
+    for rij in (rijen or []):
+        andere = rij.get("dubbel_van") or []
+        if not andere or rij.get("dubbel_soort") != "dubbele notering":
+            continue
+        groep = sorted([rij["ticker"], *andere])
+        weg.update(groep[1:])
+    return weg
+
+
 def openstaand(rijen: list[dict] | None = None) -> list[dict]:
     """
     De oordelen waar nog niets mee gedaan is en die oud genoeg zijn.
@@ -104,10 +125,11 @@ def openstaand(rijen: list[dict] | None = None) -> list[dict]:
     """
     bezit = {b["ticker"] for b in db.bezit_lijst()}
     per_ticker = {r["ticker"]: r for r in (rijen or [])}
+    dubbel = _tweede_noteringen(rijen)
 
     uit = []
     for b in db.besluiten_lijst(alleen_open=True):
-        if b["ticker"] in bezit:
+        if b["ticker"] in bezit or b["ticker"] in dubbel:
             continue
         dagen = _dagen_sinds(b.get("datum_oordeel"))
         if dagen is None:
@@ -136,13 +158,19 @@ def actiekloof(rijen: list[dict] | None = None) -> dict:
     leersignaal dat er is.
     """
     bezit = {b["ticker"] for b in db.bezit_lijst()}
-    alle = db.besluiten_lijst()
+    dubbel = _tweede_noteringen(rijen)
+    alle = [b for b in db.besluiten_lijst() if b["ticker"] not in dubbel]
 
     per_oordeel: dict[str, dict] = {}
     for b in alle:
-        vak = per_oordeel.setdefault(b["oordeel"] or "onbekend", {
+        naam = b["oordeel"] or "onbekend"
+        vak = per_oordeel.setdefault(naam, {
             "totaal": 0, "gehandeld": 0, "bewust_niet": 0, "stil": 0,
             "uitgesteld": 0, "vers": 0,
+            # Bij HOLD en PASS is niets doen de conclusie zelf. Die als "stil
+            # gebleven" tellen zou negentien verstandige beslissingen tot verzuim
+            # bestempelen; de kolom heet daar dan ook anders.
+            "vraagt_daad": naam.upper() in VRAAGT_BESLISSING,
         })
         vak["totaal"] += 1
         if b["ticker"] in bezit or b.get("keuze") == "gekocht":

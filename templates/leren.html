@@ -163,7 +163,7 @@
     <table class="kloof-tabel">
       <thead><tr>
         <th>Oordeel</th><th>Totaal</th><th>Gehandeld</th>
-        <th>Bewust niet</th><th>Uitgesteld</th><th>Stil gebleven</th><th>Nog vers</th><th style="width:120px"></th>
+        <th>Bewust niet</th><th>Uitgesteld</th><th>Niet vastgelegd</th><th>Nog vers</th><th style="width:120px"></th>
       </tr></thead>
       <tbody>
       {% for naam, v in kloof.per_oordeel.items() %}
@@ -173,7 +173,7 @@
           <td class="{{ 'text-emerald-400' if v.gehandeld else 'text-slate-500' }}">{{ v.gehandeld }}</td>
           <td class="text-slate-400">{{ v.bewust_niet }}</td>
           <td class="text-slate-400">{{ v.uitgesteld }}</td>
-          <td class="{{ 'text-amber-400' if v.stil else 'text-slate-500' }}">{{ v.stil }}</td>
+          <td class="{{ 'text-amber-400' if (v.stil and v.vraagt_daad) else 'text-slate-500' }}">{{ v.stil }}</td>
           <td class="text-slate-500">{{ v.vers }}</td>
           <td><div class="balk"><div style="width: {{ (100 * v.gehandeld / v.totaal)|round }}%"></div></div></td>
         </tr>
