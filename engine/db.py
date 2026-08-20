@@ -313,6 +313,31 @@ def init_db() -> None:
             )
         """)
 
+        # Wat je met een oordeel gedaan hebt — en vooral: wat je niet gedaan hebt.
+        #
+        # Aanleiding: vijf VERDIEPEN-oordelen, geen daarvan gekocht. Janco's eigen
+        # verklaring was "dat was niet echt een bewuste beslissing, ik heb het
+        # gewoon niet gedaan". Daar zit het probleem: niet-handelen laat geen spoor
+        # na, dus valt er ook niets van te leren. Een lege `keuze` betekent hier
+        # precies dat — stilzwijgend niets gedaan — en dat is een toestand waar het
+        # systeem naar hoort te vragen in plaats van hem onzichtbaar te laten.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS besluit (
+                id             SERIAL PRIMARY KEY,
+                ticker         TEXT NOT NULL,
+                aanleiding     TEXT,
+                oordeel        TEXT,
+                datum_oordeel  TEXT,
+                koers_toen     REAL,
+                valuta         TEXT,
+                these_snapshot TEXT,
+                keuze          TEXT,
+                reden          TEXT,
+                datum_keuze    TEXT,
+                UNIQUE(ticker, datum_oordeel)
+            )
+        """)
+
 
 # ---------------------------------------------------------------------------
 # Refresh-state (scheduler)
@@ -334,6 +359,78 @@ def set_refresh_state(key: str, value: str) -> None:
             """,
             (key, value),
         )
+
+
+# ---------------------------------------------------------------------------
+# Besluiten — wat je met een oordeel deed, en wat je niet deed
+# ---------------------------------------------------------------------------
+
+def besluit_vastleggen(ticker: str, aanleiding: str, oordeel: str,
+                       datum_oordeel: str, koers_toen: float | None = None,
+                       valuta: str | None = None) -> None:
+    """Leg vast dat er een oordeel ligt waar nog niets mee gedaan is.
+
+    Draait bij elke keer dat een oordeel gezien wordt, dus moet stil blijven als
+    de regel er al staat: een bestaande keuze en reden mogen nooit overschreven
+    worden door het enkele feit dat het oordeel er nog steeds is.
+    """
+    with _cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO besluit (ticker, aanleiding, oordeel, datum_oordeel,
+                                 koers_toen, valuta)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT(ticker, datum_oordeel) DO NOTHING
+            """,
+            (ticker, aanleiding, oordeel, datum_oordeel, koers_toen, valuta),
+        )
+
+
+def besluit_afsluiten(ticker: str, keuze: str, reden: str | None = None,
+                      snapshot: dict | None = None) -> bool:
+    """Sluit het jongste open besluit voor deze ticker af. True als er iets dichtging.
+
+    De momentopname wordt alleen gezet als hij nog ontbrak. Bij terugvullen van
+    oude oordelen is er geen momentopname van toen; die dan later alsnog met de
+    cijfers van vandaag vullen zou doen alsof we wisten wat we niet wisten.
+    """
+    with _cursor() as cur:
+        cur.execute(
+            """
+            UPDATE besluit
+               SET keuze = %s,
+                   reden = COALESCE(%s, reden),
+                   datum_keuze = %s,
+                   these_snapshot = COALESCE(these_snapshot, %s)
+             WHERE id = (SELECT id FROM besluit
+                          WHERE ticker = %s AND keuze IS NULL
+                       ORDER BY datum_oordeel DESC LIMIT 1)
+            """,
+            (keuze, reden, datetime.utcnow().date().isoformat(),
+             json.dumps(snapshot) if snapshot else None, ticker),
+        )
+        return cur.rowcount > 0
+
+
+def besluiten_lijst(alleen_open: bool = False) -> list[dict]:
+    """Alle besluiten, nieuwste oordeel eerst."""
+    vraag = "SELECT * FROM besluit"
+    if alleen_open:
+        vraag += " WHERE keuze IS NULL"
+    vraag += " ORDER BY datum_oordeel DESC, ticker"
+    with _cursor() as cur:
+        cur.execute(vraag)
+        rows = cur.fetchall()
+    uit = []
+    for row in rows:
+        rij = dict(row)
+        rauw = rij.get("these_snapshot")
+        try:
+            rij["these_snapshot"] = json.loads(rauw) if rauw else None
+        except (json.JSONDecodeError, TypeError):
+            rij["these_snapshot"] = None
+        uit.append(rij)
+    return uit
 
 
 def bezit_lijst() -> list[dict]:

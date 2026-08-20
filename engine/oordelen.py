@@ -222,6 +222,11 @@ def verrijk(rijen: list[dict]) -> None:
             "via_naam": via_naam,
             "verouderd": _verouderd(rapport["datum"]),
             "koers_verschil": None if via_naam else _koers_verschil(rij, rapport),
+            # De koers zoals die in het rapport stond. `besluiten.py` legt die
+            # vast als ijkpunt: zonder de koers van tóén valt er later niets
+            # zinnigs over het verloop te zeggen.
+            "koers_toen": rapport.get("koers_getal"),
+            "valuta_toen": rapport.get("valuta"),
         }
 
 

@@ -22,6 +22,7 @@ from flask import Flask, jsonify, render_template, request
 from engine import analyses as analyses_mod
 from engine import db
 from engine import data_quality
+from engine import besluiten as besluiten_mod
 from engine import dubbelingen
 from engine import exit_regels
 from engine import markets
@@ -839,6 +840,68 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
     volgorde = {"rood": 0, "oranje": 1, "grijs": 2, "groen": 3}
     uit.sort(key=lambda r: (volgorde.get(r["verkoop"]["niveau"], 9), r["ticker"]))
     return uit
+
+
+@app.route("/leren")
+def leren():
+    """Wat je met je eigen oordelen deed."""
+    cfg = load_config()
+    rijen = _dashboard_rows(cfg)
+    besluiten_mod.synchroniseer(rijen)
+    per_ticker = {r["ticker"]: r for r in rijen}
+
+    afgesloten = []
+    for b in db.besluiten_lijst():
+        if not b.get("keuze"):
+            continue
+        afgesloten.append({**b, "verloop": besluiten_mod.sinds_het_oordeel(
+            b, per_ticker.get(b["ticker"]))})
+
+    return render_template(
+        "leren.html",
+        openstaand=besluiten_mod.openstaand(rijen),
+        afgesloten=afgesloten,
+        kloof=besluiten_mod.actiekloof(rijen),
+        config=cfg,
+    )
+
+
+@app.route("/api/besluiten/openstaand")
+def api_besluiten_openstaand():
+    """Alleen het aantal en de tickers — de banner heeft niet meer nodig.
+
+    Bewust geen volledige dashboardopbouw: die kost bij 2.800 rijen te veel voor
+    iets dat op elke paginalading draait.
+    """
+    open_lijst = besluiten_mod.openstaand()
+    return jsonify({"aantal": len(open_lijst),
+                    "tickers": [b["ticker"] for b in open_lijst[:5]]})
+
+
+@app.route("/api/besluit/<ticker>", methods=["POST"])
+def api_besluit_afsluiten(ticker):
+    """Sluit een openstaand oordeel af met een keuze en een reden.
+
+    De momentopname wordt hier pas gemaakt: op het moment dat je de beslissing
+    erkent, niet op het moment dat het oordeel ontstond. Voor teruggevulde
+    oordelen bestaat er geen momentopname van toen, en die alsnog met de cijfers
+    van vandaag vullen zou doen alsof we wisten wat we niet wisten.
+    """
+    data = request.get_json(silent=True) or {}
+    keuze = (data.get("keuze") or "").strip()
+    if keuze not in besluiten_mod.KEUZES:
+        return jsonify({"error": f"keuze moet een van {besluiten_mod.KEUZES} zijn"}), 400
+
+    reden = (data.get("reden") or "").strip() or None
+    cfg = load_config()
+    rij = next((r for r in _dashboard_rows(cfg) if r["ticker"] == ticker), None)
+    snapshot = exit_regels.momentopname(rij, _moat_profiel(ticker)) if rij else None
+
+    gelukt = db.besluit_afsluiten(ticker, keuze, reden, snapshot)
+    if not gelukt:
+        return jsonify({"error": f"geen openstaand besluit voor {ticker}"}), 404
+    db.log_activity("besluit", ticker, keuze, {"reden": reden})
+    return jsonify({"ticker": ticker, "keuze": keuze, "reden": reden})
 
 
 @app.route("/api/bezit")

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Leren{% endblock %}
+
+{% block content %}
+<style>
+  .leerblok { background: var(--surface-1); border: 1px solid var(--border);
+              border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .open-rij { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start;
+              padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .open-rij:last-child { border-bottom: none; }
+  .knop { background: var(--surface-2); border: 1px solid var(--border);
+          color: var(--text-1); border-radius: 8px; padding: 5px 12px;
+          font-size: 12px; cursor: pointer; }
+  .knop:hover { background: var(--surface-3); }
+  .knop-actief { border-color: var(--buy-border); color: var(--buy); }
+  .reden-veld { flex: 1 1 260px; background: var(--surface-2); color: var(--text-1);
+                border: 1px solid var(--border); border-radius: 8px;
+                padding: 6px 10px; font-size: 13px; }
+  .kloof-tabel { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .kloof-tabel th { text-align: left; color: var(--text-3); font-weight: 600;
+                    font-size: 11px; text-transform: uppercase; padding: 6px 8px; }
+  .kloof-tabel td { padding: 6px 8px; border-top: 1px solid var(--border); }
+  .balk { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+  .balk > div { height: 100%; background: var(--buy); }
+</style>
+
+<h1 class="text-2xl font-bold">Leren</h1>
+<p class="text-slate-400 text-sm mt-0.5 mb-6">
+  Niet of de koers steeg, maar of je deed wat je zelf concludeerde — en of je
+  redenering standhield.
+</p>
+
+<!-- 1. Openstaand ---------------------------------------------------------- -->
+<div class="leerblok">
+  <h2 class="font-semibold mb-1">Wachten op een beslissing</h2>
+  <p class="text-slate-400 text-xs mb-3">
+    Deze oordelen liggen er langer dan twee weken zonder dat er iets mee gebeurd is.
+    Niets doen is ook een keuze — maar dan wel graag een bewuste.
+  </p>
+
+  {% if not openstaand %}
+    <p class="text-slate-500 text-sm">Niets openstaand. Alles wat je concludeerde is afgehandeld.</p>
+  {% else %}
+    {% for b in openstaand %}
+    <div class="open-rij" data-ticker="{{ b.ticker }}">
+      <div style="flex: 1 1 300px;">
+        <div>
+          <a href="/stock/{{ b.ticker }}" class="text-blue-400 hover:underline font-medium">{{ b.ticker }}</a>
+          <span class="text-slate-300">{{ b.naam or '' }}</span>
+        </div>
+        <div class="text-slate-500 text-xs mt-0.5">
+          {{ b.oordeel }} op {{ b.datum_oordeel }} &middot; {{ b.dagen_open }} dagen geleden
+          {% if b.koers_toen %}&middot; toen {{ '%.2f'|format(b.koers_toen) }}{% endif %}
+          {% if b.koers_nu %}&middot; nu {{ '%.2f'|format(b.koers_nu) }}{% endif %}
+        </div>
+      </div>
+      <input class="reden-veld" placeholder="Wat hield je tegen? (één zin)" />
+      <div style="display: flex; gap: 6px;">
+        <button class="knop" onclick="besluit(this, 'gekocht')">Gekocht</button>
+        <button class="knop" onclick="besluit(this, 'bewust_niet')">Bewust niet</button>
+        <button class="knop" onclick="besluit(this, 'uitgesteld')">Nog even</button>
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+<!-- 2. Wat er sindsdien gebeurde -------------------------------------------- -->
+<div class="leerblok">
+  <h2 class="font-semibold mb-1">Wat er sinds je oordeel gebeurde</h2>
+  <p class="text-slate-400 text-xs mb-3">
+    De these staat voorop: is de reden van je twijfel terug te zien in de cijfers?
+    Het koersverloop staat eronder, en telt pas mee vanaf een jaar — daaronder is
+    het ruis, en ruis leert je koersen achternalopen.
+  </p>
+
+  {% if not afgesloten %}
+    <p class="text-slate-500 text-sm">
+      Nog geen afgeronde beslissingen. Zodra je er hierboven een afsluit, verschijnt hij hier.
+    </p>
+  {% else %}
+    <table class="kloof-tabel">
+      <thead><tr>
+        <th>Aandeel</th><th>Toen</th><th>Je koos</th>
+        <th>These sindsdien</th><th style="text-align:right">Koers</th>
+      </tr></thead>
+      <tbody>
+      {% for b in afgesloten %}
+        <tr>
+          <td><a href="/stock/{{ b.ticker }}" class="text-blue-400 hover:underline">{{ b.ticker }}</a></td>
+          <td class="text-slate-400">{{ b.oordeel }}<br><span class="text-xs">{{ b.datum_oordeel }}</span></td>
+          <td>
+            {{ {'gekocht': 'gekocht', 'bewust_niet': 'bewust niet', 'uitgesteld': 'uitgesteld'}[b.keuze] }}
+            {% if b.reden %}<br><span class="text-xs text-slate-500">&ldquo;{{ b.reden }}&rdquo;</span>{% endif %}
+          </td>
+          <td class="text-xs">
+            {% if not b.verloop.these.meetbaar %}
+              <span class="text-slate-500">geen momentopname van toen</span>
+            {% else %}
+              {% for label, waarde in [('kwaliteit', b.verloop.these.kwaliteit),
+                                       ('rendement op kapitaal', b.verloop.these.roic),
+                                       ('kasstroom', b.verloop.these.kasstroom)] %}
+                {% if waarde is not none %}
+                  <div class="{{ 'text-emerald-400' if waarde > 0 else ('text-red-400' if waarde < 0 else 'text-slate-400') }}">
+                    {{ label }} {{ '%+g'|format(waarde) }}
+                  </div>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </td>
+          <td style="text-align:right" class="text-xs">
+            {% if b.verloop.koers.rendement_pct is not none %}
+              <span class="{{ 'text-slate-300' if b.verloop.koers.betekenisvol else 'text-slate-500' }}">
+                {{ '%+.1f'|format(b.verloop.koers.rendement_pct) }}%
+              </span><br>
+              <span class="text-slate-600">
+                {{ b.verloop.dagen }} dagen{% if not b.verloop.koers.betekenisvol %} · te kort{% endif %}
+              </span>
+            {% else %}
+              <span class="text-slate-600">—</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<!-- 3. Patronen -------------------------------------------------------------- -->
+<div class="leerblok">
+  <h2 class="font-semibold mb-1">Doe je iets met je eigen conclusies?</h2>
+  <p class="text-slate-400 text-xs mb-3">
+    Dit is de goedkoopste les die er is: hij vraagt geen wachttijd en geen
+    marktdata. Of een oordeel achteraf klopte weet je pas over jaren; of je ernaar
+    handelde weet je vandaag.
+  </p>
+
+  {% if not kloof.per_oordeel %}
+    <p class="text-slate-500 text-sm">Nog geen oordelen vastgelegd.</p>
+  {% else %}
+    <table class="kloof-tabel">
+      <thead><tr>
+        <th>Oordeel</th><th>Totaal</th><th>Gehandeld</th>
+        <th>Bewust niet</th><th>Stil gebleven</th><th style="width:120px"></th>
+      </tr></thead>
+      <tbody>
+      {% for naam, v in kloof.per_oordeel.items() %}
+        <tr>
+          <td class="font-medium">{{ naam }}</td>
+          <td>{{ v.totaal }}</td>
+          <td class="{{ 'text-emerald-400' if v.gehandeld else 'text-slate-500' }}">{{ v.gehandeld }}</td>
+          <td class="text-slate-400">{{ v.bewust_niet }}</td>
+          <td class="{{ 'text-amber-400' if v.stil else 'text-slate-500' }}">{{ v.stil }}</td>
+          <td><div class="balk"><div style="width: {{ (100 * v.gehandeld / v.totaal)|round }}%"></div></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="text-slate-500 text-xs mt-3">
+      Stil gebleven betekent: er lag een oordeel, en er is nooit een keuze bij gekomen.
+      Dat is geen verwijt — het is precies het gat dat deze pagina zichtbaar maakt.
+    </p>
+  {% endif %}
+</div>
+
+<script>
+async function besluit(knop, keuze) {
+  const rij = knop.closest('.open-rij');
+  const ticker = rij.dataset.ticker;
+  const reden = rij.querySelector('.reden-veld').value.trim();
+
+  rij.querySelectorAll('.knop').forEach(k => k.disabled = true);
+  try {
+    const res = await fetch(`/api/besluit/${encodeURIComponent(ticker)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keuze, reden }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    rij.style.opacity = '0.4';
+    knop.classList.add('knop-actief');
+    setTimeout(() => location.reload(), 600);
+  } catch (e) {
+    alert('Opslaan mislukt: ' + e.message);
+    rij.querySelectorAll('.knop').forEach(k => k.disabled = false);
+  }
+}
+</script>
+{% endblock %}

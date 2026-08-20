@@ -334,6 +334,7 @@
         {# "Wat nu?" en Triage staan als hulpmiddel op de instellingenpagina;
            de tab blijft dus oplichten als je daar bent. #}
         <a href="/settings" {% if request.path in ['/settings', '/triage'] or request.path.startswith('/start') %}class="active"{% endif %}>Instellingen</a>
+        <a href="/leren" {% if request.path == '/leren' %}class="active"{% endif %}>Leren</a>
         <a href="/log" {% if request.path == '/log' %}class="active"{% endif %}>Geschiedenis</a>
       </div>
 
@@ -350,6 +351,13 @@
        merken; de cijfers zagen er dan nog steeds normaal uit. -->
   <div id="health-banner" style="display:none; max-width:1320px; margin:16px auto 0; padding:10px 16px;
        border-radius:8px; font-size:13px; align-items:center; gap:10px;"></div>
+
+  <!-- Openstaande beslissingen. Staat hier en niet alleen op /leren omdat het
+       probleem juist is dat je er niet aan denkt: een oordeel zonder actie laat
+       geen spoor na en vraagt dus zelf nergens om aandacht. -->
+  <div id="besluit-banner" style="display:none; max-width:1320px; margin:8px auto 0; padding:10px 16px;
+       border-radius:8px; font-size:13px; align-items:center; gap:10px;
+       background:#3a2f0b; border:1px solid #8a6d1a; color:#f0d068;"></div>
 
   <!-- Content -->
   <main style="max-width:1320px; margin:0 auto; padding:32px;">
@@ -482,6 +490,23 @@
     el.textContent = text;
     el.style.display = 'flex';
   }
+
+  fetch('/api/besluiten/openstaand')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d || !d.aantal) return;
+      const el = document.getElementById('besluit-banner');
+      if (!el) return;
+      const namen = d.tickers.join(', ');
+      el.textContent = d.aantal === 1
+        ? `1 oordeel wacht nog op een beslissing: ${namen}.`
+        : `${d.aantal} oordelen wachten nog op een beslissing: ${namen}` +
+          (d.aantal > d.tickers.length ? ' en meer.' : '.');
+      el.style.display = 'flex';
+      el.style.cursor = 'pointer';
+      el.onclick = () => location.href = '/leren';
+    })
+    .catch(() => {});
 
   fetch('/api/health')
     .then(r => r.ok ? r.json() : null)
