@@ -181,6 +181,41 @@ Toont de fundamentele analyses uit de aandelenanalyse-pipeline; publiek, geen af
 
 ## Huidige plan / status
 
+**Leren van je eigen beslissingen (2026-08-20).** [engine/besluiten.py](engine/besluiten.py) + `/leren`.
+
+Aanleiding: vijf VERDIEPEN-oordelen, geen daarvan in de portefeuille. Janco's
+verklaring was niet twijfel maar afwezigheid — *"dat was niet echt een bewuste
+beslissing, ik heb het gewoon niet gedaan."* Kopen laat een spoor na, niet-kopen
+niet, dus valt er geen knop aan te hangen en achteraf niets van te leren.
+
+- **Een oordeel zonder actie is een openstaande beslissing.** Na 14 dagen
+  (`RIJPINGSDAGEN`) vraagt het systeem erom; een lege `keuze` in tabel `besluit`
+  betekent stilzwijgend niets gedaan. Alleen VERDIEPEN/KOOP vragen om een daad —
+  bij OVERSLAAN *is* niets doen de conclusie.
+- **These voor koers.** `sinds_het_oordeel()` toont eerst of de reden van je
+  twijfel terug te zien is in de cijfers; koersrendement telt pas mee vanaf een
+  jaar (`betekenisvol`). Korte-termijnkoers als maatstaf leert je koersen
+  achternalopen — `scorebord.py` noemt het terecht een rookmelder, geen thermometer.
+- **`actiekloof()`** in besluiten.py is de derde maat naast `kalibratie()` en
+  `blinde_vlek()` in scorebord.py: doe je iets met je eigen conclusies. Die vraag
+  is vandaag al te beantwoorden, anders dan "had ik gelijk".
+- **De koppeling analyse → ticker komt uit `oordelen.verrijk()`**, niet nagebouwd.
+  Daar is `koers_toen` aan toegevoegd als ijkpunt.
+- Banner op elke pagina, want juist hieraan denk je niet uit jezelf.
+- **Er staat een testregel op PRX.AS** ("testregel van Claude — mag weg"), te
+  corrigeren met de wijzig-knop op `/leren`.
+
+**Archivering en dubbelingen (2026-08-20).**
+- Suspenderen gaat op **verstreken tijd** (30 dagen), niet op aantal pogingen. Dat
+  laatste schaalde mee met de universe: dezelfde drie mislukkingen betekenden bij
+  909 tickers vier weken en bij 2.812 drie maanden, waardoor de archivering stil
+  kwam te liggen zonder dat er iets was gewijzigd.
+- [engine/dubbelingen.py](engine/dubbelingen.py) herkent hetzelfde bedrijf onder
+  meerdere tickers (ISIN waar gevuld, anders genormaliseerde naam) en onderscheidt
+  een tweede notering van een aandelenklasse. 194 gemarkeerd. **Markeren, niet
+  wegfilteren.**
+
+
 **Lopend traject: "Stockscreen 2.0"** — plan in `~/.claude/plans/lovely-enchanting-mitten.md` (6 fases, geschreven om zonder extra context uitvoerbaar te zijn). **Lees dat plan voordat je aan dit project werkt.** Fase 0 en 1 zijn afgerond (2026-07-30/31); fase 2 (herkalibratie naar een bruikbare BUY-lijst) is de volgende stap.
 
 **Fase 1 afgerond (2026-07-31) — refresh-motor v2:**
