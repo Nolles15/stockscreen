@@ -388,7 +388,12 @@ def besluit_vastleggen(ticker: str, aanleiding: str, oordeel: str,
 
 def besluit_afsluiten(ticker: str, keuze: str, reden: str | None = None,
                       snapshot: dict | None = None) -> bool:
-    """Sluit het jongste open besluit voor deze ticker af. True als er iets dichtging.
+    """Leg de keuze vast bij het besluit voor deze ticker. True als er iets bijgewerkt is.
+
+    Een nog open besluit gaat voor; is er geen open besluit meer, dan wordt de
+    jongste keuze overschreven. Zonder die terugval is een verkeerd ingedrukte
+    knop niet meer te herstellen, en een systeem dat je op je eigen gedrag wijst
+    moet je niet vastzetten op een vergissing.
 
     De momentopname wordt alleen gezet als hij nog ontbrak. Bij terugvullen van
     oude oordelen is er geen momentopname van toen; die dan later alsnog met de
@@ -403,8 +408,9 @@ def besluit_afsluiten(ticker: str, keuze: str, reden: str | None = None,
                    datum_keuze = %s,
                    these_snapshot = COALESCE(these_snapshot, %s)
              WHERE id = (SELECT id FROM besluit
-                          WHERE ticker = %s AND keuze IS NULL
-                       ORDER BY datum_oordeel DESC LIMIT 1)
+                          WHERE ticker = %s
+                       ORDER BY (keuze IS NULL) DESC, datum_oordeel DESC
+                          LIMIT 1)
             """,
             (keuze, reden, datetime.utcnow().date().isoformat(),
              json.dumps(snapshot) if snapshot else None, ticker),

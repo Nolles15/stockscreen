@@ -91,6 +91,8 @@
           <td class="text-slate-400">{{ b.oordeel }}<br><span class="text-xs">{{ b.datum_oordeel }}</span></td>
           <td>
             {{ {'gekocht': 'gekocht', 'bewust_niet': 'bewust niet', 'uitgesteld': 'uitgesteld'}[b.keuze] }}
+            <button class="knop" style="padding:1px 7px; font-size:10px; margin-left:6px"
+                    onclick="wijzig('{{ b.ticker }}')" title="Keuze corrigeren">wijzig</button>
             {% if b.reden %}<br><span class="text-xs text-slate-500">&ldquo;{{ b.reden }}&rdquo;</span>{% endif %}
           </td>
           <td class="text-xs">
@@ -142,7 +144,7 @@
     <table class="kloof-tabel">
       <thead><tr>
         <th>Oordeel</th><th>Totaal</th><th>Gehandeld</th>
-        <th>Bewust niet</th><th>Stil gebleven</th><th>Nog vers</th><th style="width:120px"></th>
+        <th>Bewust niet</th><th>Uitgesteld</th><th>Stil gebleven</th><th>Nog vers</th><th style="width:120px"></th>
       </tr></thead>
       <tbody>
       {% for naam, v in kloof.per_oordeel.items() %}
@@ -151,6 +153,7 @@
           <td>{{ v.totaal }}</td>
           <td class="{{ 'text-emerald-400' if v.gehandeld else 'text-slate-500' }}">{{ v.gehandeld }}</td>
           <td class="text-slate-400">{{ v.bewust_niet }}</td>
+          <td class="text-slate-400">{{ v.uitgesteld }}</td>
           <td class="{{ 'text-amber-400' if v.stil else 'text-slate-500' }}">{{ v.stil }}</td>
           <td class="text-slate-500">{{ v.vers }}</td>
           <td><div class="balk"><div style="width: {{ (100 * v.gehandeld / v.totaal)|round }}%"></div></div></td>
@@ -167,6 +170,20 @@
 </div>
 
 <script>
+// Een verkeerd ingedrukte knop moet te herstellen zijn; anders zit je vast aan
+// een vergissing in precies het systeem dat je op je gedrag wijst.
+async function wijzig(ticker) {
+  const keuze = prompt('Nieuwe keuze: gekocht, bewust_niet of uitgesteld');
+  if (!keuze) return;
+  const reden = prompt('Reden (leeg laten = ongewijzigd)') || null;
+  const res = await fetch(`/api/besluit/${encodeURIComponent(ticker)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keuze: keuze.trim(), reden }),
+  });
+  if (!res.ok) { alert('Mislukt: ' + ((await res.json()).error || res.statusText)); return; }
+  location.reload();
+}
+
 async function besluit(knop, keuze) {
   const rij = knop.closest('.open-rij');
   const ticker = rij.dataset.ticker;
