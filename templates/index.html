@@ -646,7 +646,7 @@ const NIVEAU_STIJL = {
 };
 
 function bezitRegelRij(regel) {
-  const kleur = regel.geraakt === true ? 'var(--hold)' : 'var(--text-3)';
+  const kleur = regel.geraakt === true ? 'var(--hold)' : 'var(--text-2)';
   const merk = regel.geraakt === true ? '●' : regel.geraakt === false ? '○' : '·';
   const hard = regel.hard && regel.geraakt === true
     ? ` <span style="color:var(--pass); font-size:10px; text-transform:uppercase; letter-spacing:.4px">hard</span>` : '';
@@ -699,7 +699,7 @@ function prijsBlok(r) {
       <span class="text-2xl font-semibold tabular-nums" style="color:var(--text-1)">${sym}${fmt(hoofd.grens)}</span>
       <span class="text-sm">${afstandTekst(hoofd)}</span>
     </div>
-    <div class="text-xs mt-0.5" style="color:var(--text-3)">${bronTekst(hoofd)}</div>
+    <div class="text-xs mt-0.5" style="color:var(--text-2)">${bronTekst(hoofd)}</div>
     ${eerdereRegels}${waarschuwing}`;
 }
 
@@ -732,7 +732,7 @@ function theseBlok(r) {
     ${blokLabel('Is dit nog hetzelfde bedrijf?')}
     <div class="text-sm mt-1">${kop}</div>
     <div class="text-xs mt-1">${bewogen ||
-      `<span style="color:var(--text-3)">Niets wezenlijks bewogen sinds ${r.sinds || 'het vastleggen'}.</span>`}</div>
+      `<span style="color:var(--text-2)">Niets wezenlijks bewogen sinds ${r.sinds || 'het vastleggen'}.</span>`}</div>
     ${geraakt.length ? `<ul class="mt-2 space-y-1 text-sm">${geraakt.map(bezitRegelRij).join('')}</ul>` : ''}
   </div>`;
 }
@@ -812,13 +812,13 @@ function renderBezit() {
       <div class="mt-4 pt-3 flex items-center justify-between gap-3 flex-wrap"
            style="border-top:1px solid var(--border)">
         ${v.aantal_regels ? `<details>
-          <summary class="text-xs cursor-pointer" style="color:var(--text-3)">
+          <summary class="text-xs cursor-pointer" style="color:var(--text-2)">
             Alle ${v.aantal_regels} regels · ${v.aantal_getoetst} toetsbaar · ${v.getoetst_op}
           </summary>
           <ul class="mt-2 space-y-1 text-sm">${geraakt}${rest}${info}</ul>
         </details>` : '<span></span>'}
         <button onclick="toggleBezit('${r.ticker}', event)"
-          class="text-xs" style="color:var(--text-3)">Uit bezit halen</button>
+          class="text-xs" style="color:var(--text-2)">Uit bezit halen</button>
       </div>
     </div>`;
   }).join('') +
