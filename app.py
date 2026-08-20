@@ -916,9 +916,14 @@ def api_analyses_sync():
         return auth_err
 
     data = request.get_json(silent=True) or {}
-    bestanden = data.get("bestanden")
-    if not isinstance(bestanden, list) or not bestanden:
-        return jsonify({"error": "bestanden moet een niet-lege array zijn"}), 400
+    bestanden = data.get("bestanden") or []
+    te_verwijderen = data.get("verwijderen") or []
+    # Alleen verwijderen moet ook kunnen — een intrekking komt zonder nieuwe
+    # inhoud binnen, en die eerste versie weigerde zo'n verzoek.
+    if not isinstance(bestanden, list) or not isinstance(te_verwijderen, list):
+        return jsonify({"error": "bestanden en verwijderen moeten arrays zijn"}), 400
+    if not bestanden and not te_verwijderen:
+        return jsonify({"error": "niets te doen: geef bestanden of verwijderen mee"}), 400
 
     bijgewerkt, ongewijzigd, geweigerd = [], [], []
     for b in bestanden:
@@ -940,7 +945,7 @@ def api_analyses_sync():
     # verdwijnen. Expliciet meegeven en niet afleiden uit wat er ontbreekt — bij
     # een half verzonden lijst zou dat de hele verzameling wissen.
     verwijderd = []
-    for weg in (data.get("verwijderen") or []):
+    for weg in te_verwijderen:
         soort = (weg or {}).get("soort")
         naam = (weg or {}).get("naam") or ""
         if soort not in ("analyse", "tussencheck") or not _veilige_naam(naam):
