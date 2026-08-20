@@ -58,6 +58,23 @@
     .border-slate-800,
     .border-slate-700 { border-color: var(--border) !important; }
 
+    /* Tailwind-varianten mét opacity (`bg-slate-900/40`) worden NIET gevangen
+       door de overrides hierboven: dat is een andere klassenaam. Op de
+       crèmekleurige pagina leverde dat een donkergrijs blok op met grijze tekst
+       erin — het bezit-overzicht was daardoor letterlijk onleesbaar, terwijl de
+       uitleg gewoon in de HTML stond. Vandaar een attribuut-selector die alle
+       opacity-varianten meepakt. */
+    [class*="bg-slate-800/"],
+    [class*="bg-slate-900/"],
+    [class*="bg-slate-950/"] { background-color: var(--surface) !important; }
+    [class*="bg-red-900/"],
+    [class*="bg-red-950/"],
+    [class*="bg-red-500/"]   { background-color: var(--pass-bg) !important; }
+    [class*="bg-amber-950/"] { background-color: var(--hold-bg) !important; }
+    [class*="bg-blue-950/"]  { background-color: var(--surface-2) !important; }
+    [class*="bg-emerald-950/"],
+    [class*="bg-green-950/"] { background-color: var(--buy-bg) !important; }
+
     .divide-y > * + * { border-color: var(--border) !important; }
 
     /* hover op tabel-rijen */
