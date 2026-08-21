@@ -73,6 +73,27 @@
   @media (max-width: 640px) {
     .analyse-grid { grid-template-columns: 1fr; }
   }
+  /* Filteren en sorteren */
+  .filterbalk {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+  }
+  .chip-groep { display: flex; gap: 6px; }
+  .chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-2); cursor: pointer;
+  }
+  .chip:hover { border-color: var(--text-3); }
+  .chip-aan { background: var(--text-1); border-color: var(--text-1); color: #fff; }
+  .keuze {
+    padding: 6px 10px; border-radius: 8px; font-size: 13px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-1);
+    font-family: var(--font);
+  }
+  .tel { font-size: 13px; color: var(--text-2); margin-left: auto; }
+  .analyse-kaart.verborgen { display: none; }
+
 </style>
 
 <div style="max-width: 1320px; margin: 0 auto; padding: 32px;">
@@ -88,9 +109,36 @@
   </div>
 
   {% if analyses %}
+  <!-- Filteren en sorteren gebeurt client-side: met 37 kaarten is een serverronde
+       verspilde wachttijd, en zo blijft de keuze staan als je terugnavigeert. -->
+  <div class="filterbalk">
+    <div class="chip-groep" id="oordeel-chips">
+      <button class="chip chip-aan" data-oordeel="">Alle</button>
+      <button class="chip" data-oordeel="KOOP">Koop</button>
+      <button class="chip" data-oordeel="HOLD">Hold</button>
+      <button class="chip" data-oordeel="PASS">Pass</button>
+    </div>
+    <select id="filter-sector" class="keuze"><option value="">Alle sectoren</option></select>
+    <select id="filter-land" class="keuze"><option value="">Alle landen</option></select>
+    <select id="sorteer" class="keuze">
+      <option value="peildatum">Nieuwste eerst</option>
+      <option value="score">Hoogste score</option>
+      <option value="upside">Grootste opwaarts potentieel</option>
+      <option value="naam">Naam A–Z</option>
+    </select>
+    <span id="tel" class="tel"></span>
+  </div>
+
   <div class="analyse-grid">
     {% for a in analyses %}
-    <a class="analyse-kaart" href="/analyses/{{ a.ticker }}">
+    <a class="analyse-kaart" href="/analyses/{{ a.ticker }}"
+       data-oordeel="{{ a.oordeel or '' }}"
+       data-sector="{{ a.sector or '' }}"
+       data-land="{{ a.land or '' }}"
+       data-score="{{ a.score if a.score is not none else -1 }}"
+       data-upside="{{ a.nu_upside_pct if a.nu_upside_pct is not none else (a.upside if a.upside is not none else -9999) }}"
+       data-peildatum="{{ a.peildatum or '' }}"
+       data-naam="{{ (a.naam or a.ticker)|lower }}">
       <div class="kaart-top">
         <div class="logo-wrap">
           <div class="logo-fallback" style="background: hsl({{ a.hue }}, 42%, 42%);">{{ a.initiaal }}</div>
@@ -149,4 +197,80 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+// Filteren en sorteren over de kaarten die al in de pagina staan. Alle waarden
+// zitten als data-attribuut op de kaart zelf, zodat er niets uit de opmaak
+// gelezen hoeft te worden — dat breekt bij de eerste stijlwijziging.
+(function () {
+  const raster = document.querySelector('.analyse-grid');
+  if (!raster) return;
+  const kaarten = [...raster.querySelectorAll('.analyse-kaart')];
+  const BEWAAR = 'stockscreen.analyses-keuze';
+
+  function vulKeuzelijst(id, attribuut, label) {
+    const lijst = document.getElementById(id);
+    const waarden = [...new Set(kaarten.map(k => k.dataset[attribuut]).filter(Boolean))].sort();
+    for (const w of waarden) {
+      const tel = kaarten.filter(k => k.dataset[attribuut] === w).length;
+      lijst.insertAdjacentHTML('beforeend', `<option value="${w}">${w} (${tel})</option>`);
+    }
+  }
+  vulKeuzelijst('filter-sector', 'sector');
+  vulKeuzelijst('filter-land', 'land');
+
+  const staat = Object.assign(
+    { oordeel: '', sector: '', land: '', sorteer: 'peildatum' },
+    JSON.parse(localStorage.getItem(BEWAAR) || '{}')
+  );
+
+  function toepassen() {
+    let zichtbaar = 0;
+    for (const k of kaarten) {
+      const past = (!staat.oordeel || k.dataset.oordeel === staat.oordeel)
+                && (!staat.sector  || k.dataset.sector  === staat.sector)
+                && (!staat.land    || k.dataset.land    === staat.land);
+      k.classList.toggle('verborgen', !past);
+      if (past) zichtbaar++;
+    }
+
+    const getal = (k, veld) => parseFloat(k.dataset[veld]);
+    const sorteringen = {
+      // Nieuwste eerst; ontbrekende peildatum onderaan in plaats van bovenaan.
+      peildatum: (a, b) => (b.dataset.peildatum || '').localeCompare(a.dataset.peildatum || ''),
+      score:     (a, b) => getal(b, 'score') - getal(a, 'score'),
+      upside:    (a, b) => getal(b, 'upside') - getal(a, 'upside'),
+      naam:      (a, b) => a.dataset.naam.localeCompare(b.dataset.naam),
+    };
+    [...kaarten].sort(sorteringen[staat.sorteer]).forEach(k => raster.appendChild(k));
+
+    document.getElementById('tel').textContent =
+      zichtbaar === kaarten.length
+        ? `${kaarten.length} analyses`
+        : `${zichtbaar} van ${kaarten.length} analyses`;
+
+    localStorage.setItem(BEWAAR, JSON.stringify(staat));
+  }
+
+  document.getElementById('oordeel-chips').addEventListener('click', (e) => {
+    const knop = e.target.closest('.chip');
+    if (!knop) return;
+    staat.oordeel = knop.dataset.oordeel;
+    document.querySelectorAll('#oordeel-chips .chip')
+      .forEach(c => c.classList.toggle('chip-aan', c === knop));
+    toepassen();
+  });
+
+  for (const [id, sleutel] of [['filter-sector', 'sector'], ['filter-land', 'land'],
+                               ['sorteer', 'sorteer']]) {
+    const el = document.getElementById(id);
+    el.value = staat[sleutel];
+    el.addEventListener('change', () => { staat[sleutel] = el.value; toepassen(); });
+  }
+
+  document.querySelectorAll('#oordeel-chips .chip').forEach(c =>
+    c.classList.toggle('chip-aan', c.dataset.oordeel === staat.oordeel));
+  toepassen();
+})();
+</script>
 {% endblock %}
