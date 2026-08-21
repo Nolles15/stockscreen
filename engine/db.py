@@ -440,13 +440,19 @@ def besluit_vastleggen(ticker: str, aanleiding: str, oordeel: str,
 
 
 def besluit_afsluiten(ticker: str, keuze: str, reden: str | None = None,
-                      snapshot: dict | None = None) -> bool:
+                      snapshot: dict | None = None,
+                      aanleiding: str | None = None) -> bool:
     """Leg de keuze vast bij het besluit voor deze ticker. True als er iets bijgewerkt is.
 
     Een nog open besluit gaat voor; is er geen open besluit meer, dan wordt de
     jongste keuze overschreven. Zonder die terugval is een verkeerd ingedrukte
     knop niet meer te herstellen, en een systeem dat je op je eigen gedrag wijst
     moet je niet vastzetten op een vergissing.
+
+    Met `aanleiding` beperk je het tot één soort. Dat is nodig zodra er over
+    hetzelfde aandeel twee verschillende vragen lopen: "waarom kocht ik dit niet"
+    (aanleiding analyse of tussencheck) en "waarom houd ik dit nog" (aanleiding
+    bezit). Zonder die grens beantwoordt de ene knop per ongeluk de andere vraag.
 
     De momentopname wordt alleen gezet als hij nog ontbrak. Bij terugvullen van
     oude oordelen is er geen momentopname van toen; die dan later alsnog met de
@@ -462,11 +468,13 @@ def besluit_afsluiten(ticker: str, keuze: str, reden: str | None = None,
                    these_snapshot = COALESCE(these_snapshot, %s)
              WHERE id = (SELECT id FROM besluit
                           WHERE ticker = %s
+                            AND (%s IS NULL OR aanleiding = %s)
                        ORDER BY (keuze IS NULL) DESC, datum_oordeel DESC
                           LIMIT 1)
             """,
             (keuze, reden, datetime.utcnow().date().isoformat(),
-             json.dumps(snapshot) if snapshot else None, ticker),
+             json.dumps(snapshot) if snapshot else None,
+             ticker, aanleiding, aanleiding),
         )
         return cur.rowcount > 0
 

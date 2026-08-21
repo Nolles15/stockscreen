@@ -52,7 +52,17 @@ def _hoort_erin(soort: str | None, oordeel: str | None) -> bool:
 # als er echt tijd overheen is gegaan.
 STILTE_DAGEN = 14
 
-KEUZES = ("gekocht", "bewust_niet", "uitgesteld")
+# Aan de koopkant is niets doen de stille keuze; bij een bezit is dat juist
+# *houden*. Beide zijn beslissingen die je neemt zonder dat er iets gebeurt, en
+# beide hoor je dus expliciet te kunnen vastleggen.
+KEUZES_KOPEN = ("gekocht", "bewust_niet", "uitgesteld")
+KEUZES_BEZIT = ("gehouden", "verkocht", "bijgekocht")
+KEUZES = KEUZES_KOPEN + KEUZES_BEZIT
+
+# Alleen een harde regel op een bezit vraagt om een beslissing. Zachte regels
+# gaan af bij elke koersbeweging van betekenis; die elke week voorleggen maakt
+# van de lijst ruis, en dan leest niemand hem meer.
+HARDE_REGELS = ("A2", "C2")
 
 
 def _dagen_sinds(datum: str | None) -> int | None:
@@ -114,6 +124,47 @@ def _tweede_noteringen(rijen: list[dict] | None) -> set[str]:
         groep = sorted([rij["ticker"], *andere])
         weg.update(groep[1:])
     return weg
+
+
+def openstaand_bezit(bezitrijen: list[dict] | None = None) -> list[dict]:
+    """
+    Bezittingen waar een harde verkoopregel is geraakt en nog niets mee gedaan is.
+
+    Het spiegelbeeld van `openstaand()`. Daar is niets doen de stille keuze bij
+    een koopoordeel; hier is *houden* dat. Een geraakte harde regel is het moment
+    waarop houden een besluit wordt in plaats van een gewoonte — en zonder dat
+    vast te leggen valt er later niets van te leren.
+    """
+    besluiten_op_ticker = {}
+    for b in db.besluiten_lijst():
+        # Alleen besluiten die over het bezit gaan, niet over de koopvraag.
+        if b.get("aanleiding") == "bezit":
+            besluiten_op_ticker.setdefault(b["ticker"], b)
+
+    uit = []
+    for rij in (bezitrijen or []):
+        verkoop = rij.get("verkoop") or {}
+        hard = [r for r in (verkoop.get("geraakt") or []) if r.get("hard")]
+        if not hard:
+            continue
+        bestaand = besluiten_op_ticker.get(rij["ticker"])
+        # Al beantwoord? Dan alleen opnieuw vragen als er een ándere regel afgaat
+        # dan die waarop je toen besloot — anders vraag je eeuwig hetzelfde.
+        if bestaand and bestaand.get("keuze") and bestaand.get("oordeel") == hard[0]["id"]:
+            continue
+        uit.append({
+            "ticker": rij["ticker"],
+            "naam": rij.get("name"),
+            "regel": hard[0]["naam"],
+            "regel_id": hard[0]["id"],
+            "uitleg": hard[0].get("uitleg"),
+            "koers_nu": rij.get("price"),
+            "valuta": rij.get("currency"),
+            "conclusie": (rij.get("conclusie") or {}).get("kop"),
+            "eerdere_keuze": (bestaand or {}).get("keuze"),
+            "eerdere_reden": (bestaand or {}).get("reden"),
+        })
+    return sorted(uit, key=lambda b: b["ticker"])
 
 
 def openstaand(rijen: list[dict] | None = None) -> list[dict]:

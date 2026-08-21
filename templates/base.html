@@ -188,6 +188,21 @@
       background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
     }
 
+    /* Knopjes en invoer op de bezitskaart en de leerpagina. Eigen klassen in
+       plaats van Tailwind-kleuren, om dezelfde reden als bij de kaarten zelf:
+       die schaal is voor een donkere achtergrond gemaakt. */
+    .knopje {
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--text-1); border-radius: 8px; padding: 4px 11px;
+      font-size: 12px; cursor: pointer; font-family: var(--font);
+    }
+    .knopje:hover { background: #D5D5D3; }
+    .besluit-reden {
+      flex: 1 1 220px; background: var(--surface) !important; color: var(--text-1);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px 10px; font-size: 13px;
+    }
+
     /* sort indicators */
     .sort-asc::after  { content: ' ↑'; color: var(--text-1); }
     .sort-desc::after { content: ' ↓'; color: var(--text-1); }

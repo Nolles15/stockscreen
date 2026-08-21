@@ -842,7 +842,27 @@ def _bezit_rijen(cfg: dict) -> list[dict]:
         rij["drempels"] = exit_regels.verkoopdrempels(rij, rij["verkoop"])
         rij["heeft_analyse"] = analyse is not None
         rij["conclusie"] = exit_regels.conclusie(rij, rij["verkoop"], analyse is not None)
+        rij["harde_regel"] = next(
+            (g["id"] for g in (rij["verkoop"].get("geraakt") or []) if g.get("hard")), None)
         uit.append(rij)
+
+    # Wat je eerder over dit bezit besloot, zodat de kaart niet opnieuw vraagt
+    # wat je al beantwoord hebt.
+    # Faalt dit, dan mist er hooguit een eerder vastgelegde keuze op de kaart.
+    # De verkoopregels zelf zijn belangrijker dan die vermelding, dus dit mag de
+    # pagina niet omvergooien.
+    try:
+        eerder = {b["ticker"]: b for b in db.besluiten_lijst()
+                  if b.get("aanleiding") == "bezit"}
+    except Exception:
+        log.exception("Eerdere besluiten ophalen mislukt")
+        eerder = {}
+    for rij in uit:
+        b = eerder.get(rij["ticker"])
+        if b and b.get("keuze"):
+            rij["besluit_keuze"] = b["keuze"]
+            rij["besluit_reden"] = b.get("reden")
+            rij["besluit_datum"] = b.get("datum_keuze")
 
     # Rood eerst: waar iets speelt hoort bovenaan te staan.
     volgorde = {"rood": 0, "oranje": 1, "grijs": 2, "groen": 3}
@@ -1005,6 +1025,41 @@ def api_besluiten_openstaand():
                     "tickers": [b["ticker"] for b in open_lijst[:5]]})
 
 
+@app.route("/api/besluit-bezit/<ticker>", methods=["POST"])
+def api_besluit_bezit(ticker):
+    """Leg vast wat je doet met een bezit waar een harde regel is geraakt.
+
+    Apart van /api/besluit/<ticker>: dat gaat over de koopvraag ("waarom kocht
+    ik dit niet"), dit over de houdvraag ("waarom houd ik dit nog"). Zelfde
+    tabel, andere aanleiding, andere keuzes — en ze mogen elkaar niet
+    overschrijven, want het zijn twee verschillende beslissingen over hetzelfde
+    aandeel.
+    """
+    data = request.get_json(silent=True) or {}
+    keuze = (data.get("keuze") or "").strip()
+    if keuze not in besluiten_mod.KEUZES_BEZIT:
+        return jsonify({"error": f"keuze moet een van {besluiten_mod.KEUZES_BEZIT} zijn"}), 400
+
+    cfg = load_config()
+    rij = next((r for r in _bezit_rijen(cfg) if r["ticker"] == ticker), None)
+    if rij is None:
+        return jsonify({"error": f"{ticker} staat niet in je bezit"}), 404
+
+    hard = [r for r in ((rij.get("verkoop") or {}).get("geraakt") or []) if r.get("hard")]
+    regel_id = hard[0]["id"] if hard else "handmatig"
+    reden = (data.get("reden") or "").strip() or None
+
+    # De momentopname legt vast waartegen je later vergelijkt. Bij een bezit is
+    # dat het moment waarop je besloot te houden, niet het moment van aankoop.
+    snapshot = exit_regels.momentopname(rij, _moat_profiel(ticker))
+    db.besluit_vastleggen(ticker, "bezit", regel_id,
+                          datetime.now(timezone.utc).date().isoformat(),
+                          rij.get("price"), rij.get("currency"))
+    db.besluit_afsluiten(ticker, keuze, reden, snapshot, aanleiding="bezit")
+    db.log_activity("besluit_bezit", ticker, keuze, {"regel": regel_id, "reden": reden})
+    return jsonify({"ticker": ticker, "keuze": keuze, "regel": regel_id})
+
+
 @app.route("/api/besluit/<ticker>", methods=["POST"])
 def api_besluit_afsluiten(ticker):
     """Sluit een openstaand oordeel af met een keuze en een reden.
@@ -1016,8 +1071,8 @@ def api_besluit_afsluiten(ticker):
     """
     data = request.get_json(silent=True) or {}
     keuze = (data.get("keuze") or "").strip()
-    if keuze not in besluiten_mod.KEUZES:
-        return jsonify({"error": f"keuze moet een van {besluiten_mod.KEUZES} zijn"}), 400
+    if keuze not in besluiten_mod.KEUZES_KOPEN:
+        return jsonify({"error": f"keuze moet een van {besluiten_mod.KEUZES_KOPEN} zijn"}), 400
 
     reden = (data.get("reden") or "").strip() or None
     cfg = load_config()
