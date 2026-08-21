@@ -76,6 +76,10 @@ def _maak_db_nabootsing():
     mod.init_db = lambda: None
     mod.get_all_stocks = lambda: [{"ticker": r["ticker"]} for r in _STOCKS]
     mod.get_dashboard_data = lambda: [dict(r) for r in _STOCKS]
+    # Sinds de cache haalt de app één rij op waar hij er één nodig heeft; de
+    # nepmodule moet dat kunnen, anders test hij een pad dat niet meer bestaat.
+    mod.get_dashboard_row = lambda t: next(
+        (dict(r) for r in _STOCKS if r["ticker"] == t), None)
     mod.get_stock = lambda t: next(({"ticker": t} for r in _STOCKS if r["ticker"] == t), None)
     mod.bezit_lijst = lambda: [dict(v, ticker=k) for k, v in _BEZIT.items()]
     mod.get_price_history = lambda t, limit=3650: []

@@ -23,6 +23,7 @@ from engine import analyses as analyses_mod
 from engine import db
 from engine import data_quality
 from engine import besluiten as besluiten_mod
+from engine import cache
 from engine import dubbelingen
 from engine import exit_regels
 from engine import markets
@@ -566,6 +567,20 @@ def api_dashboard():
     return jsonify(_sanitize(_dashboard_rows(load_config())))
 
 
+def _dashboard_rij(cfg: dict, ticker: str) -> dict | None:
+    """Eén verrijkte dashboardrij, zonder de hele tabel op te halen.
+
+    Loopt door dezelfde bewerking als `_dashboard_rows` — signaal live herrekend,
+    reden-labels, oordeel uit de rapporten — zodat één rij nooit iets anders kan
+    zeggen dan diezelfde rij in de lijst.
+    """
+    rij = db.get_dashboard_row(ticker)
+    if rij is None:
+        return None
+    verrijkt = _verrijk_dashboardrijen([rij], cfg)
+    return verrijkt[0] if verrijkt else None
+
+
 def _dashboard_rows(cfg: dict) -> list[dict]:
     """De rijen achter /api/dashboard.
 
@@ -577,12 +592,23 @@ def _dashboard_rows(cfg: dict) -> list[dict]:
     waardering ergens anders werd nagerekend en er 140 uitkwam waar de motor
     175 gebruikte.
     """
+    # De kale rijen komen uit de cache; de afleidingen gebeuren elke keer
+    # opnieuw, want die moeten tegen de verse koers gerekend worden.
+    return _verrijk_dashboardrijen(cache.dashboard.haal(db.get_dashboard_data), cfg)
+
+
+def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
+    """Van kale databaserijen naar dashboardrijen.
+
+    Apart van het ophalen, zodat één rij (`_dashboard_rij`) exact dezelfde
+    bewerking krijgt als de volledige lijst.
+    """
     min_quality = cfg.get("screening", {}).get("min_quality_score", 7)
     new_days    = cfg.get("app", {}).get("new_ticker_days", 7)
     today       = datetime.now(timezone.utc).date()
 
     rows = []
-    for r in db.get_dashboard_data():
+    for r in ruwe:
         t        = r["ticker"]
         mc_m     = (r.get("market_cap") / 1e6) if r.get("market_cap") else None
         q_score  = r.get("quality_score")
@@ -981,6 +1007,7 @@ def api_analyses_sync():
 
     if bijgewerkt or verwijderd:
         analyses_mod.leeg_cache()
+        cache.dashboard.leeg("nieuwe analyses")
         db.log_activity("analyses_sync", None, "ok",
                         {"bijgewerkt": bijgewerkt, "verwijderd": verwijderd,
                          "ongewijzigd": len(ongewijzigd)})
@@ -1056,6 +1083,7 @@ def api_besluit_bezit(ticker):
                           datetime.now(timezone.utc).date().isoformat(),
                           rij.get("price"), rij.get("currency"))
     db.besluit_afsluiten(ticker, keuze, reden, snapshot, aanleiding="bezit")
+    cache.dashboard.leeg("besluit bezit")
     db.log_activity("besluit_bezit", ticker, keuze, {"regel": regel_id, "reden": reden})
     return jsonify({"ticker": ticker, "keuze": keuze, "regel": regel_id})
 
@@ -1076,12 +1104,15 @@ def api_besluit_afsluiten(ticker):
 
     reden = (data.get("reden") or "").strip() or None
     cfg = load_config()
-    rij = next((r for r in _dashboard_rows(cfg) if r["ticker"] == ticker), None)
+    # Eén rij ophalen, niet de hele tabel: dit draaide bij elke knopdruk en
+    # kostte ruim twee megabyte databaseverkeer voor één ticker.
+    rij = _dashboard_rij(cfg, ticker)
     snapshot = exit_regels.momentopname(rij, _moat_profiel(ticker)) if rij else None
 
     gelukt = db.besluit_afsluiten(ticker, keuze, reden, snapshot)
     if not gelukt:
         return jsonify({"error": f"geen openstaand besluit voor {ticker}"}), 404
+    cache.dashboard.leeg("besluit")
     db.log_activity("besluit", ticker, keuze, {"reden": reden})
     return jsonify({"ticker": ticker, "keuze": keuze, "reden": reden})
 
@@ -1124,13 +1155,14 @@ def api_bezit_vastleggen(ticker):
         return jsonify({"error": f"{ticker} staat niet in de screener"}), 404
 
     cfg = load_config()
-    rij = next((r for r in _dashboard_rows(cfg) if r["ticker"] == ticker), None)
+    rij = _dashboard_rij(cfg, ticker)
     if rij is None:
         return jsonify({"error": f"Geen dashboardrij voor {ticker}"}), 404
 
     snapshot = exit_regels.momentopname(rij, _moat_profiel(ticker))
     notitie = (request.get_json(silent=True) or {}).get("notitie")
     db.bezit_vastleggen(ticker, snapshot, notitie)
+    cache.dashboard.leeg("bezit vastgelegd")
     db.log_activity("bezit", ticker, "vastgelegd", {"snapshot": snapshot})
     return jsonify({"ticker": ticker, "snapshot": snapshot})
 
@@ -1140,6 +1172,7 @@ def api_bezit_verwijderen(ticker):
     """Haal een aandeel uit het bezit."""
     weg = db.bezit_verwijderen(ticker)
     if weg:
+        cache.dashboard.leeg("bezit verwijderd")
         db.log_activity("bezit", ticker, "verwijderd", None)
     return jsonify({"ticker": ticker, "verwijderd": weg})
 
@@ -1370,6 +1403,7 @@ def _run_price_refresh(cfg: dict) -> None:
     tickers = [s["ticker"] for s in db.get_all_stocks()]
     db.log_activity("refresh_prices", None, "start", {"tickers": len(tickers)})
     result = refresh.refresh_prices_bulk(tickers, cfg)
+    cache.dashboard.leeg("koersronde")
     db.set_refresh_state("last_price_refresh_at", datetime.now(timezone.utc).isoformat())
     db.log_activity("refresh_prices", None, "ok", {
         "ok": result["ok"],
@@ -1405,6 +1439,7 @@ def _run_fundamentals_refresh(cfg: dict) -> None:
 def _do_fundamentals_refresh(cfg: dict, limit: int) -> None:
     db.log_activity("refresh_fundamentals", None, "start", {"limit": limit})
     result = refresh.refresh_fundamentals_batch(limit, cfg)
+    cache.dashboard.leeg("fundamentals-ronde")
     db.set_refresh_state("last_fundamentals_refresh_at", datetime.now(timezone.utc).isoformat())
     db.log_activity("refresh_fundamentals", None,
                     "warning" if result["storm_detected"] else "ok", {
@@ -1777,6 +1812,7 @@ def api_recalculate():
         except Exception as e:
             results.append({"ticker": ticker, "ok": False, "error": str(e)})
 
+    cache.dashboard.leeg("herberekening")
     return jsonify(results)
 
 
@@ -2373,6 +2409,7 @@ def api_refresh_prices():
                             {"tickers": len(tickers), "trigger": "handmatig"})
             result = refresh.refresh_prices_bulk(tickers, cfg)
             db.set_refresh_state("last_price_refresh_at", datetime.now(timezone.utc).isoformat())
+            cache.dashboard.leeg("handmatige koersronde")
             db.log_activity("refresh_prices", None, "ok", {
                 "ok": result["ok"],
                 "failed": len(result["failed"]),
@@ -2905,6 +2942,10 @@ def api_health():
         # Een tick hoort elk kwartier te komen; een half uur stilte betekent dat
         # de thread is omgevallen.
         "scheduler_alive":           tick_age is not None and tick_age < 0.5,
+        # Om te kunnen zien of de cache zijn werk doet: bij normaal gebruik horen
+        # de treffers de missers ver te overtreffen. Doen ze dat niet, dan wordt
+        # de cache ergens te vaak geleegd en betaal je alsnog per query.
+        "cache":                     cache.dashboard.stand(),
     })
 
 

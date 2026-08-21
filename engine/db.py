@@ -1150,13 +1150,10 @@ def get_last_attempt_dates() -> dict[str, str]:
     return {r["ticker"]: r["last_checked"] for r in rows if r["last_checked"]}
 
 
-def get_dashboard_data() -> list[dict]:
-    """
-    Fetch all active stocks with their market data, calculated scores, 
-    latest fiscal year and latest fetched date in one optimized query.
-    Used to prevent the N+1 query problem on the dashboard.
-    """
-    sql = """
+# De dashboardquery, gedeeld door de volledige lijst en de losse rij. Eén bron,
+# want twee varianten die uit de pas lopen levert een verschil op dat later
+# niemand meer kan verklaren. De WHERE-clausule hangt de aanroeper eraan.
+_DASHBOARD_SQL = """
         SELECT
             s.ticker, s.name, s.sector, s.market, s.currency, s.added_date,
             m.price, m.market_cap, m.enterprise_value, m.last_updated,
@@ -1195,10 +1192,34 @@ def get_dashboard_data() -> list[dict]:
             GROUP BY ticker
         ) fy ON s.ticker = fy.ticker
         LEFT JOIN data_quality dq ON s.ticker = dq.ticker
-        WHERE s.active = 1
+"""
+
+
+def get_dashboard_row(ticker: str) -> dict | None:
+    """Eén dashboardrij, met exact dezelfde velden als `get_dashboard_data()`.
+
+    Bestaat omdat twee endpoints alle 2.812 rijen ophaalden om er één uit te
+    vissen. Bij een database die per gigabyte verkeer afrekent is dat ruim twee
+    megabyte voor een enkele knopdruk.
+
+    De query komt uit dezelfde bron als de volledige variant; zie `_DASHBOARD_SQL`.
+    Twee losse queries die uit de pas lopen is precies het soort verschil dat
+    later niemand meer kan verklaren.
     """
     with _cursor() as cur:
-        cur.execute(sql)
+        cur.execute(_DASHBOARD_SQL + " WHERE s.ticker = %s", (ticker,))
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def get_dashboard_data() -> list[dict]:
+    """
+    Fetch all active stocks with their market data, calculated scores, 
+    latest fiscal year and latest fetched date in one optimized query.
+    Used to prevent the N+1 query problem on the dashboard.
+    """
+    with _cursor() as cur:
+        cur.execute(_DASHBOARD_SQL + " WHERE s.active = 1")
         rows = cur.fetchall()
 
     results = []
