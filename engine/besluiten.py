@@ -126,47 +126,6 @@ def _tweede_noteringen(rijen: list[dict] | None) -> set[str]:
     return weg
 
 
-def openstaand_bezit(bezitrijen: list[dict] | None = None) -> list[dict]:
-    """
-    Bezittingen waar een harde verkoopregel is geraakt en nog niets mee gedaan is.
-
-    Het spiegelbeeld van `openstaand()`. Daar is niets doen de stille keuze bij
-    een koopoordeel; hier is *houden* dat. Een geraakte harde regel is het moment
-    waarop houden een besluit wordt in plaats van een gewoonte — en zonder dat
-    vast te leggen valt er later niets van te leren.
-    """
-    besluiten_op_ticker = {}
-    for b in db.besluiten_lijst():
-        # Alleen besluiten die over het bezit gaan, niet over de koopvraag.
-        if b.get("aanleiding") == "bezit":
-            besluiten_op_ticker.setdefault(b["ticker"], b)
-
-    uit = []
-    for rij in (bezitrijen or []):
-        verkoop = rij.get("verkoop") or {}
-        hard = [r for r in (verkoop.get("geraakt") or []) if r.get("hard")]
-        if not hard:
-            continue
-        bestaand = besluiten_op_ticker.get(rij["ticker"])
-        # Al beantwoord? Dan alleen opnieuw vragen als er een ándere regel afgaat
-        # dan die waarop je toen besloot — anders vraag je eeuwig hetzelfde.
-        if bestaand and bestaand.get("keuze") and bestaand.get("oordeel") == hard[0]["id"]:
-            continue
-        uit.append({
-            "ticker": rij["ticker"],
-            "naam": rij.get("name"),
-            "regel": hard[0]["naam"],
-            "regel_id": hard[0]["id"],
-            "uitleg": hard[0].get("uitleg"),
-            "koers_nu": rij.get("price"),
-            "valuta": rij.get("currency"),
-            "conclusie": (rij.get("conclusie") or {}).get("kop"),
-            "eerdere_keuze": (bestaand or {}).get("keuze"),
-            "eerdere_reden": (bestaand or {}).get("reden"),
-        })
-    return sorted(uit, key=lambda b: b["ticker"])
-
-
 def openstaand(rijen: list[dict] | None = None) -> list[dict]:
     """
     De oordelen waar nog niets mee gedaan is en die oud genoeg zijn.
@@ -214,7 +173,10 @@ def actiekloof(rijen: list[dict] | None = None) -> dict:
 
     per_oordeel: dict[str, dict] = {}
     for b in alle:
-        naam = b["oordeel"] or "onbekend"
+        # Bij een bezitsbesluit staat in `oordeel` de regelcode die afging (A2,
+        # C2). Als groepsnaam zegt dat niets; de vraag die erachter zit wel.
+        naam = ("Bezit — harde regel geraakt" if b.get("aanleiding") == "bezit"
+                else (b["oordeel"] or "onbekend"))
         vak = per_oordeel.setdefault(naam, {
             "totaal": 0, "gehandeld": 0, "bewust_niet": 0, "stil": 0,
             "uitgesteld": 0, "vers": 0,
@@ -224,11 +186,21 @@ def actiekloof(rijen: list[dict] | None = None) -> dict:
             "vraagt_daad": naam.upper() in VRAAGT_BESLISSING,
         })
         vak["totaal"] += 1
-        if b["ticker"] in bezit or b.get("keuze") == "gekocht":
+        keuze = b.get("keuze")
+        if b.get("aanleiding") == "bezit":
+            # Hier is elke vastgelegde keuze een daad — ook "gehouden", want dat
+            # is bij een geraakte regel een besluit en geen gewoonte. Alleen een
+            # lege keuze betekent dat de vraag is blijven liggen.
+            if keuze in ("verkocht", "bijgekocht", "gehouden"):
+                vak["gehandeld"] += 1
+            else:
+                vak["stil"] += 1
+            continue
+        if b["ticker"] in bezit or keuze == "gekocht":
             vak["gehandeld"] += 1
-        elif b.get("keuze") == "bewust_niet":
+        elif keuze == "bewust_niet":
             vak["bewust_niet"] += 1
-        elif b.get("keuze") == "uitgesteld":
+        elif keuze == "uitgesteld":
             vak["uitgesteld"] += 1
         elif (_dagen_sinds(b.get("datum_oordeel")) or 0) < STILTE_DAGEN:
             # Een oordeel van vorige week is nog geen verzuim. Zonder dit

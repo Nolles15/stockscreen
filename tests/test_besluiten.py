@@ -109,5 +109,36 @@ fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] these {verloop['these']}, koers {verloop['koers']['rendement_pct']}% "
       f"(betekenisvol: {verloop['koers']['betekenisvol']})")
 
+
+# --- Bezitsbesluiten horen apart geteld te worden -----------------------------
+#
+# Bij een bezit staat de regelcode (A2, C2) in het oordeelveld. Als groepsnaam
+# zegt dat niets, en "gehouden" is daar een daad en geen verzuim: bij een
+# geraakte harde regel is houden een besluit, geen gewoonte.
+
+nep2 = NepDB([
+    {"ticker": "CRWD", "oordeel": "C2", "aanleiding": "bezit",
+     "datum_oordeel": dagen_terug(5), "keuze": "gehouden"},
+    {"ticker": "DIS", "oordeel": "A2", "aanleiding": "bezit",
+     "datum_oordeel": dagen_terug(40), "keuze": None},
+], bezit=set())
+besluiten.db = nep2
+k = besluiten.actiekloof([])
+vak = k["per_oordeel"].get("Bezit — harde regel geraakt")
+
+ok = vak is not None
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] bezitsbesluiten staan onder een leesbare naam")
+
+if vak:
+    ok = vak["totaal"] == 2 and vak["gehandeld"] == 1 and vak["stil"] == 1
+    fout += not ok
+    print(f"  [{'OK ' if ok else 'FOUT'}] gehouden telt als daad: "
+          f"{vak['gehandeld']} gehandeld, {vak['stil']} blijven liggen")
+
+ok = "C2" not in k["per_oordeel"] and "A2" not in k["per_oordeel"]
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] geen regelcodes als groepsnaam")
+
 print("\nFALEND:", fout)
 sys.exit(1 if fout else 0)
