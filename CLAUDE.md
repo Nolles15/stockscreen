@@ -341,7 +341,7 @@ niet, dus valt er geen knop aan te hangen en achteraf niets van te leren.
 **Landenfilter (2026-08-01):** staat boven de tabbladen in [templates/index.html](templates/index.html) en werkt op álle tabbladen. **Leidt het land af uit het beurssuffix, niet uit `stocks.market`** — dat veld is nooit genormaliseerd (dezelfde beurs staat er als `NL`, `Nederland` én `US` in), dus filteren daarop geeft onvolledige lijsten. `LAND_PER_SUFFIX` dekt alle 27 landen in de huidige dataset; `.DE` en `.F` tellen samen als Duitsland. Keuze in localStorage onder `stockscreen.land`.
 
 **Open na fase 0:** ~~DATABASE_URL-rotatie~~ (gedaan 2026-07-31).
-**Losse eindjes:** er hangt nog een oude **Render**-service aan deze repo die bij elke push probeert te bouwen en faalt (Janco krijgt faalmails). Controleren of daar nog een oude versie draait die naar dezelfde Neon-database schrijft — zo ja, dat is een tweede schrijver op dezelfde data. De `Procfile` in de repo is een restant daarvan.
+**Losse eindjes:** de oude Render-service is uitgezet (bevestigd 2026-08-21). Procfile en runtime.txt waren restanten daarvan en zijn verwijderd; Fly draait op de CMD in de Dockerfile. De `Procfile` in de repo is een restant daarvan.
 
 **Refactor afgerond (2026-04-18)**: async batch-endpoint is vervangen door per-ticker endpoints + workflow die zelf de loop doet. Betrouwbaar omdat elke HTTP-call <100s is en geen in-memory state vereist.
 
