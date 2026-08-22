@@ -1400,22 +1400,16 @@ function reasonTooltip(r) {
       + (issues ? '\n\n' + issues : '');
   }
   if (code === 'eenheidsfout') {
-    const issues = (r.data_issues || []).slice(0, 4).map(x => '• ' + x).join('
-');
-    return 'EENHEIDSFOUT — de cijfers staan in een andere eenheid dan de koers.
-'
-      + 'Denk aan pence tegen ponden, of een dual-listing in een andere valuta.
-'
+    const issues = (r.data_issues || []).slice(0, 4).map(x => '• ' + x).join('\n');
+    return 'EENHEIDSFOUT — de cijfers staan in een andere eenheid dan de koers.\n'
+      + 'Denk aan pence tegen ponden, of een dual-listing in een andere valuta.\n'
       + 'De data zelf is er wel; hij is alleen verkeerd geschaald.'
-      + (issues ? '
-
-' + issues : '');
+      + (issues ? '\n\n' + issues : '');
   }
   if (code === 'negatieve_omzet') {
     return 'NEGATIEVE OMZET — meestal een holding of investeringsmaatschappij, '
-      + 'waar de opbrengst uit deelnemingen komt en negatief kan uitvallen.
-'
-      + 'Geen fout in de data, maar een bedrijfstype dat dit model niet aankan. '
+      + 'waar de opbrengst uit deelnemingen komt en negatief kan uitvallen.\n'
+      + 'Geen fout in de data, maar een bedrijfstype dat dit model niet aankan.\n'
       + 'Beoordeel zo’n bedrijf op de intrinsieke waarde, niet op kasstroom.';
   }
   if (code === 'databug') {
