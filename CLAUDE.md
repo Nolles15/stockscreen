@@ -50,6 +50,32 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 | `exchange_rates` | FX rates (gebruik minimaal — alles native) |
 | `activity_log` | alle fetch/refresh/override events, JSON details |
 
+## Verversing op publicatievenster (2026-08-22)
+
+`get_refresh_queue()` koos op "langst niet geprobeerd". Gemeten: **97% van de
+opgehaalde tickers had zijn nieuwste boekjaar al** (2.722 van 2.812). Onschuldig
+bij dit aantal, fataal bij 19.000 — dan duurt een ronde 76 dagen.
+
+- **De maand van het boekjaareinde bepaalt wanneer een verslag te verwachten
+  is**, en die stond nergens: `_col_year` hield alleen het jaartal over terwijl
+  de kolomkop van de jaarrekening een volledige datum is. `_col_datum` leest hem
+  nu; kost niets extra, want het komt uit dezelfde ophaling. Kolom
+  `stocks.boekjaar_einde` (DATE).
+- **Drie lagen:** nooit geprobeerd → in het publicatievenster (twee tot zeven
+  maanden na het boekjaareinde, hooguit één keer per week) → gewone rotatie op
+  ouderdom. De batch wordt altijd volgemaakt.
+- **De kolom vult zichzelf in één rotatie** (elf nachten). Zolang hij leeg is,
+  gedraagt de wachtrij zich exact als voorheen — dat is met opzet de terugval.
+- **`GET /api/refresh/wachtrij`** toont wie er aan de beurt is en waarom, met de
+  telling per laag. Zonder dat venster merk je pas weken later dat de
+  verversing op de verkeerde tickers uitkomt of stilstaat.
+- Twee valkuilen die hier zitten: `boekjaar_einde` wordt **niet** meegestuurd als
+  hij leeg is (`upsert_stock` schrijft met `excluded`, niet met COALESCE — None
+  zou de datum wissen), en `last_checked` staat als ISO-tekst met een `T` terwijl
+  `NOW()::text` daar een spatie geeft; vandaar `to_char` in dezelfde vorm.
+- Geverifieerd op zes tickers: ASML/Shell/SSAB/Adyen/Metsä op 31-12-2025, en
+  **TXT.WA op 31-03-2026** — een gebroken boekjaar, correct gekoppeld aan FY2026.
+
 ## De server kiest de rijen (2026-08-22)
 
 Het dashboard vraagt om één weergave via `GET /api/dashboard/selectie` en krijgt
