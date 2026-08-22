@@ -92,6 +92,13 @@ def init_db() -> None:
         cur.execute("""
             ALTER TABLE stocks ADD COLUMN IF NOT EXISTS isin TEXT
         """)
+        # Einddatum van het nieuwste boekjaar, als ISO-datum. Komt uit de
+        # kolomkoppen van de jaarrekening die we toch al ophalen; zie
+        # `_col_datum` in data_fetcher. Bepaalt wanneer het volgende verslag te
+        # verwachten is, en daarmee de volgorde van de verversing.
+        cur.execute("""
+            ALTER TABLE stocks ADD COLUMN IF NOT EXISTS boekjaar_einde DATE
+        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS financials (
                 id                  SERIAL PRIMARY KEY,
@@ -1057,27 +1064,107 @@ def get_latest_eps_ttm() -> dict[str, float]:
     return {r["ticker"]: r["eps_diluted"] for r in rows if r["eps_diluted"]}
 
 
-def get_refresh_queue(limit: int) -> list[str]:
-    """
-    De `limit` actieve tickers die het langst niet zijn geprobeerd.
+# Een jaarverslag verschijnt niet meteen na afloop van het boekjaar. Twee
+# maanden is vroeg, na zes maanden is de kans klein dat het er nog komt zonder
+# dat er iets aan de hand is. Binnen dat venster loont het om te kijken; erbuiten
+# haal je vrijwel zeker op wat je al hebt.
+VENSTER_VANAF_MAANDEN = 2
+VENSTER_TOT_MAANDEN = 7
 
-    Sorteert op `data_quality.last_checked` (geschreven bij élke poging), niet op
-    de laatste geslaagde fetch. Tickers die niets opleveren zakken zo netjes naar
-    achteren in plaats van de wachtrij permanent te blokkeren. Nooit-geprobeerde
-    tickers komen vooraan, zodat nieuw toegevoegde aandelen meteen aan de beurt
-    zijn. Vermoedelijk delisted tickers doen niet mee.
+
+def get_refresh_queue(limit: int) -> list[str]:
+    """De `limit` tickers die het meest de moeite waard zijn om op te halen.
+
+    Sorteerde eerder alleen op "langst niet geprobeerd". Gemeten op 2026-08-22:
+    97% van de opgehaalde tickers had zijn nieuwste boekjaar al, dus die ronde
+    was grotendeels verspilling. Bij 2.812 tickers is dat onschuldig; bij 19.000
+    duurt een ronde 76 dagen en weet je niet wie er iets nieuws heeft.
+
+    Daarom in lagen:
+
+    1. **In het publicatievenster** — het boekjaar is twee tot zeven maanden
+       geleden geëindigd en we hebben dat jaar nog niet. Hier valt iets te halen.
+    2. **De rest** — oudste eerst, zoals voorheen.
+
+    De batch wordt altijd volgemaakt. Zolang `boekjaar_einde` nog niet gevuld is
+    (dat gebeurt bij de eerstvolgende ophaling van elke ticker) is laag 1 leeg en
+    gedraagt de wachtrij zich precies als voorheen. Nooit-geprobeerde tickers
+    blijven vooraan staan.
     """
     with _cursor() as cur:
         cur.execute("""
-            SELECT s.ticker
+            SELECT s.ticker,
+                   CASE
+                     -- Nooit geprobeerd: nieuw toegevoegd, meteen aan de beurt.
+                     WHEN dq.last_checked IS NULL THEN 0
+                     -- Het boekjaar is twee tot zeven maanden geleden geëindigd,
+                     -- dus het verslag kan er zijn. Hooguit één keer per week,
+                     -- anders halen we dezelfde handvol elke nacht opnieuw op.
+                     WHEN s.boekjaar_einde BETWEEN
+                            (CURRENT_DATE - make_interval(months => %s))
+                        AND (CURRENT_DATE - make_interval(months => %s))
+                      -- `last_checked` staat als ISO-tekst met een T ertussen
+                      -- (datetime.isoformat()). NOW()::text geeft een spatie op
+                      -- die plek, en dan vergelijk je twee verschillende vormen.
+                      -- Vandaar to_char in exact dezelfde vorm; dat is een
+                      -- zuivere tekstvergelijking, zonder cast die op één rare
+                      -- waarde de hele wachtrij kan laten struikelen.
+                      AND dq.last_checked <
+                          to_char(NOW() - INTERVAL '7 days', 'YYYY-MM-DD"T"HH24:MI:SS')
+                     THEN 1
+                     ELSE 2
+                   END AS laag
             FROM stocks s
             LEFT JOIN data_quality dq ON dq.ticker = s.ticker
             WHERE s.active = 1 AND s.presumed_delisted_at IS NULL
-            ORDER BY dq.last_checked ASC NULLS FIRST, s.ticker
+            ORDER BY laag ASC, dq.last_checked ASC NULLS FIRST, s.ticker
             LIMIT %s
-        """, (limit,))
+        """, (VENSTER_TOT_MAANDEN, VENSTER_VANAF_MAANDEN, limit))
         rows = cur.fetchall()
     return [r["ticker"] for r in rows]
+
+
+def wachtrij_stand(limit: int = 25) -> dict:
+    """Hoe de wachtrij er nu uitziet, per laag.
+
+    Bestaat om te kunnen controleren of het venster werkt: zonder dit zie je pas
+    weken later dat de verversing op de verkeerde tickers is uitgekomen — of
+    helemaal stilstaat omdat de query struikelt.
+    """
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT COUNT(*) FILTER (WHERE boekjaar_einde IS NOT NULL) AS met_datum,
+                   COUNT(*) AS actief
+            FROM stocks
+            WHERE active = 1 AND presumed_delisted_at IS NULL
+        """)
+        tellingen = dict(cur.fetchone())
+
+        cur.execute("""
+            SELECT CASE
+                     WHEN dq.last_checked IS NULL THEN 'nooit geprobeerd'
+                     WHEN s.boekjaar_einde BETWEEN
+                            (CURRENT_DATE - make_interval(months => %s))
+                        AND (CURRENT_DATE - make_interval(months => %s))
+                      AND dq.last_checked <
+                          to_char(NOW() - INTERVAL '7 days', 'YYYY-MM-DD"T"HH24:MI:SS')
+                     THEN 'in publicatievenster'
+                     ELSE 'gewone rotatie'
+                   END AS laag,
+                   COUNT(*) AS aantal
+            FROM stocks s
+            LEFT JOIN data_quality dq ON dq.ticker = s.ticker
+            WHERE s.active = 1 AND s.presumed_delisted_at IS NULL
+            GROUP BY 1
+        """, (VENSTER_TOT_MAANDEN, VENSTER_VANAF_MAANDEN))
+        per_laag = {r["laag"]: r["aantal"] for r in cur.fetchall()}
+
+    return {
+        "actief": tellingen["actief"],
+        "met_boekjaardatum": tellingen["met_datum"],
+        "per_laag": per_laag,
+        "volgende": get_refresh_queue(limit),
+    }
 
 
 def get_reprobe_candidates(limit: int) -> list[str]:

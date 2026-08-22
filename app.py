@@ -2925,6 +2925,17 @@ def api_data_issues():
     return jsonify(db.get_data_issues())
 
 
+@app.route("/api/refresh/wachtrij")
+def api_refresh_wachtrij():
+    """Wie er vannacht aan de beurt is, en waarom.
+
+    De wachtrij kiest sinds 2026-08-22 op publicatievenster in plaats van alleen
+    op ouderdom. Zonder dit venster erop zou je pas weken later merken dat hij op
+    de verkeerde tickers uitkomt.
+    """
+    return jsonify(db.wachtrij_stand(int(request.args.get("limit") or 25)))
+
+
 @app.route("/api/health")
 def api_health():
     """

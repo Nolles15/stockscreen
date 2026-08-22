@@ -169,6 +169,28 @@ def _df_value(df: pd.DataFrame, row_keys: list[str], col_idx: int = 0, default=N
     return default
 
 
+def _col_datum(col) -> str | None:
+    """De volledige einddatum van een kolom, als ISO-datum.
+
+    `_col_year` hieronder houdt alleen het jaartal over. De maand is juist wat we
+    nodig hebben om te weten wánneer een bedrijf zijn jaarverslag publiceert: een
+    boekjaar dat in december eindigt verschijnt in het voorjaar, een gebroken
+    boekjaar een half jaar later. Zonder die maand kan de wachtrij niet meer dan
+    "wie is het langst niet geprobeerd" — en dat is bij 19.000 tickers een ronde
+    van 76 dagen waarin je niet weet wie er iets nieuws heeft.
+
+    Kost niets extra: deze datum komt uit dezelfde jaarrekening die we toch al
+    ophalen.
+    """
+    if isinstance(col, pd.Timestamp):
+        return col.date().isoformat()
+    try:
+        tekst = str(col)[:10]
+        return tekst if len(tekst) == 10 and tekst[4] == "-" else None
+    except Exception:
+        return None
+
+
 def _col_year(col) -> int:
     """Extract fiscal year from a pandas Timestamp column."""
     if isinstance(col, pd.Timestamp):
@@ -230,6 +252,8 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
         # quoteType laat de screener ETFs/funds/indices etc. vroeg afvangen —
         # voor die instrumenten werkt de fundamentele FV-pipeline niet.
         "quote_type":        info.get("quoteType") or info.get("typeDisp"),
+        # Wordt hieronder gevuld met de einddatum van het nieuwste boekjaar.
+        "boekjaar_einde":    None,
     }
 
     # ---- Current market data ------------------------------------------------
@@ -285,6 +309,11 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
             yr = _col_year(col)
             if yr < 2010:
                 continue
+
+            # De eerste bruikbare kolom is het nieuwste boekjaar; die einddatum
+            # bepaalt wanneer het volgende verslag te verwachten is.
+            if result["meta"].get("boekjaar_einde") is None:
+                result["meta"]["boekjaar_einde"] = _col_datum(col)
 
             # Income statement
             ebit = _df_value(inc, ["EBIT", "Operating Income", "Ebit"], col_idx)
@@ -608,6 +637,11 @@ def fetch_and_store(ticker: str, count_failure: bool = True) -> list[str]:
             description=meta.get("description"),
             quote_type=meta.get("quote_type"),
             active=1,
+            # Alleen meesturen als we hem hebben: `upsert_stock` schrijft met
+            # `excluded`, niet met COALESCE, dus None zou de opgeslagen datum
+            # wissen bij elke ophaling die geen jaarrekening oplevert.
+            **({"boekjaar_einde": meta["boekjaar_einde"]}
+               if meta.get("boekjaar_einde") else {}),
         )
 
     # Upsert market data
