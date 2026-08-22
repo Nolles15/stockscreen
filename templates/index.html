@@ -353,6 +353,21 @@ async function laadBezit() {
 // engine/markets.py. Sinds de server bepaalt welke rijen je krijgt, filtert en
 // telt hij ook op land — dus is deze kopie weg. Eén tabel, één plek.
 
+const LAND_KEY    = 'stockscreen.land';
+const SECTOR_KEY  = 'stockscreen.sector';
+const SIGNAAL_KEY = 'stockscreen.signaal';
+let _actiefLand    = localStorage.getItem(LAND_KEY) || '';
+let _actieveSector = localStorage.getItem(SECTOR_KEY) || '';
+let _actiefSignaal = localStorage.getItem(SIGNAAL_KEY) || '';
+
+// Rangorde van de signalen, voor sorteren. Alfabetisch geeft BUY, HOLD, SELL,
+// STRONG BUY — precies de verkeerde volgorde. Staat ook in engine/selectie.py,
+// want die sorteert nu het tabblad "Alles"; de twee horen gelijk te blijven.
+const SIGNAAL_RANG = {
+  'STRONG BUY': 5, 'BUY': 4, 'HOLD': 3, 'SELL': 2,
+  'INSUFFICIENT DATA': 1, 'N/A': 0,
+};
+
 
 // De server heeft al gefilterd op land, sector en signaal (engine/selectie.py),
 // dus wat hier binnenkomt ís de selectie. Deze functie blijft bestaan omdat een
