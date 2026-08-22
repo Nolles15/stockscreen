@@ -50,6 +50,30 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 | `exchange_rates` | FX rates (gebruik minimaal — alles native) |
 | `activity_log` | alle fetch/refresh/override events, JSON details |
 
+## Wat de dashboardlijst niet meestuurt (2026-08-22)
+
+`get_dashboard_data()` levert de **lijstvariant**: `warnings` en
+`fv_methods_dropped` zijn eruit, `hist_relative` is teruggebracht tot de vier
+sleutels die de EV/EBITDA-badge toont, en `data_issues` blijft wél in de rij
+staan (`classify_signal_reason` leidt daar de reden uit af) maar gaat niet mee in
+het antwoord. Zie `_verklein_voor_lijst`.
+
+- Aanleiding: 4,2 MB per lading, waarvan 46% velden die je per rij hooguit één
+  keer in een tooltip bekijkt. Gemeten resultaat: **2,93 MB, 30% eraf.**
+- **De badges blijven, alleen de tekst verhuist.** `warning_count` en
+  `data_issue_count` dragen het signaal; de tooltip verwijst naar
+  `/stock/<ticker>`, waar de teksten al stonden.
+- **`get_dashboard_row()` verkleint hetzelfde**, zodat een knop die één rij
+  ververst geen andere vorm terugkrijgt dan de rij die er stond.
+- **De beheerpagina (`/triage`) haalt de meldingen apart op** via
+  `/api/data-issues` — daar is meldingen naast elkaar leggen juist het werk.
+  Alleen wat niet in orde is, dus geen last voor het dashboard.
+- Dit was de voorwaarde voor serverzijdig selecteren: het geheugenbeslag van de
+  cache gaat van 4.068 naar 1.715 bytes per rij, en bij 19.000 tickers scheelt
+  dat 74 tegen 31 MB in een machine van 512 MB.
+- `tests/test_lijst_payload.py` bewaakt dat die velden niet stilletjes
+  terugkomen.
+
 ## Beurswaarde bij aandelenklassen (2026-08-22)
 
 **Yahoo's `marketCap` slaat bij een A/B-notering op het héle bedrijf, terwijl
