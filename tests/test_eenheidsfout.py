@@ -83,11 +83,22 @@ ok = melding(r, "Market cap inconsistent")
 fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] verschil van 30% blijft een lichte melding")
 
-# --- Speling, want koersen bewegen tussen twee ophaalmomenten ----------------
-r = beoordeel(shares=1_000_000, price=100.0, market_cap=10_400_000_000)  # 104x
+# --- De speling is krap, en dat moet zo blijven ------------------------------
+#
+# Beurswaarde en koers komen uit dezelfde ophaalronde, dus een echte schaalfout
+# is exact. Alleen een aandelenuitgifte sinds het boekjaareinde geeft wat ruimte.
+r = beoordeel(shares=1_000_000, price=100.0, market_cap=10_200_000_000)  # 102x
 ok = melding(r, "SEVERE mismatch")
 fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] factor 104 telt nog als pence-fout (10% speling)")
+print(f"  [{'OK ' if ok else 'FOUT'}] factor 102 telt nog als pence-fout (3% speling)")
+
+# Bonava (10,92x) en Metsa Board (10,83x) zijn A-lijnen, geen schaalfout. Met
+# ruimere speling bleven juist die twee hangen.
+for factor, naam in [(10.92, "Bonava-A"), (10.83, "Metsa Board A")]:
+    r = beoordeel(shares=1_000_000, price=100.0, market_cap=int(100_000_000 * factor))
+    ok = not melding(r, "SEVERE mismatch")
+    fout += not ok
+    print(f"  [{'OK ' if ok else 'FOUT'}] {naam} ({factor}x) valt buiten de speling")
 
 print("\nFALEND:", fout)
 sys.exit(1 if fout else 0)

@@ -109,7 +109,15 @@ def _clean_split_factor(ratio: float) -> float | None:
 # eenheidsfout maar een eigenschap van de notering — zie de toelichting bij de
 # market-cap-check in evaluate().
 _SCHAAL_FACTOREN = (10.0, 100.0, 1000.0, 10000.0)
-_SCHAAL_TOL = 0.10          # 10% speling; koersen bewegen tussen twee ophaalmomenten
+# Krap, en dat is met opzet. Beurswaarde en koers komen uit dezelfde ophaalronde,
+# dus een echte schaalfout is exact: pence tegen ponden is precies 100. De enige
+# afwijking die hoort te kunnen ontstaan is een aandelenuitgifte sinds het
+# boekjaareinde, en die is klein. Met 10% speling bleven Bonava (10,92x) en
+# Metsä Board (10,83x) hangen, terwijl dat allebei A-lijnen zijn: Metsä heeft
+# 32,8 miljoen A-aandelen tegen 355 miljoen B-aandelen, en de B-lijn krijgt
+# gewoon een oordeel. Ruime speling vangt dus juist de gevallen die we niet
+# willen vangen.
+_SCHAAL_TOL = 0.03
 
 
 def _schaalfactor(ratio: float) -> float | None:
