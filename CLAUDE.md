@@ -50,6 +50,34 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 | `exchange_rates` | FX rates (gebruik minimaal — alles native) |
 | `activity_log` | alle fetch/refresh/override events, JSON details |
 
+## Beurswaarde bij aandelenklassen (2026-08-22)
+
+**Yahoo's `marketCap` slaat bij een A/B-notering op het héle bedrijf, terwijl
+`shares_outstanding` één klasse telt.** De market-cap-consistentiecheck in
+`data_quality.evaluate()` blokkeerde daarop 85 tickers als "eenheidsfout".
+
+Gemeten over 2.812 tickers was geen enkele daarvan er een: geen enkele verhouding
+lag bij factor 100. Wat er wel stond — Roche-certificaten, Schindler, Alphabet
+(2,08x), Duitse preferente lijnen op "3", Merck KGaA, negen regionale
+Crédit-Agricole-banken, 39 Zweedse A/B-lijnen. Metsä Board is het duidelijkste
+bewijs: de A-lijn was geblokkeerd, de B-lijn van hetzelfde bedrijf kreeg gewoon
+een HOLD.
+
+- **De blokkade werkte zichzelf in stand.** De koersronde schrijft elke avond
+  `market_cap = price × shares` (consistent), maar de datakwaliteit wordt alleen
+  in de jaarcijferronde herwaardeerd — dus bleef `bad` elf dagen staan en werd
+  daarna opnieuw gezet.
+- **Een schaalfout is per definitie een macht van tien**, een klasse-artefact kan
+  elk getal zijn. Daarop toetst `_schaalfactor()` nu, met **3%** speling. Ruimer
+  mag niet: met 10% bleven Bonava (10,92x) en Metsä (10,83x) hangen.
+- **`market_cap` en `enterprise_value` voeden de waardering niet** — nagegaan in
+  `valuation.py` en `screener.py`. Vandaar dat dit geen valse koopsignalen kan
+  geven; de FV-plausibiliteitspoort (FACTOR >10) blijft het vangnet.
+- Uitkomst: 85 → 0 blokkades, 76 tickers kregen een oordeel, **nul** bestaande
+  signalen veranderden. Nieuwe koopkandidaten: CBE.PA, PUIG.MC, MBH3.F.
+- Herbeoordelen na zo'n wijziging gaat met `POST /api/refresh` met een
+  `tickers`-lijst — geen token nodig, en het wacht niet op de rotatie.
+
 ## Bekende valkuilen
 
 - **Dual-listings** — bv. EXOR.AS (primary = EXO.MI), ACOMO.BR (primary = ACOMO.AS). Yahoo levert voor de secundaire ticker vaak GEEN financials. Oplossing: mapping tabel óf primaire ticker gebruiken óf handmatige overrides.
