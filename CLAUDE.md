@@ -50,6 +50,39 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 | `exchange_rates` | FX rates (gebruik minimaal — alles native) |
 | `activity_log` | alle fetch/refresh/override events, JSON details |
 
+## Britse noteringen importeren (2026-08-22)
+
+**De bronlijst heet `Instrument list_81.xlsx`, niet `Instrument list.xlsx`.**
+Die tweede staat op dezelfde server, is de eerste treffer bij zoeken, en is
+bevroren op **31 augustus 2020**. De `_81`-versie is actueel (31 juli 2026) en
+staat achter de downloadknop op
+`londonstockexchange.com/reports?tab=instruments`. Ook `Issuer list.xlsx` is
+2020 en heeft bovendien geen tickerkolom.
+
+Het verschil is niet academisch: op de oude lijst loste **37%** van de tickers op
+bij Yahoo, op de actuele **96%**.
+
+- **Tabblad `1.1 Shares`.** Kolommen: TIDM, ISIN, ICB Industry, Country of
+  Incorporation, Trading Currency, Security Mkt Cap, LSE Market.
+- **Het `0XXX.L`-filter uit het onderzoek is niet genoeg.** Die lijnen staan
+  helemaal niet in dit tabblad, maar er staan wél buitenlandse tweede noteringen
+  onder gewone symbolen in: Toyota (`TYT.L`), Banco Santander (`BNC.L`),
+  TotalEnergies (`TTE.L`), BHP (`BHP.L`). Handelsvaluta scheidt ze niet — die
+  noteren gewoon in pence. **Land van oprichting** is het bruikbare signaal.
+  Aangehouden UK-sfeer: Verenigd Koninkrijk, Guernsey, Jersey, Isle of Man,
+  Britse Maagdeneilanden, Bermuda, Kaaimaneilanden, Ierland.
+- **Peil in groepen van hooguit 40.** `/api/stocks/probe` gebruikt één
+  bulk-download; bij 200 per keer geeft Yahoo stil niets terug en heet alles
+  "bestaat niet". Gemeten vals-negatief bij grote groepen: **23%**. Bij groepen
+  van 40 loste 96% op.
+- **Ontdubbelen op ISIN** via `GET /api/isins` — dat ving Coca-Cola Europacific
+  (stond al als `CCEP.AS`), Eutelsat, Glanbia en vijftien andere. De naam
+  verschilt net genoeg om daar niet op te kunnen matchen. Let op: nog niet elke
+  ticker in de database hééft een ISIN (1.518 van 2.812), dus de controle is
+  niet sluitend.
+- **Toevoegen in groepen van 250**, elke groep wachtend op zijn eigen
+  ophaalronde. Dat is het tempo dat `import_tickers.py` ook aanhoudt.
+
 ## Verversing op publicatievenster (2026-08-22)
 
 `get_refresh_queue()` koos op "langst niet geprobeerd". Gemeten: **97% van de
