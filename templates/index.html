@@ -84,7 +84,7 @@
 
 <!-- Filters — alleen zinvol op het tabblad "Alles" -->
 <div id="filterbalk" class="flex flex-wrap gap-3 mb-4 text-sm hidden">
-  <select id="filter-market" onchange="renderTable()"
+  <select id="filter-market" onchange="loadDashboard()"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alle markten</option>
   </select>
@@ -93,7 +93,7 @@
      BUY, …) staat nu in de balk boven de tabbladen en werkt daar op álle
      tabbladen; het hier nog eens aanbieden gaf twee filters over dezelfde
      kolom, die elkaar stilzwijgend konden uitsluiten. #}
-  <select id="filter-signal" onchange="renderTable()"
+  <select id="filter-signal" onchange="loadDashboard()"
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alles, ook zonder oordeel</option>
     <option value="reason:geen_data">Geen data</option>
@@ -105,15 +105,15 @@
   </select>
 
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
-    <input type="checkbox" id="filter-showall" onchange="renderTable()" class="rounded" checked />
+    <input type="checkbox" id="filter-showall" onchange="loadDashboard()" class="rounded" checked />
     <span>Toon alle (ook lage kwaliteit)</span>
   </label>
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
-    <input type="checkbox" id="filter-hidenodata" onchange="renderTable()" class="rounded" />
+    <input type="checkbox" id="filter-hidenodata" onchange="loadDashboard()" class="rounded" />
     <span>Verberg aandelen zonder data</span>
   </label>
   <label class="flex items-center gap-2 text-slate-400 cursor-pointer" title="Toon alleen tickers met data_status = bad of missing">
-    <input type="checkbox" id="filter-baddataonly" onchange="renderTable()" class="rounded" />
+    <input type="checkbox" id="filter-baddataonly" onchange="loadDashboard()" class="rounded" />
     <span>Alleen slechte data</span>
   </label>
   <button onclick="copyTickers()" id="btn-copy-tickers"
@@ -349,130 +349,77 @@ async function laadBezit() {
 // `market`. Dat veld is nooit genormaliseerd: dezelfde beurs staat er als "NL",
 // "Nederland" én "US" in, dus filteren daarop levert onvolledige lijsten op.
 // Het suffix komt rechtstreeks van Yahoo en is wél consistent.
-const LAND_PER_SUFFIX = {
-  AS: 'Nederland',      BR: 'België',        PA: 'Frankrijk',
-  MI: 'Italië',         LS: 'Portugal',      IR: 'Ierland',
-  DE: 'Duitsland',      F:  'Duitsland',     SW: 'Zwitserland',
-  VI: 'Oostenrijk',     MC: 'Spanje',        L:  'Verenigd Koninkrijk',
-  ST: 'Zweden',         OL: 'Noorwegen',     CO: 'Denemarken',
-  HE: 'Finland',        IC: 'IJsland',       WA: 'Polen',
-  TL: 'Estland',        RG: 'Letland',       VS: 'Litouwen',
-  PR: 'Tsjechië',       BD: 'Hongarije',     RO: 'Roemenië',
-  AT: 'Griekenland',    IS: 'Turkije',       TA: 'Israël',
-  AX: 'Australië',      TO: 'Canada',
-};
+// De landtabel stond hier als LAND_PER_SUFFIX, naast dezelfde tabel in
+// engine/markets.py. Sinds de server bepaalt welke rijen je krijgt, filtert en
+// telt hij ook op land — dus is deze kopie weg. Eén tabel, één plek.
 
-const LAND_KEY    = 'stockscreen.land';
-const SECTOR_KEY  = 'stockscreen.sector';
-const SIGNAAL_KEY = 'stockscreen.signaal';
-let _actiefLand    = localStorage.getItem(LAND_KEY) || '';
-let _actieveSector = localStorage.getItem(SECTOR_KEY) || '';
-let _actiefSignaal = localStorage.getItem(SIGNAAL_KEY) || '';
 
-// Rangorde van de signalen, voor sorteren. Alfabetisch geeft BUY, HOLD, SELL,
-// STRONG BUY — precies de verkeerde volgorde.
-const SIGNAAL_RANG = {
-  'STRONG BUY': 5, 'BUY': 4, 'HOLD': 3, 'SELL': 2,
-  'INSUFFICIENT DATA': 1, 'N/A': 0,
-};
-
-function landVan(ticker) {
-  if (!ticker.includes('.')) return 'Verenigde Staten';
-  return LAND_PER_SUFFIX[ticker.split('.').pop()] || 'Overig';
-}
-
-function sectorVan(r) {
-  return r.sector || 'Onbekend';
-}
-
-// Land eerst, want het sectorlijstje wordt binnen het gekozen land geteld: je
-// wilt zien welke sectoren er in Finland te vinden zijn, niet wereldwijd.
-function rijenNaLand() {
-  if (!_actiefLand) return _allRows;
-  return _allRows.filter(r => landVan(r.ticker) === _actiefLand);
-}
-
-// Signaal filteren gebeurt hier, dus vóór een tabblad zijn selectie maakt.
-// "Koopwaardig" op Kansen levert daardoor de twintig beste koopwaardige
-// aandelen, en niet de handvol die van de bestaande top twintig overblijft.
-function pastBijSignaal(r) {
-  if (!_actiefSignaal) return true;
-  if (_actiefSignaal === 'koop') return r.signal === 'STRONG BUY' || r.signal === 'BUY';
-  return r.signal === _actiefSignaal;
-}
-
-// Alle tabbladen kijken hierdoorheen, zodat "alleen Nederland" ook geldt voor
-// Kansen en Groeiers en niet alleen voor de grote tabel.
+// De server heeft al gefilterd op land, sector en signaal (engine/selectie.py),
+// dus wat hier binnenkomt ís de selectie. Deze functie blijft bestaan omdat een
+// stuk of tien plekken hem aanroepen; hij zegt nu alleen niets meer dan "de
+// rijen die je hebt".
 function zichtbareRijen() {
-  const rijen = rijenNaLand().filter(pastBijSignaal);
-  if (!_actieveSector) return rijen;
-  return rijen.filter(r => sectorVan(r) === _actieveSector);
+  return _allRows;
 }
 
+// De tellingen komen uit het samenvattingsblok van dezelfde aanvraag: die gaan
+// over het hele universum, niet over de rijen die je nu ziet. Zonder dat blok
+// zou "Alle landen (20)" op het tabblad Kansen komen te staan.
 function vulLandFilter() {
   const sel = document.getElementById('filter-land');
   if (!sel) return;
-  const telling = {};
-  _allRows.forEach(r => {
-    const land = landVan(r.ticker);
-    telling[land] = (telling[land] || 0) + 1;
-  });
-  const landen = Object.keys(telling).sort((a, b) => a.localeCompare(b, 'nl'));
+  const landen = (_samenvatting.landen || []).slice()
+    .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+  const namen = landen.map(l => l.naam);
   sel.innerHTML =
-    `<option value="">Alle landen (${_allRows.length})</option>` +
-    // Landnamen komen uit LAND_PER_SUFFIX hierboven, niet uit de data, dus er
-    // valt hier niets te ontsnappen.
-    landen.map(l => `<option value="${l}">${l} (${telling[l]})</option>`).join('');
-  sel.value = landen.includes(_actiefLand) ? _actiefLand : '';
+    `<option value="">Alle landen (${_samenvatting.totaal})</option>` +
+    // Landnamen komen uit engine/markets.py, niet uit de data, dus er valt hier
+    // niets te ontsnappen.
+    landen.map(l => `<option value="${l.naam}">${l.naam} (${l.aantal})</option>`).join('');
+  sel.value = namen.includes(_actiefLand) ? _actiefLand : '';
   if (sel.value !== _actiefLand) _actiefLand = sel.value;
 }
 
 function vulSectorFilter() {
   const sel = document.getElementById('filter-industrie');
   if (!sel) return;
-  const basis = rijenNaLand();
-  const telling = {};
-  basis.forEach(r => {
-    const s = sectorVan(r);
-    telling[s] = (telling[s] || 0) + 1;
-  });
-  const sectoren = Object.keys(telling).sort((a, b) => a.localeCompare(b, 'nl'));
+  const sectoren = (_samenvatting.sectoren || []).slice()
+    .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+  const namen = sectoren.map(x => x.naam);
   // Sectornamen komen uit de database (Yahoo), dus wél ontsnappen.
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   sel.innerHTML =
-    `<option value="">Alle sectoren (${basis.length})</option>` +
-    sectoren.map(s => `<option value="${esc(s)}">${esc(s)} (${telling[s]})</option>`).join('');
+    `<option value="">Alle sectoren (${_samenvatting.in_land})</option>` +
+    sectoren.map(x => `<option value="${esc(x.naam)}">${esc(x.naam)} (${x.aantal})</option>`).join('');
   // Een sector die in dit land niet voorkomt zou een lege lijst opleveren zonder
   // dat je ziet waarom; dan liever de sectorkeuze laten vallen.
-  sel.value = sectoren.includes(_actieveSector) ? _actieveSector : '';
+  sel.value = namen.includes(_actieveSector) ? _actieveSector : '';
   if (sel.value !== _actieveSector) {
     _actieveSector = sel.value;
     localStorage.setItem(SECTOR_KEY, _actieveSector);
   }
 }
 
+// Een filterwissel is nu een verzoek in plaats van browserwerk. Dat verzoek
+// raakt de database niet, dus het kost tientallen milliseconden — een stuk
+// minder dan de 2,9 MB die er eerst bij elke lading overheen ging.
 function kiesLand(waarde) {
   _actiefLand = waarde;
   localStorage.setItem(LAND_KEY, waarde);
-  vulSectorFilter();   // andere landen, andere sectoren
-  renderTabs();
-  renderActiveTab();
+  loadDashboard();
 }
 
 function kiesSector(waarde) {
   _actieveSector = waarde;
   localStorage.setItem(SECTOR_KEY, waarde);
-  renderTabs();
-  renderActiveTab();
+  loadDashboard();
 }
 
 function kiesSignaal(waarde) {
   _actiefSignaal = waarde;
   localStorage.setItem(SIGNAAL_KEY, waarde);
-  vulSectorFilter();   // andere selectie, andere sectortellingen
-  renderTabs();
-  renderActiveTab();
+  loadDashboard();
 }
 
 // Zichtbaar maken dát er gefilterd is; anders leest een korte lijst als
@@ -496,12 +443,14 @@ function wisFilters() {
   localStorage.setItem(SIGNAAL_KEY, '');
   const sel = document.getElementById('filter-signaal');
   if (sel) sel.value = '';
-  vulLandFilter();
-  vulSectorFilter();
-  renderTabs();
-  renderActiveTab();
+  loadDashboard();
 }
 
+// Wat een tabblad is — welke rijen, in welke volgorde — staat sinds 2026-08-22
+// in engine/selectie.py. Hier blijft alleen de presentatie: het label, de
+// uitleg boven de tabel en de kolommen. Zet de filters hier niet terug: twee
+// plekken die hetzelfde beweren gaan uit de pas lopen, en dan toont het
+// dashboard iets anders dan de server bedoelde.
 const TABS = [
   {
     id: 'kansen', label: '⭐ Kansen',
@@ -509,10 +458,6 @@ const TABS = [
       + 'gewogen op kwaliteit en betrouwbaarheid. Let op: het model rekent met '
       + 'de eigen historische waardering — kwaliteit die structureel duurder is '
       + 'geworden belandt hier zelden. Zie 💎 Kwaliteit.',
-    select: rows => rows
-      .filter(r => r.rank_score !== null && r.rank_score !== undefined)
-      .sort((a, b) => b.rank_score - a.rank_score)
-      .slice(0, 20),
   },
   {
     // De keerzijde van Kansen. Het waarderingsmodel ankert voor 65% op de eigen
@@ -525,12 +470,6 @@ const TABS = [
       + 'onderschat juist deze categorie structureel — een lage korting hier '
       + 'zegt weinig. Banken en verzekeraars ontbreken: de kwaliteitsscore is '
       + 'daar niet op berekend.',
-    select: rows => rows
-      .filter(r => (r.quality_score || 0) >= 8.5
-        && ['ok', 'warning'].includes(r.data_status)
-        && r.sector !== 'Financial Services')
-      .sort((a, b) => (b.quality_score - a.quality_score)
-        || ((b.margin_of_safety ?? -999) - (a.margin_of_safety ?? -999))),
   },
   {
     // Besluit Janco 2026-08-08 (A2): de kwaliteitspoort op het koopsignaal
@@ -544,21 +483,10 @@ const TABS = [
       + 'en een betrouwbare waardering. Deze aandelen halen het koopsignaal '
       + 'bewust niet — dit is grondstof voor tussenchecks, geen kooplijst. '
       + 'Goedkoop is hier vaak goedkoop met een reden.',
-    select: rows => rows
-      .filter(r => (r.quality_score ?? -1) >= 5 && (r.quality_score ?? -1) < 7
-        && r.price_vs_fv_pct !== null && r.price_vs_fv_pct !== undefined
-        && r.price_vs_fv_pct <= 70
-        && r.fv_confidence === 'high'
-        && ['ok', 'warning'].includes(r.data_status)
-        && r.sector !== 'Financial Services')
-      .sort((a, b) => (b.margin_of_safety ?? -999) - (a.margin_of_safety ?? -999)),
   },
   {
     id: 'groeiers', label: '🌱 Groeiers',
     uitleg: 'Bedrijven die verlies maken maar hard groeien. Hiervoor is geen fair value te berekenen — dit is een lijst om zelf naar te kijken, geen oordeel.',
-    select: rows => rows
-      .filter(r => r.is_growth_lossmaker)
-      .sort((a, b) => (b.revenue_cagr || 0) - (a.revenue_cagr || 0)),
   },
   {
     // Het sluitstuk van de pijplijn: tussencheck, analyse, gekocht — en dan?
@@ -574,24 +502,14 @@ const TABS = [
   {
     id: 'pins', label: '📌 Mijn lijst',
     uitleg: 'De aandelen die je zelf hebt gemarkeerd met een ster.',
-    select: rows => {
-      const pins = getPins();
-      return rows.filter(r => pins.includes(r.ticker))
-                 .sort((a, b) => (b.rank_score || 0) - (a.rank_score || 0));
-    },
   },
   {
     id: 'alles', label: '📋 Alles',
     uitleg: '',
-    select: rows => rows,
   },
   {
     id: 'geenoordeel', label: '❓ Geen oordeel',
     uitleg: 'Aandelen waarover de screener niets kan zeggen, met de reden erbij. Hier zie je wat je níet ziet.',
-    select: rows => rows
-      .filter(r => r.signal === 'INSUFFICIENT DATA')
-      .sort((a, b) => (a.reason_label || '').localeCompare(b.reason_label || '') ||
-                      a.ticker.localeCompare(b.ticker)),
   },
 ];
 
@@ -618,8 +536,9 @@ function kiesTab(id) {
   // Elk tabblad heeft zijn eigen natuurlijke volgorde; een sortering die je op
   // Kansen koos hoort niet mee te reizen naar Groeiers.
   _focusSortCol = null;
-  renderTabs();
-  renderActiveTab();
+  renderTabs();          // meteen zichtbaar dat je geklikt hebt
+  if (id === 'bezit') { renderActiveTab(); return; }   // eigen bron, eigen ophaling
+  loadDashboard();
 }
 
 function renderActiveTab() {
@@ -1124,7 +1043,9 @@ if (_focusHead) {
 }
 
 function renderFocus(tab) {
-  const rows = sorteerFocus(tab.select(zichtbareRijen()));
+  // De selectie en de natuurlijke volgorde komen van de server; `sorteerFocus`
+  // doet alleen nog iets als je zelf op een kolomkop hebt geklikt.
+  const rows = sorteerFocus(_allRows.slice());
   const head = document.getElementById('focus-head');
   const body = document.getElementById('focus-body');
 
@@ -1224,8 +1145,8 @@ function renderFocus(tab) {
   }).join('');
 
   const totaal = actieveFilterTekst()
-    ? `${zichtbareRijen().length} ${actieveFilterTekst()} · ${_allRows.length} in totaal`
-    : `${_allRows.length} in totaal`;
+    ? `${_totaalInWeergave} ${actieveFilterTekst()} · ${_samenvatting.totaal} in totaal`
+    : `${_samenvatting.totaal} in totaal`;
 
   // Bij een eigen sortering op Kansen: zeggen dat de selectie niet meeverandert.
   // Anders lijkt "gesorteerd op korting" hetzelfde als "de hoogste kortingen",
@@ -1237,21 +1158,60 @@ function renderFocus(tab) {
     `${rows.length} aandelen · van ${totaal}${sorteernoot}`;
 }
 
+// _allRows houdt sinds 2026-08-22 alleen de rijen van de weergave waar je naar
+// kijkt, niet meer alle 2.812. De server kiest ze (engine/selectie.py); dat
+// scheelt 2,9 MB per lading en het schaalt niet meer mee met het universum.
 let _allRows = [];
+let _samenvatting = { totaal: 0, in_land: 0, landen: [], sectoren: [], markten: [] };
+let _afgekapt = false;
+let _totaalInWeergave = 0;
 let _visibleRows = [];
 let _sortCol = 'margin_of_safety';
 let _sortDir = -1;   // -1 = desc, 1 = asc
 let _lastBulkAdded = [];    // tickers die net via bulk zijn toegevoegd
 let _lastBulkSkipped = [];  // tickers die al aanwezig waren
 
-// ---- Load data on page load ------------------------------------------------
+// ---- Ophalen wat deze weergave nodig heeft ---------------------------------
+//
+// Eén verzoek per tabblad of filterwissel, in plaats van één keer alles en dan
+// in de browser zeven. Dat verzoek raakt de database niet — de server filtert
+// over de rijen die de cache al in het geheugen heeft — dus het kost enkele
+// tientallen milliseconden tegenover de megabytes die er eerst overheen gingen.
+
+function weergaveParams() {
+  const p = new URLSearchParams({ tab: _actieveTab });
+  if (_actiefLand)    p.set('land', _actiefLand);
+  if (_actieveSector) p.set('sector', _actieveSector);
+  if (_actiefSignaal) p.set('signaal', _actiefSignaal);
+  if (_actieveTab === 'pins') p.set('tickers', getPins().join(','));
+  if (_actieveTab === 'alles') {
+    // Sorteren hoort bij het verzoek zodra de lijst afgekapt kan worden: eerst
+    // afkappen en dan sorteren zou de bovenste rijen uit een willekeurige greep
+    // halen in plaats van uit het geheel.
+    p.set('sorteer', _sortCol);
+    p.set('richting', String(_sortDir));
+    const v = id => document.getElementById(id);
+    if (v('filter-market') && v('filter-market').value) p.set('markt', v('filter-market').value);
+    const sig = v('filter-signal') ? v('filter-signal').value : '';
+    if (sig.startsWith('reason:')) p.set('reden', sig.slice(7));
+    if (v('filter-showall')      && v('filter-showall').checked)      p.set('toon_alles', '1');
+    if (v('filter-hidenodata')   && v('filter-hidenodata').checked)   p.set('verberg_geen_data', '1');
+    if (v('filter-baddataonly')  && v('filter-baddataonly').checked)  p.set('alleen_slechte_data', '1');
+  }
+  return p;
+}
+
 async function loadDashboard() {
   try {
-    const url = '/api/dashboard?_=' + Date.now();
+    const url = '/api/dashboard/selectie?' + weergaveParams().toString();
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('Server fout: ' + res.status + ' ' + res.statusText);
-    _allRows = await res.json();
-    console.log('[Dashboard] ontvangen:', _allRows.length, 'rows');
+    const uitslag = await res.json();
+    _allRows = uitslag.rijen || [];
+    _samenvatting = uitslag.samenvatting || _samenvatting;
+    _afgekapt = !!uitslag.afgekapt;
+    _totaalInWeergave = uitslag.totaal || _allRows.length;
+    console.log('[Dashboard]', _allRows.length, 'van', _totaalInWeergave, 'rijen voor', _actieveTab);
     herstelSignaalFilter();
     vulLandFilter();
     vulSectorFilter();
@@ -1279,38 +1239,16 @@ function herstelSignaalFilter() {
 function populateMarketFilter() {
   const sel = document.getElementById('filter-market');
   const current = sel.value;
-  const markets = [...new Set(_allRows.map(r => r.market).filter(Boolean))].sort();
+  const markets = (_samenvatting.markten || []).slice();
   sel.innerHTML = '<option value="">Alle markten</option>' +
     markets.map(m => `<option${m === current ? ' selected' : ''}>${m}</option>`).join('');
 }
 
 function renderTable() {
-  const mktFilter    = document.getElementById('filter-market').value;
-  const sigFilter    = document.getElementById('filter-signal').value;
-  const showAll      = document.getElementById('filter-showall').checked;
-  const hideNoData   = document.getElementById('filter-hidenodata').checked;
-
-  const badDataOnly  = document.getElementById('filter-baddataonly').checked;
-
-  let rows = zichtbareRijen().filter(r => {
-    if (mktFilter && r.market !== mktFilter) return false;
-    if (sigFilter) {
-      if (sigFilter === 'reason:growth') {
-        if (!r.is_growth_lossmaker) return false;
-      } else if (sigFilter.startsWith('reason:')) {
-        if (r.reason_code !== sigFilter.slice(7)) return false;
-      } else if (r.signal !== sigFilter) {
-        return false;
-      }
-    }
-    if (hideNoData && r.signal === 'INSUFFICIENT DATA') return false;
-    if (badDataOnly && r.data_status !== 'bad' && r.data_status !== 'missing') return false;
-    if (!showAll && r.low_quality) return false;
-    return true;
-  });
-
-  // Sort — dezelfde vergelijking als de tabbladen, zodat "Signaal" ook hier op
-  // sterkte sorteert en lege waarden onderaan blijven.
+  // Markt, reden en de drie vinkjes zitten sinds 2026-08-22 in het verzoek
+  // (zie weergaveParams); wat hier binnenkomt is dus al gefilterd. Sorteren
+  // blijft wel hier: dat is een kolomklik en geen nieuwe selectie.
+  let rows = _allRows.slice();
   rows.sort((a, b) => vergelijk(a, b, _sortCol, _sortDir));
 
   // De strook telt "hoeveel van deze lijst zijn onderzocht"; over duizenden
@@ -1335,9 +1273,14 @@ function renderTable() {
   }
   _visibleRows = rows;
   tbody.innerHTML = htmlParts.join('');
+  // Afkappen wordt altijd genoemd. Een lijst die stilzwijgend stopt leest als
+  // "dit is alles", en dan trek je conclusies uit een greep.
+  const kap = _afgekapt
+    ? ` — eerste ${rows.length} getoond, verfijn met de filters om de rest te zien`
+    : '';
   document.getElementById('row-count').textContent = actieveFilterTekst()
-    ? `${rows.length} van ${zichtbareRijen().length} aandelen ${actieveFilterTekst()} weergegeven`
-    : `${rows.length} van ${_allRows.length} aandelen weergegeven`;
+    ? `${rows.length} van ${_totaalInWeergave} aandelen ${actieveFilterTekst()}${kap}`
+    : `${rows.length} van ${_samenvatting.totaal} aandelen weergegeven${kap}`;
 
   updateSortIndicators();
 }
@@ -1643,7 +1586,7 @@ document.querySelectorAll('#alles-view .sortable').forEach(th => {
       _sortCol = col;
       _sortDir = (col === 'margin_of_safety' || col === 'signal') ? -1 : 1;
     }
-    renderTable();
+    loadDashboard();   // de server sorteert, want de lijst kan afgekapt zijn
   });
 });
 
@@ -1679,8 +1622,9 @@ async function addTicker() {
 async function deleteTicker(ticker) {
   if (!confirm(`${ticker} verwijderen van watchlist?`)) return;
   await fetch('/api/stocks/' + ticker, { method: 'DELETE' });
-  _allRows = _allRows.filter(r => r.ticker !== ticker);
-  renderTable();
+  // Opnieuw ophalen in plaats van uit de lijst filteren: die lijst is nu maar
+  // één weergave, en de tellingen erboven kloppen anders niet meer.
+  loadDashboard();
 }
 
 // ---- Bulk add --------------------------------------------------------------
@@ -1726,12 +1670,22 @@ function onRefreshDone(job) {
   });
 }
 
-function showBulkReport() {
+async function showBulkReport() {
   const addedSet = new Set(_lastBulkAdded);
-  const withData  = _allRows.filter(r => addedSet.has(r.ticker) && r.signal !== 'INSUFFICIENT DATA');
-  const noData    = _allRows.filter(r => addedSet.has(r.ticker) && r.signal === 'INSUFFICIENT DATA');
-  // Tickers that were added but not yet in _allRows (shouldn't happen, but be safe)
-  const inRows    = new Set(_allRows.map(r => r.ticker));
+  // De dashboardlijst bevat alleen nog het actieve tabblad, dus de zojuist
+  // toegevoegde tickers staan er meestal niet in. Ze worden hier apart
+  // opgevraagd — precies deze tickers, niets meer.
+  let rijen = [];
+  try {
+    const res = await fetch('/api/dashboard/selectie?tab=pins&tickers='
+      + encodeURIComponent(_lastBulkAdded.join(',')));
+    rijen = (await res.json()).rijen || [];
+  } catch (e) {
+    console.error('bulkrapport ophalen mislukt:', e);
+  }
+  const withData  = rijen.filter(r => addedSet.has(r.ticker) && r.signal !== 'INSUFFICIENT DATA');
+  const noData    = rijen.filter(r => addedSet.has(r.ticker) && r.signal === 'INSUFFICIENT DATA');
+  const inRows    = new Set(rijen.map(r => r.ticker));
   const missing   = _lastBulkAdded.filter(t => !inRows.has(t));
 
   let html = `<p class="text-sm text-slate-400">${_lastBulkAdded.length} tikkers verwerkt` +

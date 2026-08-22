@@ -185,15 +185,16 @@ async function loadTriage() {
   // naast elkaar leggen van meldingen juist het werk, dus hier halen we ze er
   // apart bij, en alleen voor wat niet in orde is.
   const [dashRes, suspRes, issueRes] = await Promise.all([
-    fetch('/api/dashboard'),
+    fetch('/api/dashboard/selectie?tab=geenoordeel'),
     fetch('/api/stocks/suspended'),
     fetch('/api/data-issues'),
   ]);
-  const rows = await dashRes.json();
+  const rows = (await dashRes.json()).rijen || [];
   const susp = await suspRes.json();
   const meldingen = await issueRes.json().catch(() => ({}));
-  allRows = rows.filter(r => r.signal === 'INSUFFICIENT DATA')
-                .map(r => ({ ...r, data_issues: meldingen[r.ticker] || [] }));
+  // De server levert al precies de tickers zonder oordeel (tab=geenoordeel),
+  // dus hier alleen nog de meldingsteksten eraan hangen.
+  allRows = rows.map(r => ({ ...r, data_issues: meldingen[r.ticker] || [] }));
   renderCounts();
   renderTable();
   renderSuspended(susp);

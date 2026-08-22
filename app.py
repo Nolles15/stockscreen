@@ -24,6 +24,7 @@ from engine import db
 from engine import data_quality
 from engine import besluiten as besluiten_mod
 from engine import cache
+from engine import selectie
 from engine import dubbelingen
 from engine import exit_regels
 from engine import markets
@@ -563,8 +564,61 @@ def tussencheck_detail(ticker):
 
 @app.route("/api/dashboard")
 def api_dashboard():
-    """Return alle aandelen met scores en marktdata. Filtering gebeurt client-side."""
+    """Alle aandelen met scores en marktdata, als platte lijst.
+
+    Blijft bestaan omdat vijf scripts hem zo lezen (`import_tickers.py`,
+    `scripts/calibrate_report.py`, `check_noteringen.py`, `scorebord.py`,
+    `triage_cli.py`). Het dashboard zelf gebruikt hem niet meer — dat haalt via
+    `/api/dashboard/selectie` alleen de rijen op die het toont.
+    """
     return jsonify(_sanitize(_dashboard_rows(load_config())))
+
+
+@app.route("/api/dashboard/selectie")
+def api_dashboard_selectie():
+    """De rijen voor één weergave, plus wat de keuzelijsten nodig hebben.
+
+    Waarom niet gewoon alles sturen en in de browser filteren, zoals eerst: bij
+    2.812 rijen was dat 2,9 MB per lading, en het schaalt recht evenredig mee.
+    Nu krijg je waar je naar kijkt — het tabblad Kansen is 20 rijen.
+
+    Dit kost geen databaseverkeer: er wordt gefilterd over de rijen die de cache
+    al in het geheugen heeft (zie engine/cache.py). Wat het bespaart is de lading
+    naar de browser en het tekenwerk daar.
+    """
+    cfg = load_config()
+    tickers = [t for t in (request.args.get("tickers") or "").split(",") if t]
+    extra = {
+        "markt":               request.args.get("markt") or "",
+        "reden":               request.args.get("reden") or "",
+        "toon_alles":          request.args.get("toon_alles") == "1",
+        "verberg_geen_data":   request.args.get("verberg_geen_data") == "1",
+        "alleen_slechte_data": request.args.get("alleen_slechte_data") == "1",
+    }
+    uitslag = selectie.selecteer(
+        _dashboard_rows(cfg),
+        tab=request.args.get("tab") or "kansen",
+        land=request.args.get("land") or "",
+        sector=request.args.get("sector") or "",
+        signaal=request.args.get("signaal") or "",
+        tickers=tickers,
+        extra=extra,
+        sorteer_op=request.args.get("sorteer") or "",
+        richting=-1 if (request.args.get("richting") or "-1") == "-1" else 1,
+    )
+    uitslag["rijen"] = _sanitize(uitslag["rijen"])
+    return jsonify(uitslag)
+
+
+@app.route("/api/tickers")
+def api_tickers():
+    """Alleen ticker en naam — genoeg voor een keuzelijst.
+
+    De methodepagina trok hier de volledige dashboardlading voor op, om er een
+    <datalist> mee te vullen. Dat is 2,9 MB voor twee velden.
+    """
+    rijen = cache.dashboard.haal(db.get_dashboard_data)
+    return jsonify([{"ticker": r["ticker"], "name": r.get("name")} for r in rijen])
 
 
 def _dashboard_rij(cfg: dict, ticker: str) -> dict | None:

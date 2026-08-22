@@ -41,6 +41,33 @@ SUFFIX_INFO: dict[str, tuple[str, str]] = {
 }
 
 
+# Landcode → Nederlandse naam. Stond eerder alleen in `templates/index.html`
+# als `LAND_PER_SUFFIX`, met de namen eraan vastgeplakt. Sinds de server bepaalt
+# welke rijen je krijgt, moet hij die namen ook kennen — en dan hoort de tabel
+# hier, naast de suffixen, in plaats van twee keer te bestaan.
+LAND_NAAM: dict[str, str] = {
+    "NL": "Nederland",   "BE": "België",      "FR": "Frankrijk",
+    "IT": "Italië",     "PT": "Portugal",     "IE": "Ierland",
+    "DE": "Duitsland",   "CH": "Zwitserland",  "AT": "Oostenrijk",
+    "ES": "Spanje",      "UK": "Verenigd Koninkrijk",
+    "SE": "Zweden",      "NO": "Noorwegen",    "DK": "Denemarken",
+    "FI": "Finland",     "IS": "IJsland",      "PL": "Polen",
+    "EE": "Estland",     "LV": "Letland",      "LT": "Litouwen",
+    "CZ": "Tsjechië",   "HU": "Hongarije",    "RO": "Roemenië",
+    "GR": "Griekenland", "TR": "Turkije",      "IL": "Israël",
+    "AU": "Australië",  "CA": "Canada",       "US": "Verenigde Staten",
+}
+
+
+def land_naam(ticker: str) -> str:
+    """De Nederlandse landnaam bij een ticker.
+
+    Een onbekend suffix wordt "Overig" — zichtbaar als groep, zodat een nieuwe
+    beurs opvalt in plaats van stilletjes ergens tussen te vallen.
+    """
+    return LAND_NAAM.get(land_van(ticker), "Overig")
+
+
 def land_van(ticker: str) -> str:
     """
     Landcode bij een ticker.

@@ -450,7 +450,7 @@ function render() {
 
 async function vulTickerlijst() {
   try {
-    const res = await fetch('/api/dashboard');
+    const res = await fetch('/api/tickers');   // alleen ticker en naam, geen 2,9 MB
     const rows = await res.json();
     document.getElementById('ticker-lijst').innerHTML = rows
       .map(r => `<option value="${esc(r.ticker)}">${esc(r.name || '')}</option>`).join('');
