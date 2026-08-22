@@ -621,6 +621,20 @@ def api_tickers():
     return jsonify([{"ticker": r["ticker"], "name": r.get("name")} for r in rijen])
 
 
+@app.route("/api/isins")
+def api_isins():
+    """Ticker en ISIN van alles wat we volgen.
+
+    Twee noteringen van hetzelfde bedrijf delen hun ISIN. Bij het importeren van
+    een nieuwe beurs is dat de enige betrouwbare manier om te zien dat een
+    bedrijf er al in zit onder een ander symbool - de naam verschilt vaak net.
+    Zonder deze controle levert een import dubbele regels op, en die geven een
+    vals koopsignaal zodra de twee noteringen uiteenlopen.
+    """
+    return jsonify({r["ticker"]: r.get("isin")
+                    for r in db.get_all_stocks() if r.get("isin")})
+
+
 def _dashboard_rij(cfg: dict, ticker: str) -> dict | None:
     """Eén verrijkte dashboardrij, zonder de hele tabel op te halen.
 
