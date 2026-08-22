@@ -164,8 +164,9 @@ function bouwPoort(t) {
               : '<p class="text-xs text-slate-500 mt-2">Geen bijzonderheden gemeld.</p>'}
      <p class="text-xs text-slate-400 mt-3">Bij status <span class="font-mono">bad</span> of
        <span class="font-mono">missing</span> stopt de berekening. Het dashboard toont dan
-       één van drie redenen: geen data, een databug, of geen waardering mogelijk wegens
-       structureel verlies.</p>
+       de reden: geen data, verouderde cijfers, een eenheidsfout, negatieve omzet
+       (holding), of geen waardering mogelijk wegens structureel verlies. Die laatste
+       twee zijn geen storing maar een grens van het model.</p>
      ${bron('engine/data_quality.py', 'evaluate() / classify_signal_reason()')}`);
 }
 

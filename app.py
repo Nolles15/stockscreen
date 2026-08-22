@@ -2958,10 +2958,14 @@ def api_health():
             data_quality._REASON_LABELS.get(k, "ONBEKEND"): v
             for k, v in sorted(per_reden.items(), key=lambda kv: -kv[1])
         },
-        # Verlieslatende bedrijven zijn een grens van het model, geen storing.
-        # Apart benoemd zodat je kunt zien wat er echt aandacht vraagt.
-        "geen_oordeel_verklaarbaar": per_reden.get("geen_fv", 0),
-        "geen_oordeel_probleem":     no_verdict - per_reden.get("geen_fv", 0),
+        # Twee soorten bedrijven vallen buiten het model zonder dat er iets kapot
+        # is: verlieslatende (geen kasstroom om te waarderen) en holdings met
+        # negatieve omzet. Apart benoemd, zodat het getal dat overblijft
+        # werkelijk gaat over data die niet klopt.
+        "geen_oordeel_verklaarbaar": (per_reden.get("geen_fv", 0)
+                                      + per_reden.get("negatieve_omzet", 0)),
+        "geen_oordeel_probleem":     (no_verdict - per_reden.get("geen_fv", 0)
+                                      - per_reden.get("negatieve_omzet", 0)),
         "storm_last_7d":             storms,
         # Een tick hoort elk kwartier te komen; een half uur stilte betekent dat
         # de thread is omgevallen.

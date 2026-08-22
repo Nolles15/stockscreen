@@ -544,17 +544,26 @@ def classify_blockers(issues: list[str] | None, data_status: str | None) -> dict
 # blijft `databug` (dat is een sleutel, geen tekst voor de lezer).
 # ---------------------------------------------------------------------------
 
+# Gemeten op 21 augustus 2026: van de 176 tickers met het label "FACTOR >10"
+# hadden er 19 werkelijk zo'n afwijking. De andere 157 waren 79 eenheidsfouten
+# en 70 holdings met negatieve omzet — drie verschillende problemen onder één
+# noemer, waarvan er één (negatieve omzet) helemaal geen fout is maar een
+# bedrijfstype dat het model niet aankan, net als de verlieslatende bedrijven.
 _REASON_LABELS = {
-    "geen_data":  "GEEN DATA",
-    "databug":    "FACTOR >10",
-    "geen_fv":    "GEEN FV (VERLIES)",
-    "verouderd":  "CIJFERS VEROUDERD",
+    "geen_data":       "GEEN DATA",
+    "eenheidsfout":    "EENHEIDSFOUT",
+    "negatieve_omzet": "NEGATIEVE OMZET",
+    "databug":         "FACTOR >10",
+    "geen_fv":         "GEEN FV (VERLIES)",
+    "verouderd":       "CIJFERS VEROUDERD",
 }
 _REASON_COLORS = {
-    "geen_data":  "slate",
-    "databug":    "purple",
-    "geen_fv":    "amber",
-    "verouderd":  "orange",
+    "geen_data":       "slate",
+    "eenheidsfout":    "purple",
+    "negatieve_omzet": "amber",
+    "databug":         "purple",
+    "geen_fv":         "amber",
+    "verouderd":       "orange",
 }
 
 # primary_blocker (uit classify_blockers) → reden-bucket
@@ -565,8 +574,8 @@ _BLOCKER_TO_REASON = {
     "no_price":             "geen_data",
     "low_completeness":     "geen_data",
     "verouderde_cijfers":   "verouderd",
-    "unit_mismatch_severe": "databug",
-    "negative_revenue":     "databug",
+    "unit_mismatch_severe": "eenheidsfout",
+    "negative_revenue":     "negatieve_omzet",
     "negative_equity":      "geen_fv",   # insolvent = verlies-gedreven
 }
 

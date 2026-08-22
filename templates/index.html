@@ -97,6 +97,8 @@
     class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none">
     <option value="">Alles, ook zonder oordeel</option>
     <option value="reason:geen_data">Geen data</option>
+    <option value="reason:eenheidsfout">Eenheidsfout</option>
+    <option value="reason:negatieve_omzet">Negatieve omzet (holding)</option>
     <option value="reason:databug">Factor &gt;10</option>
     <option value="reason:geen_fv">Geen FV (verlies)</option>
     <option value="reason:growth">🌱 Kansen (verlies + groei)</option>
@@ -247,11 +249,12 @@ document.addEventListener('health-loaded', (e) => {
     `${h.active} aandelen gevolgd`,
     `${h.assessed} beoordeeld`,
   ];
-  // "713 zonder oordeel" leest als 713 storingen, terwijl de helft
-  // verlieslatende bedrijven zijn — geen fair value te berekenen, een bekende
-  // grens van het model en geen defect. Die twee dus uit elkaar houden.
+  // "713 zonder oordeel" leest als 713 storingen, terwijl het merendeel
+  // bedrijven zijn die het model per definitie niet kan waarderen: verlieslatend
+  // (geen kasstroom) of een holding met negatieve omzet. Een bekende grens, geen
+  // defect. Die dus apart houden van wat er werkelijk mis is.
   if (h.geen_oordeel_verklaarbaar) {
-    delen.push(`${h.geen_oordeel_verklaarbaar} verlieslatend (geen waardering mogelijk)`);
+    delen.push(`${h.geen_oordeel_verklaarbaar} buiten het model (verlies of holding)`);
   }
   if (h.geen_oordeel_probleem) {
     delen.push(`${h.geen_oordeel_probleem} zonder oordeel`);
@@ -1395,6 +1398,25 @@ function reasonTooltip(r) {
     return 'GEEN DATA — de bron leverde geen bruikbare cijfers.\n'
       + 'Dit is een databron-probleem, geen oordeel over het bedrijf.'
       + (issues ? '\n\n' + issues : '');
+  }
+  if (code === 'eenheidsfout') {
+    const issues = (r.data_issues || []).slice(0, 4).map(x => '• ' + x).join('
+');
+    return 'EENHEIDSFOUT — de cijfers staan in een andere eenheid dan de koers.
+'
+      + 'Denk aan pence tegen ponden, of een dual-listing in een andere valuta.
+'
+      + 'De data zelf is er wel; hij is alleen verkeerd geschaald.'
+      + (issues ? '
+
+' + issues : '');
+  }
+  if (code === 'negatieve_omzet') {
+    return 'NEGATIEVE OMZET — meestal een holding of investeringsmaatschappij, '
+      + 'waar de opbrengst uit deelnemingen komt en negatief kan uitvallen.
+'
+      + 'Geen fout in de data, maar een bedrijfstype dat dit model niet aankan. '
+      + 'Beoordeel zo’n bedrijf op de intrinsieke waarde, niet op kasstroom.';
   }
   if (code === 'databug') {
     const issues = (r.warnings || []).slice(0, 4).map(x => '• ' + x).join('\n');
