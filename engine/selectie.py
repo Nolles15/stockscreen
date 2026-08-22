@@ -262,6 +262,12 @@ def selecteer(alle: list[Rij], tab: str = "kansen", land: str = "",
     if sector:
         rijen = [r for r in rijen if _sector(r) == sector]
 
+    # Hoeveel er in de gekozen filters zitten, vóór het tabblad zijn greep doet.
+    # Dat is het middelste getal onder de tabel: "20 aandelen · van 406 in Polen
+    # · 2812 in totaal". Meten ná het tabblad zou daar "van 20" van maken, en
+    # dan zegt het niets meer.
+    in_selectie = len(rijen)
+
     if tab == "pins":
         gekozen = set(tickers or [])
         rijen = [r for r in rijen if r.get("ticker") in gekozen]
@@ -279,6 +285,7 @@ def selecteer(alle: list[Rij], tab: str = "kansen", land: str = "",
     return {
         "rijen": rijen[:LIJST_MAX] if afgekapt else rijen,
         "totaal": totaal,
+        "in_selectie": in_selectie,
         "afgekapt": afgekapt,
         "samenvatting": samenvatting(alle, land),
     }

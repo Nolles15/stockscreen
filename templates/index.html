@@ -1160,7 +1160,7 @@ function renderFocus(tab) {
   }).join('');
 
   const totaal = actieveFilterTekst()
-    ? `${_totaalInWeergave} ${actieveFilterTekst()} · ${_samenvatting.totaal} in totaal`
+    ? `${_inSelectie} ${actieveFilterTekst()} · ${_samenvatting.totaal} in totaal`
     : `${_samenvatting.totaal} in totaal`;
 
   // Bij een eigen sortering op Kansen: zeggen dat de selectie niet meeverandert.
@@ -1180,6 +1180,7 @@ let _allRows = [];
 let _samenvatting = { totaal: 0, in_land: 0, landen: [], sectoren: [], markten: [] };
 let _afgekapt = false;
 let _totaalInWeergave = 0;
+let _inSelectie = 0;        // hoeveel er in de gekozen filters zitten, vóór het tabblad
 let _visibleRows = [];
 let _sortCol = 'margin_of_safety';
 let _sortDir = -1;   // -1 = desc, 1 = asc
@@ -1226,6 +1227,7 @@ async function loadDashboard() {
     _samenvatting = uitslag.samenvatting || _samenvatting;
     _afgekapt = !!uitslag.afgekapt;
     _totaalInWeergave = uitslag.totaal || _allRows.length;
+    _inSelectie = uitslag.in_selectie != null ? uitslag.in_selectie : _totaalInWeergave;
     console.log('[Dashboard]', _allRows.length, 'van', _totaalInWeergave, 'rijen voor', _actieveTab);
     herstelSignaalFilter();
     vulLandFilter();
@@ -1294,7 +1296,7 @@ function renderTable() {
     ? ` — eerste ${rows.length} getoond, verfijn met de filters om de rest te zien`
     : '';
   document.getElementById('row-count').textContent = actieveFilterTekst()
-    ? `${rows.length} van ${_totaalInWeergave} aandelen ${actieveFilterTekst()}${kap}`
+    ? `${rows.length} van ${_inSelectie} aandelen ${actieveFilterTekst()}${kap}`
     : `${rows.length} van ${_samenvatting.totaal} aandelen weergegeven${kap}`;
 
   updateSortIndicators();

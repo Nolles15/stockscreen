@@ -162,6 +162,23 @@ fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] sector wordt binnen het land geteld "
       f"({s2['in_land']}), land over alles ({s2['totaal']})")
 
+# --- Het middelste getal onder de tabel --------------------------------------
+#
+# "20 aandelen . van 406 in Polen . 2812 in totaal". Dat middelste getal telt de
+# selectie voor het tabblad zijn greep doet; erna gemeten zou er "van 20" staan
+# en dan zegt het niets.
+
+u = selectie.selecteer(UNIVERSUM, tab="kansen", land="Nederland")
+ok = u["in_selectie"] == 10 and len(u["rijen"]) <= 10
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] in_selectie telt voor het tabblad: {u['in_selectie']}")
+
+u = selectie.selecteer(UNIVERSUM, tab="kansen")
+ok = u["in_selectie"] == len(UNIVERSUM)
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] zonder filters is dat het hele universum: {u['in_selectie']}")
+
+
 # --- Mijn lijst krijgt zijn tickers van de browser ---------------------------
 
 k = tickers(selectie.selecteer(UNIVERSUM, tab="pins", tickers=["KWAL.AS", "TOP.AS"]))
