@@ -50,6 +50,42 @@ Sector-multiples en groei-aannames: [config.yaml](config.yaml) sectie `sectors`.
 | `exchange_rates` | FX rates (gebruik minimaal — alles native) |
 | `activity_log` | alle fetch/refresh/override events, JSON details |
 
+## De server kiest de rijen (2026-08-22)
+
+Het dashboard vraagt om één weergave via `GET /api/dashboard/selectie` en krijgt
+alleen die rijen. Wat een tabblad is — welk filter, welke volgorde — staat in
+[engine/selectie.py](engine/selectie.py), niet meer in de browser.
+
+| tabblad | rijen | lading |
+|---|---:|---:|
+| Kansen | 20 | **28 kB** (was 2,9 MB) |
+| Herstellers | 12 | 16 kB |
+| Kwaliteit | 67 | 80 kB |
+| Groeiers | 86 | 94 kB |
+| Geen oordeel | 634 | 660 kB |
+| Alles | 2.812 | afgekapt op 1.500 |
+
+- **Kost geen databaseverkeer.** Er wordt gefilterd over de rijen die
+  `engine/cache.py` al in het geheugen heeft. Een filterwissel is nu een
+  verzoek, maar het duurt 0,2–0,3 s — minder dan de megabytes die er eerst bij
+  elke lading overheen gingen.
+- **Filteren gaat vóór het tabblad.** "Koopwaardig" op Kansen geeft de twintig
+  beste koopwaardige aandelen, niet wat er van de bestaande top overblijft. Dat
+  stond zo in de browser en is zo overgenomen.
+- **Sorteren gaat vóór het afkappen.** Andersom komt de bovenkant van de lijst
+  uit een willekeurige greep. Daarom is een kolomklik op "Alles" een
+  serververzoek. `LIJST_MAX = 1500`; afkappen wordt altijd zichtbaar gemeld.
+- **`/api/dashboard` blijft een platte lijst** — vijf scripts lezen hem zo
+  (`import_tickers.py`, `calibrate_report.py`, `check_noteringen.py`,
+  `scorebord.py`, `triage_cli.py`). De methodepagina gebruikt `/api/tickers`
+  (139 kB), de beheerpagina `?tab=geenoordeel`.
+- **Twee kopieën verdwenen:** de tabbladdefinities, en `LAND_PER_SUFFIX` — die
+  stond naast dezelfde tabel in `markets.py` en is nu `markets.land_naam()`.
+- **Waarschuwing bij opruimen in `index.html`:** bij het weghalen van
+  `LAND_PER_SUFFIX` ging het blok ernaast mee (`_actiefLand`, `SIGNAAL_RANG`).
+  De pagina laadde nog en meldde "Fout bij laden". `tests/test_template_javascript.py`
+  controleert daarom nu ook of elke gebruikte `_naam` ergens ontstaat.
+
 ## Wat de dashboardlijst niet meestuurt (2026-08-22)
 
 `get_dashboard_data()` levert de **lijstvariant**: `warnings` en
