@@ -683,7 +683,10 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             "signal":               signal or "N/A",
             "last_updated":         r.get("last_updated"),
             "last_calculated":      r.get("last_calculated"),
-            "warnings":             r.get("warnings") or [],
+            # Alleen het aantal, niet de teksten. Die staan op /stock/<ticker>
+            # en waren samen met de andere detailvelden 46% van de lading — zie
+            # `_verklein_voor_lijst` in engine/db.py.
+            "warning_count":        r.get("warning_count") or 0,
             "latest_fiscal_year":   r.get("latest_fy"),
             # Hoeveel boekjaren het jaarverslag achterloopt. Server-side berekend
             # zodat het dashboard de kalenderregel niet nog eens nabouwt.
@@ -702,7 +705,11 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             # Data-kwaliteit (Fase 2)
             "data_status":          r.get("data_status"),
             "data_completeness":    r.get("completeness_pct"),
-            "data_issues":          r.get("data_issues") or [],
+            # `data_issues` zelf gaat niet mee: het is serverzijdig nodig om de
+            # reden te bepalen (hierboven, classify_signal_reason), maar de
+            # teksten staan op de detailpagina. Het aantal blijft, want daar
+            # hangt het kwaliteitsstipje aan.
+            "data_issue_count":     r.get("data_issue_count") or 0,
             "data_fetch_success":   r.get("fetch_success"),
             "data_consecutive_failures": r.get("consecutive_failures") or 0,
             # FV-diagnose (Fase 1): ratio buiten [0.1, 10] = schaal-bug signaal
@@ -712,7 +719,6 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             "reason_code":          reason["reason_code"],
             "reason_label":         reason["reason_label"],
             "reason_color":         reason["reason_color"],
-            "fv_methods_dropped":   r.get("fv_methods_dropped") or [],
             "revenue_cagr":         rev_cagr,
             "is_growth_lossmaker":  is_growth_lossmaker,
         })
@@ -2852,6 +2858,17 @@ def api_probe_stocks():
         "unresolved": len(result["unresolved"]),
     })
     return jsonify(result)
+
+
+@app.route("/api/data-issues")
+def api_data_issues():
+    """De meldingen per ticker voor alles wat niet in orde is.
+
+    De dashboardlijst stuurt die teksten niet meer mee — ze waren met de andere
+    detailvelden 46% van de lading terwijl je ze per rij hooguit één keer leest.
+    De beheerpagina legt ze juist naast elkaar, en haalt ze daarom hier op.
+    """
+    return jsonify(db.get_data_issues())
 
 
 @app.route("/api/health")

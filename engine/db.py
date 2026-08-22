@@ -1209,7 +1209,90 @@ def get_dashboard_row(ticker: str) -> dict | None:
     with _cursor() as cur:
         cur.execute(_DASHBOARD_SQL + " WHERE s.ticker = %s", (ticker,))
         row = cur.fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    r = dict(row)
+    for key in _JSON_VELDEN:
+        if r.get(key):
+            try:
+                r[key] = json.loads(r[key])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    # Dezelfde verkleining als de lijst, zodat een losse rij en een rij uit de
+    # lijst dezelfde velden hebben. Een knop die één rij ververst mag geen andere
+    # vorm terugkrijgen dan de rij die er stond.
+    return _verklein_voor_lijst(r)
+
+
+_JSON_VELDEN = ("quality_breakdown", "piotroski_breakdown", "warnings",
+                "hist_relative", "data_issues", "fv_methods_dropped")
+
+# Alleen deze sleutels uit `hist_relative` worden op het dashboard getoond (de
+# EV/EBITDA-badge naast de ticker). De rest van het blok — P/B, P/E, medianen
+# met tien decimalen — staat op de detailpagina en hoeft niet 2.812 keer mee.
+_HIST_GETOOND = ("ev_ebitda_pct", "current_ev_ebitda", "median_ev_ebitda",
+                 "years_available")
+
+
+def _verklein_voor_lijst(r: dict) -> dict:
+    """Haal uit één dashboardrij weg wat alleen de detailpagina nodig heeft.
+
+    Gemeten op 2026-08-22: `warnings`, `hist_relative`, `data_issues` en
+    `fv_methods_dropped` waren samen 46% van de 4,2 MB die het dashboard bij elke
+    lading verstuurde — terwijl je ze per rij hooguit één keer bekijkt, in een
+    tooltip. De teksten staan al op `/stock/<ticker>`.
+
+    Wat blijft is het **aantal**, want dat draagt het signaal: de ⚠-badge en het
+    kwaliteitsstipje moeten zichtbaar blijven, alleen de bijbehorende tekst
+    verhuist. `data_issues` blijft wél staan: `classify_signal_reason()` leidt
+    daar serverzijdig de reden uit af. Die wordt pas uit het antwoord gehaald
+    nadat de reden bepaald is (zie `_verrijk_dashboardrijen` in app.py).
+    """
+    r["warning_count"] = len(r.get("warnings") or [])
+    r["data_issue_count"] = len(r.get("data_issues") or [])
+    r.pop("warnings", None)
+    r.pop("fv_methods_dropped", None)
+
+    hist = r.get("hist_relative")
+    if isinstance(hist, dict):
+        klein = {}
+        for k in _HIST_GETOOND:
+            v = hist.get(k)
+            if v is None:
+                continue
+            klein[k] = round(v, 3) if isinstance(v, float) else v
+        r["hist_relative"] = klein
+    return r
+
+
+def get_data_issues() -> dict[str, list[str]]:
+    """De meldingen per ticker, alleen voor wat niet in orde is.
+
+    Bestaat sinds de dashboardlijst de teksten niet meer meestuurt (zie
+    `_verklein_voor_lijst`). De beheerpagina heeft ze wél nodig — daar is het
+    naast elkaar leggen van meldingen juist het werk — maar dat is één pagina
+    die je zelden opent, geen last die het dashboard elke keer moet dragen.
+    """
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT dq.ticker, dq.issues
+            FROM data_quality dq
+            JOIN stocks s ON s.ticker = dq.ticker
+            WHERE s.active = 1
+              AND dq.issues IS NOT NULL
+              AND COALESCE(dq.data_status, 'ok') <> 'ok'
+        """)
+        rows = cur.fetchall()
+
+    uit: dict[str, list[str]] = {}
+    for row in rows:
+        try:
+            meldingen = json.loads(row["issues"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if meldingen:
+            uit[row["ticker"]] = meldingen
+    return uit
 
 
 def get_dashboard_data() -> list[dict]:
@@ -1217,6 +1300,10 @@ def get_dashboard_data() -> list[dict]:
     Fetch all active stocks with their market data, calculated scores, 
     latest fiscal year and latest fetched date in one optimized query.
     Used to prevent the N+1 query problem on the dashboard.
+
+    Levert de **lijstvariant**: zonder de velden die alleen op de detailpagina
+    thuishoren — zie `_verklein_voor_lijst`. Voor de volledige rij is er
+    `get_dashboard_row()`.
     """
     with _cursor() as cur:
         cur.execute(_DASHBOARD_SQL + " WHERE s.active = 1")
@@ -1225,13 +1312,13 @@ def get_dashboard_data() -> list[dict]:
     results = []
     for row in rows:
         r = dict(row)
-        for key in ("quality_breakdown", "piotroski_breakdown", "warnings", "hist_relative", "data_issues", "fv_methods_dropped"):
+        for key in _JSON_VELDEN:
             if r.get(key):
                 try:
                     r[key] = json.loads(r[key])
                 except (json.JSONDecodeError, TypeError):
                     pass
-        results.append(r)
+        results.append(_verklein_voor_lijst(r))
     return results
 
 

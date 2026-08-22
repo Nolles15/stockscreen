@@ -1394,17 +1394,15 @@ function reasonTooltip(r) {
     ? `\nOmzet ${r.revenue_cagr >= 0 ? '+' : ''}${(r.revenue_cagr * 100).toFixed(0)}%/jr (3-jaars).`
     : '';
   if (code === 'geen_data') {
-    const issues = (r.data_issues || []).slice(0, 4).map(x => '• ' + x).join('\n');
     return 'GEEN DATA — de bron leverde geen bruikbare cijfers.\n'
       + 'Dit is een databron-probleem, geen oordeel over het bedrijf.'
-      + (issues ? '\n\n' + issues : '');
+      + '\n\nKlik op de ticker voor de meldingen zelf.';
   }
   if (code === 'eenheidsfout') {
-    const issues = (r.data_issues || []).slice(0, 4).map(x => '• ' + x).join('\n');
     return 'EENHEIDSFOUT — de cijfers staan in een andere eenheid dan de koers.\n'
-      + 'Denk aan pence tegen ponden, of een dual-listing in een andere valuta.\n'
+      + 'Denk aan pence tegen ponden, of aandelen geteld in duizenden.\n'
       + 'De data zelf is er wel; hij is alleen verkeerd geschaald.'
-      + (issues ? '\n\n' + issues : '');
+      + '\n\nKlik op de ticker voor de meldingen zelf.';
   }
   if (code === 'negatieve_omzet') {
     return 'NEGATIEVE OMZET — meestal een holding of investeringsmaatschappij, '
@@ -1413,21 +1411,19 @@ function reasonTooltip(r) {
       + 'Beoordeel zo’n bedrijf op de intrinsieke waarde, niet op kasstroom.';
   }
   if (code === 'databug') {
-    const issues = (r.warnings || []).slice(0, 4).map(x => '• ' + x).join('\n');
     return 'FACTOR >10 — modelwaarde en koers verschillen meer dan een factor tien.\n'
       + 'Meestal een schaal- of eenheidsfout in de data (verkeerde valuta, dual-listing); '
       + 'soms een extreme koersbeweging die echt is.\nUitzoeken voordat je dit als signaal leest.'
-      + (issues ? '\n\n' + issues : '');
+      + '\n\nKlik op de ticker voor de waarschuwingen zelf.';
   }
   if (code === 'geen_fv') {
-    const dropped = (r.fv_methods_dropped || []).slice(0, 4).map(x => '• ' + x).join('\n');
     const growth = r.is_growth_lossmaker
       ? `\n\n🌱 Let op: sterke omzetgroei (${(r.revenue_cagr * 100).toFixed(0)}%/jr) — verlieslatend maar groeiend; mogelijke kans.`
       : cagrTxt;
     return 'GEEN FV (VERLIES) — de data is er wél, maar het bedrijf draait verlies; '
       + 'daardoor vallen de waarderingsmethodes weg en is er < 2 over voor een betrouwbare fair value.\n'
       + 'Dit zegt niets over de kwaliteit van het bedrijf.'
-      + (dropped ? '\n\nWeggevallen methodes:\n' + dropped : '')
+      + '\n\nKlik op de ticker voor de weggevallen methodes.'
       + growth;
   }
   return 'Onvoldoende data voor signaalberekening.';
@@ -1512,12 +1508,12 @@ function dataQualityBadge(r) {
   // Kleine gekleurde stip naast de ticker. Geen stip bij status 'ok' — alleen opvallen als er iets is.
   const status = r.data_status;
   if (!status || status === 'ok') return '';
-  const issues = (r.data_issues || []).slice(0, 5);
+  const nIssues = r.data_issue_count || 0;
   const comp = r.data_completeness != null ? r.data_completeness.toFixed(0) + '%' : '—';
   const fails = r.data_consecutive_failures || 0;
   const failsLine = fails > 0 ? `\n${fails}× op rij mislukte fetch` : '';
   const title = `Data: ${status.toUpperCase()} (${comp} compleet)${failsLine}` +
-                (issues.length ? `\n\n• ${issues.join('\n• ')}` : '');
+                (nIssues ? `\n\n${nIssues} melding${nIssues === 1 ? '' : 'en'} — klik op de ticker voor de tekst` : '');
   const colorMap = {
     missing: 'text-slate-500',       // grijs — ticker bestaat niet
     bad:     'text-red-400',          // rood — fundamenteel onbruikbaar
@@ -1542,8 +1538,12 @@ function rowHtml(r) {
     ? ` <span class="cursor-help" title="Verlieslatend maar sterke omzetgroei (+${((r.revenue_cagr||0)*100).toFixed(0)}%/jr) — mogelijke kans">🌱</span>`
     : '';
 
-  const warn = (r.warnings || []).length > 0
-    ? `<span title="${(r.warnings||[]).map(w=>w.replace(/"/g,"'")).join('&#10;')}" class="ml-1 text-yellow-400 cursor-help">⚠</span>`
+  // Alleen het aantal komt mee in de lijst; de teksten staan op /stock/<ticker>.
+  // Samen met de andere detailvelden waren ze 46% van een lading van 4,2 MB,
+  // terwijl je ze per rij hooguit één keer leest.
+  const nWarn = r.warning_count || 0;
+  const warn = nWarn > 0
+    ? `<span title="${nWarn} waarschuwing${nWarn === 1 ? '' : 'en'} — klik op de ticker voor de tekst" class="ml-1 text-yellow-400 cursor-help">⚠</span>`
     : '';
 
   const dqBadge = dataQualityBadge(r);
