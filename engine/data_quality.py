@@ -104,6 +104,22 @@ def _clean_split_factor(ratio: float) -> float | None:
     return None
 
 
+# Een echte schaal-bug is een macht van tien: aandelen in duizenden, of een
+# koers in pence naast een beurswaarde in ponden. Alles daartussen is geen
+# eenheidsfout maar een eigenschap van de notering — zie de toelichting bij de
+# market-cap-check in evaluate().
+_SCHAAL_FACTOREN = (10.0, 100.0, 1000.0, 10000.0)
+_SCHAAL_TOL = 0.10          # 10% speling; koersen bewegen tussen twee ophaalmomenten
+
+
+def _schaalfactor(ratio: float) -> float | None:
+    """Het schaalgetal als `ratio` er dicht bij ligt, anders None."""
+    for f in _SCHAAL_FACTOREN:
+        if abs(ratio - f) / f <= _SCHAAL_TOL:
+            return f
+    return None
+
+
 def evaluate(
     ticker: str,
     annual_rows: list[dict],
@@ -224,8 +240,25 @@ def evaluate(
             issues.append(f"Omzet FY{latest_row.get('fiscal_year')} = {rev:.0f} (≤0) — fundamenteel onbetrouwbaar.")
 
         # Market-cap vs shares * price consistentie-check
-        # Factor-2+ afwijking duidt bijna altijd op een schaal-bug (shares uit balance
-        # sheet vs info.sharesOutstanding, pence/pound, etc.) → escalate naar bad.
+        #
+        # Deze check zocht een schaal-bug (pence tegen ponden, aandelen in
+        # duizenden) en verklaarde elke afwijking boven factor 2 tot blokkade.
+        # Op 2026-08-22 gemeten over 2.812 tickers: 85 treffers, en geen enkele
+        # daarvan was een schaalfout. Geen enkele zat in de buurt van factor 100.
+        # Wat er wél stond: Roche-certificaten, Schindler, Alphabet (GOOGL, 2,08),
+        # Duitse preferente lijnen op "3", Merck KGaA, negen regionale
+        # Crédit-Agricole-banken en 39 Zweedse A/B-lijnen — 64% had zelfs een
+        # zusternotering in onze eigen database staan.
+        #
+        # Bij zo'n notering dekt Yahoo's `marketCap` het héle bedrijf terwijl
+        # `shares_outstanding` één aandelenklasse telt. De verhouding is dan geen
+        # fout maar de vorm van het instrument, en hij kan elk getal aannemen.
+        # Een schaal-bug kan dat niet: die is per definitie een macht van tien.
+        #
+        # Daarom blokkeert alleen nog het patroon dat de melding zelf beweert te
+        # zien. De rest wordt een aantekening. Absurde uitkomsten worden alsnog
+        # gevangen door de FV-plausibiliteitspoort verderop (FACTOR >10), net
+        # zoals bij split_suspected hierboven.
         shares = latest_row.get("shares_outstanding")
         price = mkt.get("price")
         mc = mkt.get("market_cap")
@@ -235,12 +268,20 @@ def evaluate(
             # omdat shares/mc in verschillende valuta's zitten. Skip dan.
             if not (fin_ccy and trd_ccy and fin_ccy != trd_ccy):
                 ratio = max(implied_mc, mc) / min(implied_mc, mc)
-                if ratio > 2.0:
+                schaal = _schaalfactor(ratio)
+                if schaal:
                     severe_unit_mismatch = True
                     issues.append(
                         f"Market cap SEVERE mismatch: shares×price ≈ {implied_mc/1e6:.0f}M, "
-                        f"Yahoo = {mc/1e6:.0f}M (factor {ratio:.2f}x) — "
-                        f"vermoedelijke shares/pence/FX schaal-bug."
+                        f"Yahoo = {mc/1e6:.0f}M (factor {ratio:.2f}x ≈ {schaal:g}) — "
+                        f"schaal-bug: aandelen of koers staan in de verkeerde eenheid."
+                    )
+                elif ratio > 2.0:
+                    issues.append(
+                        f"Market cap deels genoteerd: shares×price ≈ {implied_mc/1e6:.0f}M, "
+                        f"Yahoo = {mc/1e6:.0f}M (factor {ratio:.2f}x) — Yahoo rekent "
+                        f"vermoedelijk het hele bedrijf, deze notering één klasse. "
+                        f"Geen datafout; de koers en het aantal aandelen horen wel bij elkaar."
                     )
                 elif ratio > 1.2:
                     issues.append(
@@ -472,6 +513,7 @@ _BLOCKER_FINGERPRINTS: tuple[tuple[str, str], ...] = (
 _INFO_FINGERPRINTS: tuple[tuple[str, str], ...] = (
     ("ev_inconsistent",      "EV inconsistent"),
     ("unit_mismatch_light",  "Market cap inconsistent"),
+    ("deels_genoteerd",      "Market cap deels genoteerd"),
     ("adr_dual_currency",    "ADR/dual-currency"),
     ("no_market_cap",        "Market cap ontbreekt"),
     ("few_years",            "jaar historie"),
