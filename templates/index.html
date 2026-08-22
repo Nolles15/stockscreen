@@ -246,11 +246,25 @@ document.addEventListener('health-loaded', (e) => {
   const delen = [
     `${h.active} aandelen gevolgd`,
     `${h.assessed} beoordeeld`,
-    `${h.no_verdict} zonder oordeel`,
   ];
+  // "713 zonder oordeel" leest als 713 storingen, terwijl de helft
+  // verlieslatende bedrijven zijn — geen fair value te berekenen, een bekende
+  // grens van het model en geen defect. Die twee dus uit elkaar houden.
+  if (h.geen_oordeel_verklaarbaar) {
+    delen.push(`${h.geen_oordeel_verklaarbaar} verlieslatend (geen waardering mogelijk)`);
+  }
+  if (h.geen_oordeel_probleem) {
+    delen.push(`${h.geen_oordeel_probleem} zonder oordeel`);
+  }
   if (h.suspended) delen.push(`${h.suspended} tijdelijk uit`);
   if (h.presumed_delisted) delen.push(`${h.presumed_delisted} vermoedelijk van de beurs`);
   el.textContent = delen.join(' · ');
+
+  // De opsplitsing als tooltip: op de regel zelf zou het te veel worden, maar
+  // wie wil weten waaruit die groep bestaat hoeft er nu niet voor te klikken.
+  const per = h.no_verdict_per_reden || {};
+  const regels = Object.entries(per).map(([k, v]) => `${v} ${k.toLowerCase()}`);
+  if (regels.length) el.title = 'Zonder oordeel: ' + regels.join(', ');
 });
 
 // ---------------------------------------------------------------------------

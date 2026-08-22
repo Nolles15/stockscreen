@@ -2912,13 +2912,28 @@ def api_health():
 
     # Zonder oordeel op dezelfde manier tellen als het dashboard het toont —
     # zie _effective_signal voor waarom dat via dezelfde functie moet lopen.
+    #
+    # En uitgesplitst naar reden, want "713 zonder oordeel" leest als 713
+    # storingen terwijl de helft verlieslatende bedrijven zijn: daar is geen
+    # fair value voor te berekenen, dat is een bekende grens van het model en
+    # geen defect. De reden stond al per rij vast; alleen de optelling kende het
+    # onderscheid niet.
     cfg = load_config()
     no_verdict = 0
-    for r in db.get_dashboard_data():
+    per_reden: dict[str, int] = {}
+    for r in cache.dashboard.haal(db.get_dashboard_data):
         sig = _effective_signal(r.get("price"), r.get("combined_fv"),
                                 r.get("quality_score"), r, cfg)
-        if sig in ("INSUFFICIENT DATA", "N/A"):
-            no_verdict += 1
+        if sig not in ("INSUFFICIENT DATA", "N/A"):
+            continue
+        no_verdict += 1
+        reden = data_quality.classify_signal_reason(
+            sig, r.get("data_status"), r.get("data_issues") or [],
+            _fv_ratio_oob(_fv_price_ratio(r.get("price"), r.get("combined_fv"))),
+            r.get("fv_methods_used"),
+        )
+        sleutel = reden.get("reason_code") or "onbekend"
+        per_reden[sleutel] = per_reden.get(sleutel, 0) + 1
 
     active = counts.get("active") or 0
     price_age = _age_hours("last_price_refresh_at")
@@ -2938,6 +2953,15 @@ def api_health():
         "presumed_delisted":         counts.get("presumed_delisted") or 0,
         "assessed":                  active - no_verdict,
         "no_verdict":                no_verdict,
+        # Uitgesplitst, met de labels die het dashboard ook per rij toont.
+        "no_verdict_per_reden":      {
+            data_quality._REASON_LABELS.get(k, "ONBEKEND"): v
+            for k, v in sorted(per_reden.items(), key=lambda kv: -kv[1])
+        },
+        # Verlieslatende bedrijven zijn een grens van het model, geen storing.
+        # Apart benoemd zodat je kunt zien wat er echt aandacht vraagt.
+        "geen_oordeel_verklaarbaar": per_reden.get("geen_fv", 0),
+        "geen_oordeel_probleem":     no_verdict - per_reden.get("geen_fv", 0),
         "storm_last_7d":             storms,
         # Een tick hoort elk kwartier te komen; een half uur stilte betekent dat
         # de thread is omgevallen.
