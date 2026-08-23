@@ -18,7 +18,7 @@ Dutch-language stock screener voor Europese small/mid-caps. Flask + PostgreSQL (
 **Native currency pipeline** — prijs én fair value zijn altijd in de native currency van het aandeel. Er is GEEN valutaconversie; `price_eur`-kolommen zijn in een eerdere migratie verwijderd. Als een endpoint 500 geeft met `UndefinedColumn`, is de code achter op de DB-migratie → `fly deploy`.
 
 **De verversing draait op de machine zelf, niet op GitHub Actions.** De scheduler zit in `_scheduler_loop` in app.py en tikt elk kwartier; `fly.toml` houdt de machine daarvoor altijd aan. GitHub Actions is nog uitsluitend een handmatige noodknop.
-- Werkverdeling: koersen in bulk na 18:30 Amsterdam, jaarcijfers na 03:00 (`fundamentals_per_night: 250` uit config.yaml), wekelijks re-probe en logopschoning.
+- Werkverdeling: koersen in bulk na 18:30 Amsterdam, jaarcijfers na 03:00 (`fundamentals_per_night: 750` uit config.yaml — een volledige rotatie is zes dagen), wekelijks re-probe en logopschoning.
 - Noodknop: [.github/workflows/daily-refresh.yml](.github/workflows/daily-refresh.yml), alleen `workflow_dispatch` — **het `schedule`-blok is bewust verwijderd**, want een tweede motor naast de interne scheduler verdubbelt de druk op de Yahoo-rate-limits. Endpoints `GET /api/cron/next-batch?limit=N` + `POST /api/cron/refresh-one/<T>`, secrets `CRON_TOKEN` (Fly + GH identiek) en `APP_URL` (GH).
 - **`CRON_TOKEN` zet de scheduler níét meer uit.** Die gate heeft ooit bestaan en heeft zes weken schade aangericht: GitHub schakelde de scheduled workflow automatisch uit na 60 dagen inactiviteit, de interne scheduler lag stil omdat het token bestond, en niets ving het op. Nu stuurt alleen `SCHEDULER_ENABLED=0` hem uit. Zie [app.py:2818](app.py#L2818).
 
@@ -97,6 +97,31 @@ en dat is beter dan de 7,7% van de rest van het universum. De Britse pijplijn
 deugt dus; Londen heeft alleen structureel meer bedrijven die dit model per
 definitie niet kan waarderen.
 
+## Hoeveel er per nacht kan (2026-08-23)
+
+`fundamentals_per_night` staat op **750**, niet meer op 250. De oude waarde was
+behoedzaamheid uit de tijd van 900 tickers; het commentaar erbij ("hoger durven
+we niet, rate-limits") is door de meting weerlegd:
+
+- de ronde van 23 aug 01:12 deed **250 tickers in 18 minuten**, sequentieel, met
+  **nul mislukkingen** — 4,3 seconde per aandeel;
+- de Britse import deed er die avond **1.000 in drie uur**, drie tegelijk. Van de
+  1.061 fetch-regels hadden er 240 een melding, en die gingen stúk voor stuk over
+  valutaconversie of korte historie. Geen enkele over een rate-limit.
+
+750 duurt ongeveer 55 minuten; de ronde begint om 03:00 en heeft uren de tijd.
+**Twee rondes per nacht met een pauze is overwogen en niet gedaan** — het tempo
+knelt niet, alleen het aantal, en minder bewegende delen betekent minder dat stil
+kan vallen zonder dat je het merkt.
+
+**De stormdrempel blijft op 25%.** Het vermoeden dat die te krap stond nu het
+universum groter is, klopt niet: het lege-percentage over het hele universum is
+**4,0%** (166 van 4.123), dus ruime marge. De 27,6% van de nacht van 23 augustus
+blijft daarmee onverklaard, en een drempel verzetten op een onverklaarde
+waarneming is precies de fout die `sell_quality_floor` ooit was. In plaats
+daarvan noemt de stormmelding nu wélke tickers niets opleverden
+(`voorbeeld_leeg`), zodat het de volgende keer te herleiden is.
+
 ## Verversing op publicatievenster (2026-08-22)
 
 `get_refresh_queue()` koos op "langst niet geprobeerd". Gemeten: **97% van de
@@ -111,7 +136,7 @@ bij dit aantal, fataal bij 19.000 — dan duurt een ronde 76 dagen.
 - **Drie lagen:** nooit geprobeerd → in het publicatievenster (twee tot zeven
   maanden na het boekjaareinde, hooguit één keer per week) → gewone rotatie op
   ouderdom. De batch wordt altijd volgemaakt.
-- **De kolom vult zichzelf in één rotatie** (elf nachten). Zolang hij leeg is,
+- **De kolom vult zichzelf in één rotatie** (zes nachten). Zolang hij leeg is,
   gedraagt de wachtrij zich exact als voorheen — dat is met opzet de terugval.
 - **`GET /api/refresh/wachtrij`** toont wie er aan de beurt is en waarom, met de
   telling per laag. Zonder dat venster merk je pas weken later dat de
