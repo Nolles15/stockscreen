@@ -390,11 +390,21 @@ def refresh_fundamentals_batch(limit: int = 100, config: dict | None = None) -> 
     failure_rate = len(unproductive) / len(tickers)
     if failure_rate > STORM_THRESHOLD:
         outcome["storm_detected"] = True
+        # Wélke tickers niets opleverden, erbij. Zonder dat is een storm niet te
+        # onderscheiden van een greep die toevallig veel bekende lege tickers
+        # bevatte, en dan blijft de vraag hangen of de drempel deugt.
+        #
+        # De aanleiding: op 2026-08-23 sloeg dit aan bij 69 lege van 250 (27,6%),
+        # terwijl het lege-percentage over het hele universum 4,0% is (166 van
+        # 4.123). Zo'n concentratie hoort niet toevallig te ontstaan, en zonder
+        # de namen viel niet vast te stellen wat er dan wél gebeurde.
         db.log_activity("storm_detected", None, "warning", {
             "failure_rate": round(failure_rate, 3),
             "attempted": len(tickers),
             "failed": len(outcome["failed"]),
             "empty": len(outcome["empty"]),
+            "voorbeeld_leeg": outcome["empty"][:20],
+            "voorbeeld_mislukt": outcome["failed"][:10],
             "note": "Tellers niet opgehoogd — dit lijkt een storing bij de bron.",
         })
         log.warning("Storm gedetecteerd (%.0f%% zonder opbrengst) — failure-tellers ongemoeid gelaten",

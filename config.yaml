@@ -10,13 +10,28 @@ refresh:
   # hooguit per kwartaal, dus een volledige ronde mag gerust weken duren.
   #
   # Verhoogd van 100 naar 250 toen het universum in augustus 2026 groeide van
-  # 913 naar ~2.760 tickers. Met 100 per nacht duurt één ronde 28 dagen en zou
-  # de inhaalslag voor de 2.000 nieuwe tickers 20 nachten kosten; met 250 is
-  # dat 11 nachten en blijft een volledige ronde op 11 dagen. Hoger durven we
-  # niet: elke ticker is een losse Yahoo-aanroep en boven dit tempo lopen we
-  # tegen rate-limits aan (de storm-guard vangt dat wel op, maar dan staat de
-  # verversing alsnog stil).
-  fundamentals_per_night: 250
+  # 913 naar ~2.760 tickers, en van 250 naar 750 op 23 augustus toen het
+  # Verenigd Koninkrijk erbij kwam (4.123 tickers).
+  #
+  # Bij die tweede verhoging stond hier dat we niet hoger durfden wegens
+  # rate-limits. Dat was behoedzaamheid uit de tijd van 900 tickers, en de
+  # meting spreekt het tegen:
+  #   - de ronde van 2026-08-23 01:12 deed 250 tickers in 18 minuten,
+  #     sequentieel, met nul mislukkingen (4,3 seconde per aandeel);
+  #   - de Britse import deed er die avond 1.000 in drie uur, drie tegelijk,
+  #     ook zonder één rate-limit. Van de 1.061 fetch-regels waren er 240 met
+  #     een melding, en die gingen stuk voor stuk over valutaconversie of korte
+  #     historie.
+  #
+  # 750 duurt ongeveer 55 minuten. De ronde begint om 03:00 en heeft uren de
+  # tijd, dus daar zit de grens niet. Een volledige ronde gaat van 17 naar 6
+  # dagen.
+  #
+  # Twee rondes per nacht met een pauze is overwogen en niet gedaan: het tempo
+  # knelt niet, alleen het aantal. Eén grotere ronde heeft minder bewegende
+  # delen die stil kunnen vallen zonder dat iemand het merkt -- en dat is in dit
+  # project al twee keer gebeurd.
+  fundamentals_per_night: 750
 
 screening:
   min_quality_score: 7
