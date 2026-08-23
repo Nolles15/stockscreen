@@ -83,6 +83,20 @@ bij Yahoo, op de actuele **96%**.
 - **Toevoegen in groepen van 250**, elke groep wachtend op zijn eigen
   ophaalronde. Dat is het tempo dat `import_tickers.py` ook aanhoudt.
 
+**Uitkomst (23 aug):** 1.311 toegevoegd, universum van 2.812 naar **4.123**.
+809 van de 1.355 Britse noteringen krijgen een oordeel (**60%**, tegen 77% voor
+de rest) en er kwamen **16 koopkandidaten** bij — de kooplijst ging van 40 naar
+56.
+
+Die 60% ligt onder de drempel van 70% uit het plan, dus uitgezocht. Het is
+**geen datakwestie maar samenstelling**: van de 546 zonder oordeel zijn er 300
+verlieslatend (AIM staat vol met exploratiebedrijven zonder omzet — KEFI Gold,
+Pantheon Resources, Rome Resources) en 169 met negatieve omzet
+(beleggingstrusts en VCT's). Wat er wérkelijk mis is: **77 van 1.355 = 5,7%**,
+en dat is beter dan de 7,7% van de rest van het universum. De Britse pijplijn
+deugt dus; Londen heeft alleen structureel meer bedrijven die dit model per
+definitie niet kan waarderen.
+
 ## Verversing op publicatievenster (2026-08-22)
 
 `get_refresh_queue()` koos op "langst niet geprobeerd". Gemeten: **97% van de
