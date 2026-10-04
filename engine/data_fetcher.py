@@ -87,8 +87,20 @@ _MONEY_FIELDS_PER_ROW = (
     "total_assets", "total_equity", "total_debt",
     "current_assets", "current_liabilities", "net_ppe",
     "book_value_ps", "gross_profit", "interest_expense",
-    "net_cash", "inventory",
+    "net_cash", "inventory", "rd_expense",
 )
+
+# Regelnamen waaronder Yahoo de R&D-kosten in de resultatenrekening zet. Eén
+# lijst voor jaar en TTM, zodat die twee niet uit de pas kunnen lopen. Een
+# bedrijf dat R&D niet apart rapporteert (of onder bedrijfslasten boekt) krijgt
+# None, nooit 0: voor het groeiprofiel betekent dat "onbekend", geen
+# "doet niets aan onderzoek".
+_RD_REGELS = ["Research And Development", "ResearchAndDevelopment", "Research Development"]
+
+
+def _als_kosten(waarde):
+    """Kosten positief opslaan, ongeacht het teken dat Yahoo meegeeft."""
+    return abs(waarde) if waarde is not None else None
 
 
 # FX-cache per proces (yfinance {FROM}{TO}=X tickers zijn rate-limited).
@@ -322,6 +334,7 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
             eps_diluted = _df_value(inc, ["Diluted EPS", "Basic EPS", "EPS"], col_idx)
             revenue = _df_value(inc, ["Total Revenue", "Revenue"], col_idx)
             gross_profit = _df_value(inc, ["Gross Profit", "GrossProfit"], col_idx)
+            rd_expense = _als_kosten(_df_value(inc, _RD_REGELS, col_idx))
             interest_exp = _df_value(inc, [
                 "Interest Expense", "Interest Expense Non Operating",
                 "Net Interest Income", "InterestExpense"
@@ -413,6 +426,7 @@ def fetch_ticker(ticker: str) -> dict[str, Any]:
                 "shares_outstanding": shares,
                 "net_cash":          net_cash,
                 "inventory":         inventory,
+                "rd_expense":        rd_expense,
             }
             result["annual"].append(annual_row)
             years_found += 1
@@ -499,6 +513,7 @@ def _fetch_ttm_row(t: "yf.Ticker", info: dict) -> dict | None:
     net_income  = q_sum(q_inc, ["Net Income", "Net Income Common Stockholders", "NetIncome"])
     eps_diluted = q_sum(q_inc, ["Diluted EPS", "Basic EPS"])
     gross_profit = q_sum(q_inc, ["Gross Profit", "GrossProfit"])
+    rd_expense  = _als_kosten(q_sum(q_inc, _RD_REGELS))
     interest_exp = q_sum(q_inc, [
         "Interest Expense", "Interest Expense Non Operating",
         "Net Interest Income", "InterestExpense",
@@ -569,6 +584,7 @@ def _fetch_ttm_row(t: "yf.Ticker", info: dict) -> dict | None:
         "shares_outstanding":  shares,
         "net_cash":            net_cash,
         "inventory":           inventory,
+        "rd_expense":          rd_expense,
     }
 
 

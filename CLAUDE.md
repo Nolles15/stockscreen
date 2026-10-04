@@ -324,9 +324,10 @@ informatieve. Motor: [engine/exit_regels.py](engine/exit_regels.py), pagina in
   en zette B4 én A3 aan het werk. `exit_regels.omzetbreuk()` zwijgt nu zodra twee opeenvolgende
   jaren meer dan een factor 2 verschillen. Brutowinst en EBIT liepen bij Adyen wél door
   (1.330 → 1.626 → 1.988 → 2.352), dus dáár is de wissel aan te zien en de rest van het oordeel
-  blijft staan. **Let op: `revenue_cagr` zelf is niet gerepareerd** — de Groeiers-tab, de
-  `is_growth_lossmaker`-markering en de "value trap"-waarschuwing in `screener.run_ticker`
-  lopen nog steeds op het kapotte getal.
+  blijft staan. **Sinds oktober 2026 is ook `revenue_cagr` gerepareerd**: bij een breuk binnen
+  het groeivenster geeft `screener._calc_revenue_cagr` None, met de reden in de warnings.
+  `omzetbreuk` herkent een echte sprong nu aan meebewegende brutowinst — anders verdween elke
+  groeier die in één jaar verdubbelde uit de Groeiers-tab. Zie docs/plan-groeiprofiel.md.
 - **"Beter alternatief" (D1) telt nooit mee in het eindoordeel.** De rangorde schuift per
   verversing; er een verkoopoordeel op bouwen geeft elk kwartaal vals alarm. Tonen, niet wegen.
 - **Twee eindpunten met opzet.** `GET /api/bezit/tickers` is één query en wordt bij elke

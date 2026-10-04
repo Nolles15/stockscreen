@@ -23,6 +23,11 @@ log = logging.getLogger(__name__)
 
 # Kritieke velden voor de normalize/valuate stap. Ontbreekt er te veel, dan
 # is de berekening niet meer betrouwbaar.
+#
+# `rd_expense` staat hier bewust níét in. Veel bedrijven rapporteren geen
+# aparte R&D-regel; meetellen zou hun `completeness_pct` verlagen en statussen
+# laten omslaan zonder dat er aan de waardering iets mis is. Het groeiprofiel
+# leest een lege R&D als "onbekend".
 _CRITICAL_ANNUAL_FIELDS = (
     "revenue",
     "ebit",

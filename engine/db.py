@@ -126,10 +126,19 @@ def init_db() -> None:
                 shares_outstanding  REAL,
                 net_cash            REAL,
                 inventory           REAL,
+                rd_expense          REAL,
                 fetched_date        TEXT,
                 UNIQUE(ticker, period_type, fiscal_year),
                 FOREIGN KEY (ticker) REFERENCES stocks(ticker) ON DELETE CASCADE
             )
+        """)
+        # R&D-kosten ("Research And Development" bij Yahoo), voor het groeiprofiel
+        # (docs/plan-groeiprofiel.md, toets T7). Bestaande databases krijgen de
+        # kolom hier; hij vult zich in één rotatie van de jaarcijferronde. Leeg
+        # betekent "niet apart gerapporteerd" — veel bedrijven hebben geen R&D of
+        # boeken het onder bedrijfslasten — en dus nooit nul.
+        cur.execute("""
+            ALTER TABLE financials ADD COLUMN IF NOT EXISTS rd_expense REAL
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS market_data (
@@ -931,7 +940,7 @@ FINANCIAL_VELDEN = (
     "operating_cf", "capex", "fcf", "total_assets", "total_equity",
     "total_debt", "current_assets", "current_liabilities", "net_ppe",
     "book_value_ps", "roe", "gross_profit", "interest_expense",
-    "shares_outstanding", "net_cash", "inventory", "fetched_date",
+    "shares_outstanding", "net_cash", "inventory", "rd_expense", "fetched_date",
 )
 
 

@@ -58,6 +58,7 @@ argumenten binnen. Zelfde opzet als `moat_profile.bouw_profiel`, zodat de
 drempels los te testen zijn en er maar één plek is waar ze staan.
 """
 
+import math
 from datetime import date
 from typing import Optional
 
@@ -128,6 +129,21 @@ def _getal(waarde) -> Optional[float]:
         return None
 
 
+def _brutowinst_beweegt_mee(omzet_a: float, omzet_b: float,
+                            bruto_a: Optional[float], bruto_b: Optional[float]) -> bool:
+    """Gaat de brutowinst dezelfde kant op als de omzet, en ongeveer even hard?
+
+    "Ongeveer even hard" = minstens de helft van de omzetsprong op logschaal: bij
+    een omzetverdubbeling moet de brutowinst minstens ×1,41 stijgen. Ontbreekt
+    de brutowinst, of is hij nul of negatief, dan valt er niets te bevestigen.
+    """
+    if not bruto_a or not bruto_b or bruto_a <= 0 or bruto_b <= 0:
+        return False
+    sprong_omzet = math.log(omzet_b / omzet_a)
+    sprong_bruto = math.log(bruto_b / bruto_a)
+    return sprong_omzet * sprong_bruto > 0 and abs(sprong_bruto) >= 0.5 * abs(sprong_omzet)
+
+
 def omzetbreuk(annual: Optional[list]) -> Optional[str]:
     """Zit er een definitiewissel in de omzetreeks? Geeft de uitleg terug, of None.
 
@@ -144,16 +160,27 @@ def omzetbreuk(annual: Optional[list]) -> Optional[str]:
     krimpmelding kost je een kwartaal, een valse kost je het vertrouwen in de
     hele lijst. De brutowinst en EBIT liepen bij Adyen wél netjes door, dus de
     rest van het oordeel blijft gewoon staan.
+
+    Precies daaraan wordt een echte sprong herkend (oktober 2026, bij het
+    groeiprofiel). Een jong bedrijf dat in één jaar zijn omzet verdubbelt is
+    geen zeldzaamheid, en zonder dit onderscheid haalde de breukregel juist de
+    snelste groeiers uit het tabblad Groeiers. Beweegt de brutowinst in dezelfde
+    richting mee — minstens de helft van de omzetsprong, gemeten op
+    logschaal — dan is het echte groei of krimp en geen definitiewissel. Bij
+    Adyen ging de omzet een factor 4,8 omlaag terwijl de brutowinst 22% steeg.
+    Zonder brutowinst in beide jaren (banken, verzekeraars, of Yahoo mist hem)
+    blijft de oude, voorzichtige regel gelden: sprong = breuk.
     """
     if not annual:
         return None
-    reeks = [(r.get("fiscal_year"), _getal(r.get("revenue")))
+    reeks = [(r.get("fiscal_year"), _getal(r.get("revenue")), _getal(r.get("gross_profit")))
              for r in annual if r.get("period_type", "annual") == "annual"]
-    reeks = [(j, w) for j, w in reeks if j and w and w > 0]
+    reeks = [(j, w, b) for j, w, b in reeks if j and w and w > 0]
     reeks.sort()
-    for (jaar_a, omzet_a), (jaar_b, omzet_b) in zip(reeks, reeks[1:]):
+    for (jaar_a, omzet_a, bruto_a), (jaar_b, omzet_b, bruto_b) in zip(reeks, reeks[1:]):
         factor = max(omzet_a, omzet_b) / min(omzet_a, omzet_b)
-        if factor >= OMZETBREUK_FACTOR:
+        if factor >= OMZETBREUK_FACTOR and not _brutowinst_beweegt_mee(
+                omzet_a, omzet_b, bruto_a, bruto_b):
             return (f"De omzetreeks springt van {omzet_a / 1e6:.0f} mln ({jaar_a}) naar "
                     f"{omzet_b / 1e6:.0f} mln ({jaar_b}) — een factor {factor:.1f}. "
                     f"Dat is vrijwel zeker een wisseling van definitie, dus de meerjarige "

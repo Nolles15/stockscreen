@@ -2334,6 +2334,9 @@ VALID_OVERRIDE_FIELDS = {
     # nettoschuld = 0 en valt de geschatte waarde te hoog uit — bij een
     # handmatig ingevoerd boekjaar dus stilzwijgend fout.
     "net_cash", "inventory", "net_ppe",
+    # R&D-kosten voeden het groeiprofiel (toets T7). Handmatig invullen kan voor
+    # een bedrijf dat R&D in het jaarverslag wél apart noemt maar dat Yahoo mist.
+    "rd_expense",
 }
 
 @app.route("/api/overrides/<ticker>", methods=["POST"])

@@ -135,6 +135,8 @@ dat herijking alleen constanten raakt.
   `completeness_pct` van elk niet-R&D-bedrijf verlagen. Commentaarregel boven de tuple.
 - `app.py` `VALID_OVERRIDE_FIELDS` (2326-2337): `"rd_expense"` erbij.
 - `templates/stock.html`: `bulk_fields` (512-531) en JS `BULK_FIELDS` (1390-1396): R&D-kosten.
+  (De jaarcijferstabel op die pagina toont ook de brutowinst niet; R&D komt daar pas in fase D
+  via `toonGroeiCijfers`.)
 - Vóór deploy de Yahoo-regelnaam verifiëren op Fly (lokaal is Yahoo geblokkeerd):
   `fly ssh console` → `python -c "import yfinance as yf; print([i for i in yf.Ticker('ASML.AS').income_stmt.index if 'Research' in i])"`.
 
@@ -148,6 +150,19 @@ dat herijking alleen constanten raakt.
 - Gevolgen die we accepteren: de "value trap"-waarschuwing vuurt niet meer bij een breuk;
   `is_growth_lossmaker` wordt False voor zulke tickers. Geen signaal of FV hangt van
   `revenue_cagr` af.
+- **Zo uitgevoerd (4 okt 2026), met twee verfijningen:**
+  1. De breuk wordt getoetst op **hetzelfde venster** als de groei (`screener._omzetvenster`,
+     laatste vier jaren met omzet), niet op de hele reeks. Een wissel van vóór het venster
+     raakt de driejaarsgroei niet en hoort hem dus ook niet te wissen. Adyen (breuk
+     2022→2023) valt er gewoon in. De variabele `breuk` in `run_ticker` is dus de breuk
+     binnen het venster; geef díé door aan het profiel in fase C.
+  2. **`exit_regels.omzetbreuk` herkent nu een echte sprong** aan de brutowinst
+     (`_brutowinst_beweegt_mee`): beweegt die in dezelfde richting mee met minstens de helft
+     van de omzetsprong op logschaal, dan is het echte groei of krimp, geen definitiewissel.
+     Zonder deze regel haalde fase A juist de snelste groeiers (omzet ×2 in één jaar) uit de
+     Groeiers-tab. Zonder brutowinst in beide jaren blijft de oude regel gelden: sprong =
+     breuk. Gevolg voor de bezitspagina: bij een echte halvering mét meedalende brutowinst
+     gaan B4/A3 nu wél af — dat is terecht, het is echte krimp.
 
 ### A3. Deploy en draaien
 1. `python -m pyflakes app.py engine/*.py`; `python tests/test_handmatig_boekjaar.py`,
@@ -465,6 +480,8 @@ Groen is bewust als afwezigheid van bewijs geformuleerd; de UI voegt de basiskan
 | Datum | Fase | Wat | Meting |
 |---|---|---|---|
 | 2026-10-03 | — | Plan geschreven na literatuuronderzoek; gecommit als `docs/plan-groeiprofiel.md` | — |
+| 2026-10-03 | B (voorbereiding) | Janco: JKP-landfactoren (12 landen, `vw_cap`, 9 kenmerken) in `data/jkp/`, drie papers in `data/papers/` — lokaal op zijn machine, buiten git | — |
+| 2026-10-04 | A | Kolom `rd_expense` end-to-end (db + migratie, fetcher jaar/TTM/FX, overrides, handmatig formulier); `_calc_revenue_cagr` geeft None bij een breuk binnen het venster, met reden in warnings; `omzetbreuk` herkent echte sprongen aan de brutowinst (zie A2). Nieuw `tests/test_revenue_cagr.py` (9 tests; 3 falen op de oude code). CLAUDE.md-valkuil Adyen bijgewerkt. | Lokaal: pyflakes schoon, template-JS 0 fouten, 35/35 testbestanden groen. **Nog door Janco:** deploy, R&D-regelnaam op Fly, recompute dry run (`signaal_overgangen` en `fv_gewijzigd` moeten leeg/0 zijn), echte run; dan hier invullen: aantal tickers met "Omzetgroei niet berekend" in warnings, en R&D-dekking na zes nachten. |
 
 ## Startprompt voor de uitvoerende agent (Gemini Antigravity)
 

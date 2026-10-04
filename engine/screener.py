@@ -18,6 +18,7 @@ from typing import Optional
 
 from . import db
 from . import data_quality
+from . import exit_regels
 from .normalizer import normalize_all, historical_median_multiple
 from .quality_score import quality_score as calc_quality
 from .valuation import combined_fair_value, implied_growth_pct
@@ -143,23 +144,36 @@ def _calc_accruals(rows: list[dict]) -> Optional[float]:
     return round(sum(ratios) / len(ratios) * 100, 2)
 
 
+def _omzetvenster(annual_rows: list[dict], years: int = 3) -> list[dict]:
+    """De jaarrijen waarover de omzetgroei loopt: de laatste `years`+1 met omzet.
+
+    Apart, zodat de groei en de breukcontrole over precies dezelfde jaren gaan.
+    Een definitiewissel van vóór het venster doet voor de groei niet ter zake.
+    """
+    rijen = [r for r in annual_rows
+             if r.get("fiscal_year") and r.get("revenue") and r["revenue"] > 0]
+    rijen.sort(key=lambda r: r["fiscal_year"])
+    return rijen[-(years + 1):]
+
+
 def _calc_revenue_cagr(annual_rows: list[dict], years: int = 3) -> Optional[float]:
-    """CAGR van omzet over de laatste `years` jaar. Negatief = omzetkrimp."""
-    rev_data = [
-        (r.get("fiscal_year"), r.get("revenue"))
-        for r in annual_rows
-        if r.get("fiscal_year") and r.get("revenue") and r["revenue"] > 0
-    ]
-    rev_data.sort(key=lambda x: x[0])
-    if len(rev_data) < 2:
+    """CAGR van omzet over de laatste `years` jaar. Negatief = omzetkrimp.
+
+    None bij een definitiewissel in die jaren (`exit_regels.omzetbreuk`). Adyen
+    stond daardoor op 33% krimp terwijl het ~19% per jaar groeide; de
+    Groeiers-tab, de 🌱-markering en de value-trap-waarschuwing lazen dat getal
+    allemaal. Liever geen getal dan een getal dat het tegendeel zegt.
+    """
+    venster = _omzetvenster(annual_rows, years)
+    if len(venster) < 2:
         return None
-    if len(rev_data) > years:
-        rev_data = rev_data[-(years + 1):]
-    oldest, newest = rev_data[0], rev_data[-1]
-    n_years = newest[0] - oldest[0]
+    if exit_regels.omzetbreuk(venster):
+        return None
+    oldest, newest = venster[0], venster[-1]
+    n_years = newest["fiscal_year"] - oldest["fiscal_year"]
     if n_years <= 0:
         return None
-    return (newest[1] / oldest[1]) ** (1 / n_years) - 1
+    return (newest["revenue"] / oldest["revenue"]) ** (1 / n_years) - 1
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +254,11 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
 
     # Revenue-trend check: waarschuw bij structureel dalende omzet (value trap indicator)
     rev_cagr = _calc_revenue_cagr(annual_rows)
+    # Zegt de groei niets door een definitiewissel, zeg dat dan op de
+    # aandeelpagina — anders verdwijnt de 🌱 zonder dat iemand weet waarom.
+    breuk = exit_regels.omzetbreuk(_omzetvenster(annual_rows))
+    if breuk:
+        warnings.append(f"Omzetgroei niet berekend. {breuk}")
     if rev_cagr is not None and rev_cagr < -0.02:
         warnings.append(
             f"Omzetkrimp: 3-jaars CAGR = {rev_cagr * 100:.1f}% — mogelijke value trap. Controleer concurrentiepositie."
