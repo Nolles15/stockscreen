@@ -501,7 +501,12 @@ const TABS = [
   },
   {
     id: 'groeiers', label: '🌱 Groeiers',
-    uitleg: 'Bedrijven die verlies maken maar hard groeien. Hiervoor is geen fair value te berekenen — dit is een lijst om zelf naar te kijken, geen oordeel.',
+    uitleg: 'Bedrijven met minstens 15% omzetgroei per jaar, winstgevend of niet. '
+      + 'Het groeiprofiel is een zeef, geen koopadvies: rood betekent dat de cijfers tegen '
+      + 'de groei pleiten (verwatering, een balans die harder groeit dan de omzet, een zwakke '
+      + 'F-score), groen alleen dat ze er níet tegen pleiten. Reken niet op winnaars — van de '
+      + 'bedrijven die drie jaar hard groeien doet maar een klein deel dat nog eens drie jaar. '
+      + '🌱 = verlieslatend, geen fair value te berekenen. Drempels zijn voorlopig; de ijking volgt.',
   },
   {
     // Het sluitstuk van de pijplijn: tussencheck, analyse, gekocht — en dan?
@@ -1057,6 +1062,37 @@ if (_focusHead) {
   });
 }
 
+// Groeiprofiel: een pil met niveau en score, plus de uitleg in één regel. Kleuren
+// via de tokens van NIVEAU_STIJL, niet via de Tailwind-schaal; de map kent geen
+// 'geel', dat is hier 'oranje'.
+function groeiPil(r) {
+  const niveau = r.groei_niveau || 'grijs';
+  const stijl = NIVEAU_STIJL[niveau === 'geel' ? 'oranje' : niveau] || NIVEAU_STIJL.grijs;
+  const score = (r.groei_score !== null && r.groei_score !== undefined)
+    ? ' ' + String(r.groei_score.toFixed(1)).replace('.', ',') : '';
+  return `<span class="px-2 py-0.5 rounded text-xs font-bold"
+    style="border:1px solid ${stijl.rand}; color:${stijl.tekst}"
+    title="${(r.groei_kop || 'Geen groeiprofiel').replace(/"/g, '&quot;')}">● ${niveau}${score}</span>`;
+}
+
+const GROEI_TOETSNAMEN = { T1: 'verwatering', T2: 'balansgroei', T3: 'F-score',
+  T4: 'brutowinst', T5: 'accruals', T6: 'groeistabiliteit', T7: 'R&D' };
+
+function groeiUitleg(r) {
+  let t = r.groei_kop || 'Geen groeiprofiel (nog) berekend';
+  const rood = (r.groei_rood || []).map(c => GROEI_TOETSNAMEN[c] || c);
+  if (rood.length) t += ' · rood op ' + rood.join(', ');
+  if (r.groei_verlieslatend) t += ' · verlieslatend';
+  if (r.dubbel_soort) t += ' · ' + r.dubbel_soort;
+  return t;
+}
+
+function groeiTelling(rows) {
+  const n = { groen: 0, geel: 0, rood: 0, grijs: 0 };
+  rows.forEach(r => { n[r.groei_niveau in n ? r.groei_niveau : 'grijs']++; });
+  return ` · ${n.groen} groen · ${n.geel} geel · ${n.rood} rood · ${n.grijs} zonder profiel`;
+}
+
 function renderFocus(tab) {
   // De selectie en de natuurlijke volgorde komen van de server; `sorteerFocus`
   // doet alleen nog iets als je zelf op een kolomkop hebt geklikt.
@@ -1075,8 +1111,9 @@ function renderFocus(tab) {
        ['Reden', 'l', 'reason_label'], ['Sector', 'r', 'sector']]
     : tab.id === 'groeiers'
       ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
-         ['Sector', 'l', 'sector'], ['Prijs', 'r', 'price'],
-         ['Omzetgroei', 'r', 'revenue_cagr'], ['Kwaliteit', 'r', 'quality_score'], ['', 'r', '']]
+         ['Sector', 'l', 'sector'], ['Omzetgroei', 'r', 'revenue_cagr'],
+         ['Profiel', 'r', 'groei_score'], ['F-score', 'r', 'piotroski_score'],
+         ['Kwaliteit', 'r', 'quality_score'], ['Waarom', 'r', '']]
     : (tab.id === 'kwaliteit' || tab.id === 'herstellers')
       ? [['', 'l', ''], ['Ticker', 'l', 'ticker'], ['Naam', 'l', 'name'],
          ['Sector', 'l', 'sector'], ['Kwaliteit', 'r', 'quality_score'],
@@ -1111,8 +1148,10 @@ function renderFocus(tab) {
     const sterKleur = pins.includes(r.ticker) ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400';
     // Op Kwaliteit en Herstellers staat het oordeel in een eigen kolom, dus
     // daar niet ook nog achter de naam — anders staat dezelfde pil er twee keer.
+    const verliesMerk = (tab.id === 'groeiers' && r.is_growth_lossmaker)
+      ? ' <span title="Verlieslatend: geen fair value te berekenen">🌱</span>' : '';
     const naamExtra = (tab.id === 'kwaliteit' || tab.id === 'herstellers')
-      ? noteringPil(r) : oordeelPil(r) + noteringPil(r);
+      ? noteringPil(r) : oordeelPil(r) + noteringPil(r) + verliesMerk;
     const heeft = _bezit.has(r.ticker);
     const koffer = heeft ? 'opacity-100' : 'opacity-25 hover:opacity-70';
     const cel = `<td class="px-3 py-2 whitespace-nowrap"><button onclick="togglePin('${r.ticker}', event)"
@@ -1132,10 +1171,11 @@ function renderFocus(tab) {
         ? (r.revenue_cagr * 100).toFixed(0) + '%' : '—';
       return `<tr class="hover:bg-slate-800/40">${cel}
         <td class="px-3 py-2 text-slate-400 text-xs">${r.sector || '—'}</td>
-        <td class="px-3 py-2 text-right">${fmt(r.price)}</td>
-        <td class="px-3 py-2 text-right text-emerald-400">${cagr}</td>
+        <td class="px-3 py-2 text-right" style="color:var(--text-1)">${cagr}</td>
+        <td class="px-3 py-2 text-right whitespace-nowrap">${groeiPil(r)}</td>
+        <td class="px-3 py-2 text-right">${r.piotroski_score ?? '—'}</td>
         <td class="px-3 py-2 text-right">${kwaliteitCel(r)}</td>
-        <td class="px-3 py-2 text-right text-xs text-slate-500">geen waardebepaling mogelijk</td></tr>`;
+        <td class="px-3 py-2 text-right text-xs" style="color:var(--text-2)">${groeiUitleg(r)}</td></tr>`;
     }
     if (tab.id === 'kwaliteit' || tab.id === 'herstellers') {
       const mos = r.margin_of_safety;
@@ -1169,8 +1209,9 @@ function renderFocus(tab) {
   const sorteernoot = (_focusSortCol && tab.id === 'kansen')
     ? ' · gesorteerd binnen de twintig van de ranglijst, niet opnieuw geselecteerd'
     : '';
+  const groeiTekst = tab.id === 'groeiers' ? groeiTelling(rows) : '';
   document.getElementById('row-count').textContent =
-    `${rows.length} aandelen · van ${totaal}${sorteernoot}`;
+    `${rows.length} aandelen · van ${totaal}${sorteernoot}${groeiTekst}`;
 }
 
 // _allRows houdt sinds 2026-08-22 alleen de rijen van de weergave waar je naar

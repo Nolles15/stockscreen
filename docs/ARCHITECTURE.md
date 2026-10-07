@@ -62,6 +62,8 @@ Een mislukte probe-chunk telt niet als "onvindbaar": die tickers blijven onbeoor
 | [engine/normalizer.py](../engine/normalizer.py) | Mediaan-EPS, mediaan-EBITDA, mediaan-FCF over de laatste jaren + TTM |
 | [engine/valuation.py](../engine/valuation.py) | Multiples + Graham + Perpetuity → `combined_fv`, plus scenario's |
 | [engine/quality_score.py](../engine/quality_score.py) | Quality score (0-10) op basis van ROE, FCF-margin, debt/equity, consistency |
+| [engine/moat_profile.py](../engine/moat_profile.py) | Moat-profiel: ROIC-standvastigheid, margetrend, cyclustest op de koershistorie |
+| [engine/groei_profiel.py](../engine/groei_profiel.py) | Groeiprofiel: zeven toetsen (verwatering, balansgroei, F-score, brutowinst/activa, accruals, groeistabiliteit, R&D) → groen/geel/rood/grijs; een zeef, geen koopoordeel |
 | [engine/screener.py](../engine/screener.py) | `run_ticker(ticker, cfg)` — bindt alles samen en schrijft naar `calculated_scores` |
 
 ---
@@ -155,6 +157,25 @@ Drempels in `config.yaml` → `signals`. De high-quality SELL-drempel (-75%) is 
 `api_dashboard` berekent `margin_of_safety` en `signal` **live** uit de laatste `price` + opgeslagen `combined_fv`, niet uit `calculated_scores.margin_of_safety`. Zie [app.py:190](../app.py#L190).
 
 **Waarom.** `market_data` (prijs) refresht op andere cadans dan `calculated_scores` (FV). Als je het signal niet live recomputeert, krijg je stale signalen van het type "+88% korting" nadat de prijs al lang is gestegen.
+
+---
+
+## Groeiprofiel
+
+Naast het moat-profiel staat een tweede zeef, voor bedrijven met minstens 15% omzetgroei per jaar
+(`screening.growth_lossmaker_cagr`): [engine/groei_profiel.py](../engine/groei_profiel.py).
+Het draait buiten de fair-value-pijplijn en raakt dus geen signaal en geen waardering.
+
+- **Zeven toetsen** over de laatste vier boekjaren (nooit de TTM-rij): T1 verwatering, T2 activagroei
+  minus omzetgroei, T3 Piotroski, T4 brutowinst/activa en brutomargetrend, T5 accruals, T6 spreiding van
+  de jaarlijkse groei, T7 R&D-intensiteit. T1–T4 kunnen rood geven; T5/T6 hooguit geel; T7 nooit rood.
+- **Datapoorten gaan vóór alles:** `data_status` bad/missing, minder dan drie boekjaren, een omzetbreuk
+  (definitiewissel bij Yahoo) en een niet-groeier geven grijs, nooit rood.
+- **Groen is afwezigheid van bewijs tegen de groei**, geen koopsignaal. De tab Groeiers toont rood
+  onderaan maar laat het staan.
+- **Drempels zijn voorlopig** tot de ijking (`scripts/jkp_check.py`, `scripts/groei_backtest.py`).
+  Alle constanten staan bovenin het bestand en reizen mee in `profiel["drempels"]`.
+- Bronnen en ontwerp: [plan-groeiprofiel.md](plan-groeiprofiel.md).
 
 ---
 
@@ -287,10 +308,10 @@ Alle 9 tabellen worden aangemaakt bij startup via `init_db()` in [engine/db.py](
 | Tabel | Primary key | Doel |
 |---|---|---|
 | `stocks` | ticker | Metadata: naam, sector, markt, currency, financial_currency, active, added_date |
-| `financials` | (ticker, year) | Jaar + TTM cijfers: revenue, ebitda, net_income, fcf, operating_cf, capex, etc. |
+| `financials` | (ticker, year) | Jaar + TTM cijfers: revenue, ebitda, net_income, fcf, operating_cf, capex, rd_expense (alleen als gemeld), etc. |
 | `market_data` | ticker | Huidige prijs, market cap, TTM-multiples (pe_ttm, ev_ebitda_ttm, pb), last_fetched |
 | `historical_multiples` | (ticker, year) | 5-jaars historie van pe, ev_ebitda, pb, ev_fcf → input voor 65/35 blend |
-| `calculated_scores` | ticker | combined_fv, conservative/base/optimistic FV, signal, margin_of_safety, quality_score, warnings, fv_methods_used/dropped |
+| `calculated_scores` | ticker | combined_fv, conservative/base/optimistic FV, signal, margin_of_safety, quality_score, warnings, fv_methods_used/dropped, groei_niveau/groei_score/groei_profiel |
 | `data_quality` | ticker | status, completeness_pct, issues (JSON), consecutive_failures, last_checked |
 | `overrides` | (ticker, field, year) | Handmatige cijfers. `year=NULL` betekent "alle jaren" (bv. voor shares_outstanding) |
 | `exchange_rates` | (base, quote, date) | Alleen voor legacy; native currency pipeline gebruikt dit nauwelijks meer |

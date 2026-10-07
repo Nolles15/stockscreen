@@ -47,8 +47,9 @@ const STAPPEN = [
   { id: 'kwaliteit',   titel: '5 · Kwaliteitsscore (0–10)' },
   { id: 'piotroski',   titel: '6 · Piotroski F-score (0–9)' },
   { id: 'moat',        titel: '7 · Moat — houdt het rendement stand?' },
-  { id: 'signaal',     titel: '8 · Signaal en rangorde' },
-  { id: 'grenzen',     titel: '9 · Grenzen van deze methode' },
+  { id: 'groei',       titel: '8 · Groeiprofiel — is de groei gezond?' },
+  { id: 'signaal',     titel: '9 · Signaal en rangorde' },
+  { id: 'grenzen',     titel: '10 · Grenzen van deze methode' },
 ];
 
 let _trace = null;
@@ -126,7 +127,7 @@ function bron(bestand, functie) {
           → <span class="font-mono">${functie}</span></p>`;
 }
 
-// ---- de negen stappen ------------------------------------------------------
+// ---- de tien stappen ------------------------------------------------------
 
 function bouwHerkomst(t) {
   const s = t.stock || {}, m = t.market || {}, dq = t.data_quality || {};
@@ -365,11 +366,43 @@ function bouwMoat(t) {
      ${bron('engine/moat_profile.py', 'bouw_profiel()')}`);
 }
 
+function bouwGroei(t) {
+  const g = t.groei || {}, d = g.drempels || {};
+  const toetsen = Array.isArray(g.toetsen) ? g.toetsen : [];
+  const rijen = toetsen.map(x => [esc(x.code + ' · ' + x.naam), esc(x.uitkomst),
+    esc(x.uitleg), esc(x.drempel), esc(x.bron)]);
+  return stap('groei', STAPPEN[7].titel,
+    `Snelle groei is het makkelijkst te kopen met verlies, dus omzetgroei alleen zegt weinig.
+     Deze stap toetst wat de groei kost: nieuwe aandelen, een balans die harder groeit dan de
+     omzet, een zwakke F-score, magere brutowinst. Het is een zeef die de structureel zwakke
+     groeiers eruit haalt — geen koopoordeel en geen voorspelling.`,
+    g.niveau === undefined
+      ? '<p class="text-sm text-slate-400">Geen groeiprofiel beschikbaar voor dit aandeel.</p>'
+      : `<p class="text-sm text-slate-200 mb-1">Oordeel: <strong>${esc(g.kop)}</strong>
+       (${esc(g.niveau)}${g.score !== null && g.score !== undefined ? ', score ' + nf(g.score, 1) + ' van 10' : ''})</p>
+     <p class="text-xs text-amber-500/90 mb-2">Voorlopige drempels — de ijking op de Europese
+       literatuurcijfers en het eigen universum volgt.</p>
+     ${tabel(['Toets','Uitkomst','Waarde','Drempel','Bron'], rijen)}
+     <p class="text-xs text-slate-400 mt-2">Eerste harde rode toets bepaalt de kop, in de volgorde
+       verwatering, balansgroei, F-score, brutowinst. Accruals en groeistabiliteit geven hooguit
+       geel. Groen vraagt geen rood, minstens ${nf(d.groen_min_bekend, 0)} bekende toetsen en een
+       score van ${nf(d.groen_score, 1)} of hoger. R&D kan nooit rood geven (het bewijs is
+       eenzijdig) en een ontbrekende R&D-regel telt niet mee. Een definitiewissel in de
+       omzetreeks geeft grijs, geen rood.</p>
+     <p class="text-xs text-slate-400 mt-2"><strong>Basiskans.</strong> Twintig procent omzetgroei
+       tien jaar volhouden lukt 1 op 22 bedrijven (Mauboussin); in Zweden herhaalt ongeveer 1% van
+       de snelle groeiers het in de volgende driejaarsperiode (Daunfeldt &amp; Halvarsson).
+       Groen betekent dus alleen: de cijfers spreken niet tegen.</p>
+     <p class="text-xs text-slate-500 mt-2">Bronnen en onderbouwing per toets:
+       <a class="underline" href="https://github.com/Nolles15/stockscreen/blob/main/docs/plan-groeiprofiel.md">docs/plan-groeiprofiel.md</a>.</p>
+     ${bron('engine/groei_profiel.py', 'bouw_profiel()')}`);
+}
+
 function bouwSignaal(t) {
   const s = t.signaal || {}, sig = (t.config || {}).signals || {};
   const scr = (t.config || {}).screening || {};
   const rijen = Object.entries(sig).map(([k, v]) => [esc(k), nf(v * 100, 0) + '% van de reële waarde']);
-  return stap('signaal', STAPPEN[7].titel,
+  return stap('signaal', STAPPEN[8].titel,
     `Het signaal vergelijkt de koers met de reële waarde, en de rangorde zet aandelen
      onderling op volgorde. Dat tweede is bewust anders opgebouwd: een absoluut signaal hangt
      af van hoe goed de waardering gekalibreerd is, een onderlinge rangorde veel minder.`,
@@ -390,7 +423,7 @@ function bouwSignaal(t) {
 }
 
 function bouwGrenzen(t) {
-  return stap('grenzen', STAPPEN[8].titel,
+  return stap('grenzen', STAPPEN[9].titel,
     `Wat deze screener niet is en niet kan. Dit hoort bij de uitkomst: wie de grenzen niet
      kent, leest de cijfers preciezer dan ze zijn.`,
     `<ul class="text-sm text-slate-300 list-disc ml-5 space-y-2">
@@ -403,7 +436,8 @@ function bouwGrenzen(t) {
        <li><strong>Dubbele noteringen</strong> van hetzelfde bedrijf kunnen los in de lijst
            staan; bekende gevallen zijn handmatig gekoppeld.</li>
        <li><strong>Verlieslatende groeibedrijven</strong> zijn met deze modellen niet te
-           waarderen. Ze worden apart getoond, niet gerangschikt.</li>
+           waarderen. Ze staan in het tabblad Groeiers, gerangschikt op het groeiprofiel
+           (een zeef, geen waardering).</li>
        <li><strong>Dit is geen beleggingsadvies.</strong> Het is een zoekmachine die
            kandidaten aandraagt voor eigen onderzoek.</li>
      </ul>`);
@@ -441,7 +475,7 @@ function render() {
   document.getElementById('stappen').innerHTML = [
     bouwHerkomst(_trace), bouwPoort(_trace), bouwNormalisatie(_trace),
     bouwWaardering(_trace), bouwKwaliteit(_trace), bouwPiotroski(_trace),
-    bouwMoat(_trace), bouwSignaal(_trace), bouwGrenzen(_trace),
+    bouwMoat(_trace), bouwGroei(_trace), bouwSignaal(_trace), bouwGrenzen(_trace),
   ].join('');
 
   // Openstaande stappen open houden na het herladen van een ander aandeel.

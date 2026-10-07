@@ -137,6 +137,8 @@
 
 <!-- Onderbouwing van het moat-blok; blijft verborgen tot er cijfers zijn. -->
 <div id="moat-cijfers" class="hidden mb-6"></div>
+<!-- Onderbouwing van het groeiprofiel: jaartabel en de zeven toetsen. -->
+<div id="groei-cijfers" class="hidden mb-6"></div>
 
 <!-- Koersverloop met de geschatte waarde erdoorheen. De grafiek zelf zegt weinig;
      het gaat om de verhouding tot die waardelijn — handelt dit aandeel er
@@ -938,8 +940,87 @@ function bouwBeslisboom(d) {
     blokken.push(blok('5 · Moat', m.niveau, m.kop, regels));
   }
 
+  // 6. Groeiprofiel — kan deze snelle groei gezond zijn? Een zeef, geen oordeel.
+  // Eigen try: een fout hier mag de andere vijf blokken niet leegmaken.
+  const g = d.groei;
+  if (g && Array.isArray(g.redenen)) {
+    const gRegels = g.redenen.slice();
+    if (g.niveau === 'rood')
+      gRegels.push('<span class="text-slate-500">Een zeef, geen oordeel over het bedrijf: de cijfers pleiten tegen de groei.</span>');
+    else if (g.niveau === 'groen')
+      gRegels.push('<span class="text-slate-500">Groen zegt alleen dat de cijfers er niet tegen pleiten. Van hard groeiende bedrijven houdt maar een klein deel het vol — dit is geen koopoordeel.</span>');
+    else if (g.niveau === 'grijs' && !g.groeier)
+      gRegels.push('<span class="text-slate-500">Geen snelle groeier; het profiel is ter informatie.</span>');
+    if (g.voorlopig)
+      gRegels.push('<span class="text-slate-500">Drempels voorlopig — ijking volgt.</span>');
+    blokken.push(blok('6 · Groeiprofiel', g.niveau, g.kop, gRegels));
+  }
+
   document.getElementById('beslisboom').innerHTML = blokken.join('');
   if (m) toonMoatCijfers(m);
+  if (g) toonGroeiCijfers(g);
+}
+
+// De jaren en toetsen waarop het groeiprofiel rust.
+function toonGroeiCijfers(g) {
+  const doel = document.getElementById('groei-cijfers');
+  const reeks = g && g.series;
+  if (!doel || !reeks || !Array.isArray(reeks.omzet) || !reeks.omzet.length) {
+    if (doel) doel.classList.add('hidden');
+    return;
+  }
+  const jaren = reeks.omzet.map(p => p.jaar);
+  const waarde = (lijst, jaar) => {
+    const p = (Array.isArray(lijst) ? lijst : []).find(x => x.jaar === jaar);
+    return p ? p.waarde : null;
+  };
+  const rij = (label, lijst, opmaak) =>
+    `<tr><td class="px-3 py-1.5 text-slate-400">${label}</td>` +
+    jaren.map(j => {
+      const w = waarde(lijst, j);
+      return `<td class="px-3 py-1.5 text-right tabular-nums">${w === null ? '—' : opmaak(w)}</td>`;
+    }).join('') + '</tr>';
+  const groot = w => fmtBig(w / 1e6);
+  const pct = w => w.toFixed(1).replace('.', ',') + '%';
+  const getal = w => w.toLocaleString('nl-NL', { maximumFractionDigits: 2 });
+
+  const stip = u => {
+    const [, , kleur] = STOPLICHT[u === 'onbekend' ? 'grijs' : u] || STOPLICHT.grijs;
+    return `<span style="color:${kleur}">●</span> ${u}`;
+  };
+  const toetsen = (Array.isArray(g.toetsen) ? g.toetsen : []).map(t =>
+    `<tr><td class="px-3 py-1.5 text-slate-300">${t.code} · ${t.naam}</td>
+      <td class="px-3 py-1.5">${stip(t.uitkomst)}</td>
+      <td class="px-3 py-1.5 text-slate-400">${t.uitleg}</td>
+      <td class="px-3 py-1.5 text-slate-500">${t.drempel}</td></tr>`).join('');
+
+  doel.innerHTML = `
+    <h2 class="text-sm font-semibold text-slate-300 mb-2">Waarop het groeiprofiel rust (${g.venster})</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-800">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-900 text-slate-400">
+          <tr><th class="px-3 py-1.5 text-left font-medium">Per boekjaar</th>${jaren.map(j => `<th class="px-3 py-1.5 text-right font-medium">${j}</th>`).join('')}</tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800">
+          ${rij('Omzet', reeks.omzet, groot)}
+          ${rij('Balanstotaal', reeks.activa, groot)}
+          ${rij('Aandelen', reeks.aandelen, w => fmtBig(w / 1e6))}
+          ${rij('Brutomarge', reeks.brutomarge_pct, pct)}
+          ${rij('R&D (% omzet)', reeks.rd_pct, pct)}
+          ${rij('Omzet per aandeel', reeks.omzet_per_aandeel, getal)}
+        </tbody>
+      </table>
+    </div>
+    <div class="overflow-x-auto rounded-xl border border-slate-800 mt-3">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-900 text-slate-400">
+          <tr><th class="px-3 py-1.5 text-left font-medium">Toets</th><th class="px-3 py-1.5 text-left font-medium">Uitkomst</th>
+              <th class="px-3 py-1.5 text-left font-medium">Waarde</th><th class="px-3 py-1.5 text-left font-medium">Drempel (voorlopig)</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800">${toetsen}</tbody>
+      </table>
+    </div>`;
+  doel.classList.remove('hidden');
 }
 
 // De reeksen waarop het moat-oordeel rust. Bewust onder de beslisboom en niet

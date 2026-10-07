@@ -291,6 +291,9 @@ brutomarge-richting, verwatering, kaspositie) met een eigen lijst — meng hem
 niet in deze FV-pijplijn. Niet doen vóór de kern gekalibreerd is; de
 vals-negatief-bron van 1b is groter en goedkoper te dichten.
 
+**Status 2026-10:** opgepakt als aparte zeef buiten de FV-pijplijn, conform dit
+advies — zie docs/plan-groeiprofiel.md.
+
 ---
 
 ## Aanbevelingen, genummerd

@@ -486,6 +486,10 @@ def _routekaart(ticker: str) -> tuple[dict | None, str | None]:
         "signal": scores.get("signal"),
         "mos": f"{mos:+.0f}%".replace("+", "+") if isinstance(mos, (int, float)) else "—",
         "moat": _moat_niveau(ticker),
+        # Opgeslagen niveau, geen herbouw — alleen voor snelle groeiers zegt het iets.
+        "groei": (scores.get("groei_niveau")
+                  if (scores.get("revenue_cagr") or 0) >= load_config().get(
+                      "screening", {}).get("growth_lossmaker_cagr", 0.15) else None),
         "stappen": stappen,
         "dubbele_notering": dubbel,
         "noteringen": noteringen,
