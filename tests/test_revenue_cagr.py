@@ -125,6 +125,38 @@ def test_zonder_brutowinst_blijft_de_voorzichtige_regel():
     print("  [OK] zonder bevestiging door de brutowinst blijft een sprong een breuk")
 
 
+def test_groeier_uit_het_verlies_is_geen_breuk():
+    """De gaten die de lijst van fase A blootlegde (docs/fase-a-breuken.csv).
+
+    De eerste versie vergeleek de brutowinst op logschaal en eiste daarvoor twee
+    positieve getallen. Een groeier die uit het verlies komt viel daardoor
+    altijd als 'definitiewissel' uit het tabblad Groeiers.
+    """
+    # Alvotech: omzet ×5,4, brutowinst van −697 naar +3.057 mln (echte cijfers).
+    alvotech = _jaren([833.8e6, 918.2e6, 4917.7e6, 5888.2e6],
+                      bruto=[190.1e6, -697.2e6, 3056.7e6, 3522.6e6])
+    assert exit_regels.omzetbreuk(alvotech) is None
+    assert screener._calc_revenue_cagr(alvotech) > 0.8
+
+    # ITM Power: beide jaren negatieve brutowinst, die wel fors verbetert.
+    itm = _jaren([5.6e6, 5.2e6, 16.5e6, 26.0e6], bruto=[-60e6, -79.1e6, -16.7e6, -5e6])
+    assert exit_regels.omzetbreuk(itm) is None
+
+    # Xbrane-patroon: omzet ×4 omhoog, brutowinst omláág — dat blijft een breuk.
+    tegen = _jaren([57.7e6, 238.8e6, 148.1e6, 152.4e6], bruto=[57.6e6, 35.4e6, 30e6, 31e6])
+    assert exit_regels.omzetbreuk(tegen)
+    print("  [OK] een groeier die uit het verlies komt is geen definitiewissel")
+
+
+def test_kleine_omzet_blijft_een_breuk():
+    """Onder een miljoen omzet is een verdubbeling ruis, ook mét brutowinst."""
+    klein = _jaren([40e3, 95e3, 150e3, 210e3], bruto=[20e3, 50e3, 80e3, 110e3])
+    breuk = exit_regels.omzetbreuk(klein)
+    assert breuk and "ruis" in breuk
+    assert screener._calc_revenue_cagr(klein) is None
+    print("  [OK] bij een omzet onder een miljoen blijft een sprong een breuk")
+
+
 def test_breuk_komt_als_waarschuwing_in_beeld():
     """De groei verdwijnt niet geruisloos: run_ticker zet de reden in warnings."""
     adyen = _jaren([8936e6, 1863e6, 2226e6, 2647e6])

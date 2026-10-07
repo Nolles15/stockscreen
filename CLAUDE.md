@@ -326,8 +326,10 @@ informatieve. Motor: [engine/exit_regels.py](engine/exit_regels.py), pagina in
   (1.330 → 1.626 → 1.988 → 2.352), dus dáár is de wissel aan te zien en de rest van het oordeel
   blijft staan. **Sinds oktober 2026 is ook `revenue_cagr` gerepareerd**: bij een breuk binnen
   het groeivenster geeft `screener._calc_revenue_cagr` None, met de reden in de warnings.
-  `omzetbreuk` herkent een echte sprong nu aan meebewegende brutowinst — anders verdween elke
-  groeier die in één jaar verdubbelde uit de Groeiers-tab. Zie docs/plan-groeiprofiel.md.
+  `omzetbreuk` herkent een echte sprong nu aan meebewegende brutowinst, gemeten als absolute
+  verandering — óók van negatief naar positief, want daar zit precies de groeier die uit het
+  verlies komt (Alvotech). Onder 1 mln omzet is een sprong altijd een breuk. Zie
+  docs/plan-groeiprofiel.md en docs/fase-a-breuken.csv.
 - **"Beter alternatief" (D1) telt nooit mee in het eindoordeel.** De rangorde schuift per
   verversing; er een verkoopoordeel op bouwen geeft elk kwartaal vals alarm. Tonen, niet wegen.
 - **Twee eindpunten met opzet.** `GET /api/bezit/tickers` is één query en wordt bij elke

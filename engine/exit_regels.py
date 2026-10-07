@@ -58,7 +58,6 @@ argumenten binnen. Zelfde opzet als `moat_profile.bouw_profiel`, zodat de
 drempels los te testen zijn en er maar één plek is waar ze staan.
 """
 
-import math
 from datetime import date
 from typing import Optional
 
@@ -94,6 +93,20 @@ OMZETKRIMP_GRENS = -0.02
 # er hoogstwaarschijnlijk van definitie gewisseld en meet de meerjarige groei
 # een boekhoudkundige wissel in plaats van het bedrijf.
 OMZETBREUK_FACTOR = 2.0
+
+# Een sprong telt pas als echte groei of krimp als de brutowinst in dezelfde
+# richting meebeweegt met minstens dit deel van de omzetverandering. Bij een
+# definitiewissel blijft de brutowinst vrijwel gelijk (die raakt de wissel
+# niet); bij echte groei beweegt hij mee met grofweg de brutomarge. Vijf procent
+# laat ook dunne-margebedrijven door. Geijkt op de 391 breuken van fase A
+# (docs/fase-a-breuken.csv, oktober 2026).
+OMZETBREUK_MEEBEWEGING = 0.05
+
+# Onder dit bedrag (in de eigen valuta) zegt een verdubbeling niets: van 40.000
+# naar 90.000 is ruis, geen groei. Zo'n sprong blijft een breuk en de groei
+# blijft leeg. 18 van de 68 aandelen die in fase A uit Groeiers vielen hadden
+# zo'n omzet; ze horen daar ook niet in.
+OMZETBREUK_MINIMUM = 1e6
 
 # `rank_score` van het bezit ten opzichte van de kop van Kansen. Informatief,
 # telt nooit mee in het eindoordeel.
@@ -131,17 +144,23 @@ def _getal(waarde) -> Optional[float]:
 
 def _brutowinst_beweegt_mee(omzet_a: float, omzet_b: float,
                             bruto_a: Optional[float], bruto_b: Optional[float]) -> bool:
-    """Gaat de brutowinst dezelfde kant op als de omzet, en ongeveer even hard?
+    """Beweegt de brutowinst mee met de omzetsprong, in dezelfde richting?
 
-    "Ongeveer even hard" = minstens de helft van de omzetsprong op logschaal: bij
-    een omzetverdubbeling moet de brutowinst minstens ×1,41 stijgen. Ontbreekt
-    de brutowinst, of is hij nul of negatief, dan valt er niets te bevestigen.
+    Gemeten als absolute verandering, niet als groeifactor. De eerste versie
+    vergeleek de groei op logschaal en eiste daarvoor twee positieve
+    brutowinsten — en sloot zo precies de groeier uit die uit het verlies
+    komt. Alvotech ging van −697 naar +3.057 mln brutowinst bij een vijfvoudige
+    omzet en werd als definitiewissel gelezen; ITM Power (−79 naar −17 mln) en
+    Dolphin Drilling (−372 naar +26 mln) net zo.
+
+    Ontbreekt de brutowinst in een van beide jaren, dan valt er niets te
+    bevestigen.
     """
-    if not bruto_a or not bruto_b or bruto_a <= 0 or bruto_b <= 0:
+    if bruto_a is None or bruto_b is None:
         return False
-    sprong_omzet = math.log(omzet_b / omzet_a)
-    sprong_bruto = math.log(bruto_b / bruto_a)
-    return sprong_omzet * sprong_bruto > 0 and abs(sprong_bruto) >= 0.5 * abs(sprong_omzet)
+    d_omzet = omzet_b - omzet_a
+    d_bruto = bruto_b - bruto_a
+    return d_omzet * d_bruto > 0 and abs(d_bruto) >= OMZETBREUK_MEEBEWEGING * abs(d_omzet)
 
 
 def omzetbreuk(annual: Optional[list]) -> Optional[str]:
@@ -165,11 +184,12 @@ def omzetbreuk(annual: Optional[list]) -> Optional[str]:
     groeiprofiel). Een jong bedrijf dat in één jaar zijn omzet verdubbelt is
     geen zeldzaamheid, en zonder dit onderscheid haalde de breukregel juist de
     snelste groeiers uit het tabblad Groeiers. Beweegt de brutowinst in dezelfde
-    richting mee — minstens de helft van de omzetsprong, gemeten op
-    logschaal — dan is het echte groei of krimp en geen definitiewissel. Bij
-    Adyen ging de omzet een factor 4,8 omlaag terwijl de brutowinst 22% steeg.
-    Zonder brutowinst in beide jaren (banken, verzekeraars, of Yahoo mist hem)
-    blijft de oude, voorzichtige regel gelden: sprong = breuk.
+    richting mee (`_brutowinst_beweegt_mee`), dan is het echte groei of krimp en
+    geen definitiewissel. Bij Adyen ging de omzet een factor 4,8 omlaag terwijl
+    de brutowinst 22% steeg. Zonder brutowinst in beide jaren (banken,
+    verzekeraars, beleggingsfondsen, of Yahoo mist hem) blijft de voorzichtige
+    regel gelden: sprong = breuk. Onder `OMZETBREUK_MINIMUM` ook: daar is een
+    verdubbeling ruis.
     """
     if not annual:
         return None
@@ -179,8 +199,13 @@ def omzetbreuk(annual: Optional[list]) -> Optional[str]:
     reeks.sort()
     for (jaar_a, omzet_a, bruto_a), (jaar_b, omzet_b, bruto_b) in zip(reeks, reeks[1:]):
         factor = max(omzet_a, omzet_b) / min(omzet_a, omzet_b)
-        if factor >= OMZETBREUK_FACTOR and not _brutowinst_beweegt_mee(
-                omzet_a, omzet_b, bruto_a, bruto_b):
+        if factor < OMZETBREUK_FACTOR:
+            continue
+        if min(omzet_a, omzet_b) < OMZETBREUK_MINIMUM:
+            return (f"De omzet springt van {omzet_a / 1e3:.0f} duizend ({jaar_a}) naar "
+                    f"{omzet_b / 1e3:.0f} duizend ({jaar_b}). Bij zo'n kleine omzet is een "
+                    f"verdubbeling ruis, dus de meerjarige omzetgroei zegt hier niets.")
+        if not _brutowinst_beweegt_mee(omzet_a, omzet_b, bruto_a, bruto_b):
             return (f"De omzetreeks springt van {omzet_a / 1e6:.0f} mln ({jaar_a}) naar "
                     f"{omzet_b / 1e6:.0f} mln ({jaar_b}) — een factor {factor:.1f}. "
                     f"Dat is vrijwel zeker een wisseling van definitie, dus de meerjarige "

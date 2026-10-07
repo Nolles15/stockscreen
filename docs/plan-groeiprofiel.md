@@ -157,8 +157,12 @@ dat herijking alleen constanten raakt.
      2022→2023) valt er gewoon in. De variabele `breuk` in `run_ticker` is dus de breuk
      binnen het venster; geef díé door aan het profiel in fase C.
   2. **`exit_regels.omzetbreuk` herkent nu een echte sprong** aan de brutowinst
-     (`_brutowinst_beweegt_mee`): beweegt die in dezelfde richting mee met minstens de helft
-     van de omzetsprong op logschaal, dan is het echte groei of krimp, geen definitiewissel.
+     (`_brutowinst_beweegt_mee`). **Gecorrigeerd op 7 okt** na de lijst van 391 breuken: de
+     eerste versie mat op logschaal en eiste twee positieve brutowinsten, waardoor elke groeier
+     die uit het verlies komt (Alvotech, ITM Power, Dolphin Drilling) als definitiewissel uit de
+     Groeiers-tab viel. Nu: de brutowinst beweegt in dezelfde richting als de omzet, met minstens
+     5% van de omzetverandering (`OMZETBREUK_MEEBEWEGING`). Onder 1 mln omzet
+     (`OMZETBREUK_MINIMUM`) blijft een sprong altijd een breuk, want daar is een verdubbeling ruis.
      Zonder deze regel haalde fase A juist de snelste groeiers (omzet ×2 in één jaar) uit de
      Groeiers-tab. Zonder brutowinst in beide jaren blijft de oude regel gelden: sprong =
      breuk. Gevolg voor de bezitspagina: bij een echte halvering mét meedalende brutowinst
@@ -482,6 +486,7 @@ Groen is bewust als afwezigheid van bewijs geformuleerd; de UI voegt de basiskan
 | 2026-10-03 | — | Plan geschreven na literatuuronderzoek; gecommit als `docs/plan-groeiprofiel.md` | — |
 | 2026-10-03 | B (voorbereiding) | Janco: JKP-landfactoren (12 landen, `vw_cap`, 9 kenmerken) in `data/jkp/`, drie papers in `data/papers/` — lokaal op zijn machine, buiten git | — |
 | 2026-10-04 | A | Kolom `rd_expense` end-to-end (db + migratie, fetcher jaar/TTM/FX, overrides, handmatig formulier); `_calc_revenue_cagr` geeft None bij een breuk binnen het venster, met reden in warnings; `omzetbreuk` herkent echte sprongen aan de brutowinst (zie A2). Nieuw `tests/test_revenue_cagr.py` (9 tests; 3 falen op de oude code). CLAUDE.md-valkuil Adyen bijgewerkt. | Lokaal: pyflakes schoon, template-JS 0 fouten, 35/35 testbestanden groen. **Gedeployed 4 okt 20:30, herberekend 6 okt** (Claude Code, zonder tussenkomst). R&D-regelnaam op Fly bevestigd: `['Research And Development']` voor ASML.AS. Dry run op de oude en de nieuwe code gaven **exact hetzelfde**, per overgang: `fv_gewijzigd` 0 en 22 signaalovergangen (SELL→HOLD 15, HOLD→SELL 4, BUY→HOLD 2, BUY→STRONG BUY 1) — fase A raakt dus geen signaal en geen fair value, zoals bedoeld. De 22 overgangen zijn koersdrift tegen de opgeslagen scores, geen effect van deze fase. Echte run 6 okt: 4.050 doorgerekend, 0 fouten, `fv_gewijzigd` 0, 31 signaalovergangen (HOLD→SELL 16, SELL→HOLD 13, BUY→HOLD 1, BUY→STRONG BUY 1 — meer dan de 22 van zondag omdat er twee nachtrondes tussen zaten). Daarna `/api/recalculate` op ADYEN.AS voor de cache. **Dashboard voor → na:** `revenue_cagr` null 395 → **786** (+391), `is_growth_lossmaker` 177 → **109**, tab Groeiers 177 → **109**. Die 68 verdwenen groeiers stonden dus op een omzetreeks met een factor-2-sprong erin; fase C geeft ze grijs in plaats van ze te laten vervallen. ADYEN.AS zelf: `revenue_cagr` −0,333 → None. R&D-dekking na twee nachten: 296 tickers / 1.248 jaarrijen gevuld — op koers voor de volledige rotatie van zes nachten; eindstand nog meten. |
+| 2026-10-07 | A (correctie) | Lijst van de 391 omzetbreuken in `docs/fase-a-breuken.csv` (lokale sessie). Bevinding: 233 van de 391 zijn fondsen, trusts en financials met springerige "omzet" — daar is geen groeicijfer juist. Maar de brutowinstregel kon niet vuren bij negatieve brutowinst, dus elke groeier die uit het verlies komt viel weg. Regel herschreven naar absolute meebeweging (≥5% van de omzetverandering, zelfde richting) plus een ondergrens van 1 mln omzet. Twee tests op echte cijfers (Alvotech, ITM, Xbrane-patroon, kleine omzet). | Simulatie op de lijst: 52 van de 391 krijgen hun groeicijfer terug, waarvan 19 van de 68 Groeiers (o.a. Alvotech, Dolphin Drilling, Senzime, Shape Robotics, ITM Power, Northern Ocean, Nebius); de rest zijn echte krimpers (OCI, Exor). Lokaal 35/35 groen. **Nog te doen:** deploy, proefrun oud/nieuw (signalen en fair values moeten gelijk zijn), echte run, meting. |
 
 ## Startprompt voor de uitvoerende agent (Gemini Antigravity)
 
