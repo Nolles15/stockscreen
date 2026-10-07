@@ -1,10 +1,8 @@
 # Plan: Groeiprofiel — snelle groeiers die écht hoopvol kunnen zijn
 
-> Geschreven 3 oktober 2026 na literatuuronderzoek (sessie Claude Code). Uitvoering van de
-> fasen A t/m E gebeurt in Gemini Antigravity; de startprompt staat onderaan. Dit bestand is de
-> enige plek waar het plan leeft: werk de statuslog bij na elke fase. Het 2.0-plan op Janco's
-> machine (`~/.claude/plans/lovely-enchanting-mitten.md`) is vanuit een cloudsessie
-> onbereikbaar; daarom staat dit in de repo.
+> Geschreven 3 oktober 2026 na literatuuronderzoek (sessie Claude Code). Uitvoering per fase in
+> een lokale Claude Code-sessie op Janco's computer; **begin bij de sectie "Overdracht" onderaan**.
+> Dit bestand is de enige plek waar het plan leeft: werk de statuslog bij na elke fase.
 
 ## Context
 
@@ -173,11 +171,8 @@ dat herijking alleen constanten raakt.
    `tests/test_scores_recompute.py`, `tests/test_exit_regels.py`, nieuw `tests/test_revenue_cagr.py`.
 2. `fly deploy --remote-only --depot=false`, daarna `fly apps destroy fly-builder-*`.
 3. **Niet** `POST /api/recalculate` voor het hele universum (synchroon; 4.123 tickers passen
-   niet in de 120 s gunicorn-timeout). Wel `POST /api/scores/recompute {"dry_run": true}` →
-   `signaal_overgangen` moet leeg zijn → dan `{"dry_run": false}`, pollen op
-   `/api/refresh/status?job_id=`. Die job leegt `cache.dashboard` niet; daarna
-   `POST /api/recalculate {"tickers":["ADYEN.AS"]}` (één ticker, leegt de cache) of de TTL
-   afwachten. Documenteren wat gedaan is.
+   niet in de 120 s gunicorn-timeout). Volg de **deployprocedure** onderaan dit document
+   (proefrun op de oude code, deploy, proefrun op de nieuwe code, vergelijken, echte run).
 4. R&D vult zich over zes nachten (`fundamentals_per_night: 750`). Dekking meten met
    `scripts/groei_backtest.py --dekking` (fase B).
 
@@ -429,8 +424,8 @@ Groen is bewust als afwezigheid van bewijs geformuleerd; de UI voegt de basiskan
 - **A**: nieuw `tests/test_revenue_cagr.py` (Adyen-reeks 8936→1863→2226→2647 → None; gewone
   reeks → waarde; TTM-rij genegeerd); `tests/test_handmatig_boekjaar.py` (FINANCIAL_VELDEN-lus;
   `_SCORE_KOLOMMEN` 38-45 in C uitbreiden met `groei_*`); bewaker dat `rd_expense` in
-  `_MONEY_FIELDS_PER_ROW`, `FINANCIAL_VELDEN` en `VALID_OVERRIDE_FIELDS` zit; pyflakes; recompute
-  dry run → `signaal_overgangen == {}`.
+  `_MONEY_FIELDS_PER_ROW`, `FINANCIAL_VELDEN` en `VALID_OVERRIDE_FIELDS` zit; pyflakes; proefrun
+  op oude en nieuwe code gelijk (zie de deployprocedure).
 - **C**: nieuw `tests/test_groei_profiel.py` (helper `_jaren` als test_moat_profile 18-22): één
   test per T1–T7 incl. onbekend-paden; TTM-rij uitgesloten; omzetbreuk → grijs; `data_status='bad'`
   → grijs; < 3 rijen → grijs; niet-groeier → grijs mét toetsen; harde-rood-volgorde; groen eist
@@ -445,8 +440,8 @@ Groen is bewust als afwezigheid van bewijs geformuleerd; de UI voegt de basiskan
 - **D**: `python tests/test_template_javascript.py`; browsercheck volgens CLAUDE.md op `/`,
   `/stock/ADYEN.AS`, `/stock/ASML.AS`, `/methode`, `/start?ticker=ASML` (6 blokken, geen
   console-fouten).
-- **Meten en vastleggen** (statuslog in het plan): recompute dry run vóór/na C →
-  `signaal_overgangen` leeg en `fv_gewijzigd` 0 (het profiel raakt geen signaal);
+- **Meten en vastleggen** (statuslog in het plan): proefrun op oude en nieuwe code gelijk
+  (het profiel raakt geen signaal en geen fair value — zie de deployprocedure);
   `groei_overgangen`; `/api/dashboard/selectie?tab=groeiers` tellingen per niveau en totaal;
   aantal tickers waarvan `revenue_cagr` None werd ("definitiewissel" in warnings); R&D-dekking
   na zes nachten; cache-bytes per rij vóór/na.
@@ -488,35 +483,64 @@ Groen is bewust als afwezigheid van bewijs geformuleerd; de UI voegt de basiskan
 | 2026-10-04 | A | Kolom `rd_expense` end-to-end (db + migratie, fetcher jaar/TTM/FX, overrides, handmatig formulier); `_calc_revenue_cagr` geeft None bij een breuk binnen het venster, met reden in warnings; `omzetbreuk` herkent echte sprongen aan de brutowinst (zie A2). Nieuw `tests/test_revenue_cagr.py` (9 tests; 3 falen op de oude code). CLAUDE.md-valkuil Adyen bijgewerkt. | Lokaal: pyflakes schoon, template-JS 0 fouten, 35/35 testbestanden groen. **Gedeployed 4 okt 20:30, herberekend 6 okt** (Claude Code, zonder tussenkomst). R&D-regelnaam op Fly bevestigd: `['Research And Development']` voor ASML.AS. Dry run op de oude en de nieuwe code gaven **exact hetzelfde**, per overgang: `fv_gewijzigd` 0 en 22 signaalovergangen (SELL→HOLD 15, HOLD→SELL 4, BUY→HOLD 2, BUY→STRONG BUY 1) — fase A raakt dus geen signaal en geen fair value, zoals bedoeld. De 22 overgangen zijn koersdrift tegen de opgeslagen scores, geen effect van deze fase. Echte run 6 okt: 4.050 doorgerekend, 0 fouten, `fv_gewijzigd` 0, 31 signaalovergangen (HOLD→SELL 16, SELL→HOLD 13, BUY→HOLD 1, BUY→STRONG BUY 1 — meer dan de 22 van zondag omdat er twee nachtrondes tussen zaten). Daarna `/api/recalculate` op ADYEN.AS voor de cache. **Dashboard voor → na:** `revenue_cagr` null 395 → **786** (+391), `is_growth_lossmaker` 177 → **109**, tab Groeiers 177 → **109**. Die 68 verdwenen groeiers stonden dus op een omzetreeks met een factor-2-sprong erin; fase C geeft ze grijs in plaats van ze te laten vervallen. ADYEN.AS zelf: `revenue_cagr` −0,333 → None. R&D-dekking na twee nachten: 296 tickers / 1.248 jaarrijen gevuld — op koers voor de volledige rotatie van zes nachten; eindstand nog meten. |
 | 2026-10-07 | A (correctie) | Lijst van de 391 omzetbreuken in `docs/fase-a-breuken.csv` (lokale sessie). Bevinding: 233 van de 391 zijn fondsen, trusts en financials met springerige "omzet" — daar is geen groeicijfer juist. Maar de brutowinstregel kon niet vuren bij negatieve brutowinst, dus elke groeier die uit het verlies komt viel weg. Regel herschreven naar absolute meebeweging (≥5% van de omzetverandering, zelfde richting) plus een ondergrens van 1 mln omzet. Twee tests op echte cijfers (Alvotech, ITM, Xbrane-patroon, kleine omzet). | Simulatie op de lijst: 52 van de 391 krijgen hun groeicijfer terug, waarvan 19 van de 68 Groeiers (o.a. Alvotech, Dolphin Drilling, Senzime, Shape Robotics, ITM Power, Northern Ocean, Nebius); de rest zijn echte krimpers (OCI, Exor). Lokaal 35/35 groen. **Nog te doen:** deploy, proefrun oud/nieuw (signalen en fair values moeten gelijk zijn), echte run, meting. |
 
-## Startprompt voor de uitvoerende agent (Gemini Antigravity)
+## Overdracht: waar het werk staat en hoe je verdergaat
 
-Werk per fase in een eigen sessie; één fase = één of enkele commits. Plak dit als eerste bericht:
+Bijgewerkt 7 oktober 2026, bij de overstap van de cloudsessie naar een lokale Claude
+Code-sessie op Janco's eigen computer (`C:\Users\janco\stockscreen`). Lokaal zijn `fly`
+(ingelogd) en de databaseverbinding beschikbaar; in de cloud niet. Werk daarom lokaal.
 
-```
-Je werkt in de repo Nolles15/stockscreen (branch claude/nice-hamilton-udncm0, of een nieuwe
-branch vanaf main). Lees eerst volledig: CLAUDE.md, docs/plan-groeiprofiel.md en
-engine/moat_profile.py. Voer daarna UITSLUITEND fase <A|C|D|B|E> uit docs/plan-groeiprofiel.md
-uit, precies zoals beschreven, met de daar genoemde bestanden, functies en tests.
+**Stand:** fase A is gedeployd en herberekend. De correctie op de omzetbreuk (commit
+`2350333`, statuslog-rij "A (correctie)") staat op de branch maar is **nog niet gedeployd**.
+Daarna volgen C → D → B → E.
 
-Regels:
-- Nederlands in commentaar, UI-tekst en commits, zoals de rest van de repo.
-- Bouw niets na dat al bestaat: gebruik db.jaarrijen_met_overrides, moat_profile.marge_reeks,
-  exit_regels.omzetbreuk, quality_score.piotroski_fscore, selectie.TABBLADEN, NIVEAU_STIJL.
-- Kleuren alleen via de tokens uit templates/base.html (--buy/--hold/--pass/--text-1/2/3).
-- Geen herdeclaratie van fmt/fmtMoney/fmtBig/fmtBigMoney/currencySymbol in een template.
-- Vóór elke commit: python -m pyflakes app.py engine/*.py en python tests/test_template_javascript.py,
-  plus de tests die het plan voor deze fase noemt. Voeg de nieuwe tests toe die het plan noemt.
-- Drempels in engine/groei_profiel.py zijn VOORLOPIG tot fase B; label ze zo op /methode.
-- Raak geen signaal, fair value of kwaliteitsscore: een recompute dry run moet
-  signaal_overgangen == {} en fv_gewijzigd == 0 geven.
-- Deploy en herberekening zijn handelingen van Janco (fly deploy, /api/scores/recompute);
-  beschrijf exact wat hij moet draaien, voer het niet zelf uit.
-- Werk aan het eind van de fase de statuslog in docs/plan-groeiprofiel.md bij met wat gedaan
-  en gemeten is, en commit dat mee.
-```
+**Eerstvolgende stap:** deploy de correctie volgens de procedure hieronder en vul de meting
+in de rij "A (correctie)" in. Controleer daarbij dat Alvotech (ALVO-SDB.ST), Dolphin Drilling
+(DDRIL.OL), Senzime (SEZI.ST) en Shape Robotics (SHAPE.CO) weer een `revenue_cagr` hebben en
+Adyen (ADYEN.AS) niet.
 
-Fasevolgorde: **A → C → D**, daarna **B** zodra Janco de JKP-data en de papers in `data/`
-heeft gezet en de R&D-kolom zes nachten gevuld is, dan **E**.
+**Werkwijze per fase**
+- Branch `claude/nice-hamilton-udncm0`. Lees CLAUDE.md, dit plan en `engine/moat_profile.py`
+  (het patroon voor `engine/groei_profiel.py`).
+- Nederlands in commentaar, UI-tekst en commits. Bouw niets na dat al bestaat
+  (`db.jaarrijen_met_overrides`, `moat_profile.marge_reeks`, `exit_regels.omzetbreuk`,
+  `quality_score.piotroski_fscore`, `selectie.TABBLADEN`, `NIVEAU_STIJL`). Kleuren alleen via de
+  tokens uit `templates/base.html`. Geen herdeclaratie van `fmt` e.d. in een template.
+- Vóór elke commit: `python -m pyflakes app.py engine/*.py`, `python tests/test_template_javascript.py`
+  en de tests uit sectie F. Let op: veel testbestanden draaien hun controles bij het laden en
+  eindigen met `sys.exit`, dus `pytest tests/` in één keer werkt niet; draai elk bestand los met
+  `python tests/<bestand>.py`.
+- Drempels in `engine/groei_profiel.py` zijn **voorlopig** tot fase B; zo labelen op /methode.
+- Na een UI-wijziging de pagina echt in de browser bekijken (CLAUDE.md).
+- Werk aan het eind van elke fase de statuslog bij, commit en push.
+
+**Deployprocedure (voor elke fase met codewijziging)**
+1. Niet tussen 02:45–05:30 of 18:15–20:00 Amsterdamse tijd: dan lopen de verversrondes en is
+   de vergelijking niet zuiver.
+2. Meting vooraf uit `/api/dashboard`: aantal rijen met `revenue_cagr` null, aantal met
+   `is_growth_lossmaker`, en `totaal` uit `/api/dashboard/selectie?tab=groeiers` (vanaf fase C
+   ook de telling per `groei_niveau`).
+3. Proefrun op de **oude** code: `POST https://stockscreen-janco.fly.dev/api/scores/recompute`
+   met `{"dry_run": true}` (geen token nodig), wachten tot `/api/refresh/status?job_id=…` status
+   `done` geeft. Bewaar `signaal_overgangen` en `fv_gewijzigd`.
+4. `fly deploy --remote-only --depot=false`, daarna elke `fly-builder-*` app opruimen met
+   `fly apps destroy`.
+5. Wachten tot `/api/health` antwoordt; proefrun op de **nieuwe** code.
+6. **Vergelijk 3 en 5, per overgang.** Ze moeten gelijk zijn. Een losse proefrun is nooit
+   "leeg": hij vergelijkt met opgeslagen scores die tot zes dagen oud zijn, terwijl de koersen
+   elke avond verversen. Alleen het verschil tussen twee proefruns vlak na elkaar zegt iets over
+   de code. Verschillen ze: stoppen en melden.
+7. Echte run: zelfde endpoint met `{"dry_run": false}`. Daarna
+   `POST /api/recalculate {"tickers":["ADYEN.AS"]}` om de dashboardcache te legen.
+8. Meting achteraf zoals in stap 2; uitkomst in de statuslog.
+
+**Kosten:** een proefrun duurt ongeveer een half uur. Wacht met één achtergrondcommando dat
+pas eindigt als de status `done` is, niet met losse controles per halve minuut; elke controle
+is een beurt van het model.
+
+**Fase B:** de JKP-landfactoren en de drie papers staan op Janco's werklaptop in
+`C:\Users\nolj\.gemini\antigravity\scratch\stockscreen\data\` (`jkp\`, `papers\`). Kopieer
+ze naar `data\` in deze repo, of download de JKP-bestanden opnieuw (12 landen, maandelijks,
+`vw_cap`, kenmerken in sectie "Wat Janco downloadt").
 
 ## Kritieke bestanden
 - `engine/screener.py` — `_calc_revenue_cagr` + `omzetbreuk`, profiel-aanroep in `run_ticker`,
