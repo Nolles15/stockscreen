@@ -97,7 +97,7 @@ def test_t5_t6_zijn_zacht():
                           piotroski=GOED_F)
     assert _t(acc, "T5")["uitkomst"] == "rood" and acc["niveau"] == "geel", acc["niveau"]
     assert "zwak punt" in acc["kop"]
-    wild = gp.bouw_profiel(_gezond(revenue=[100, 180, 190, 340]), piotroski=GOED_F)
+    wild = gp.bouw_profiel(_gezond(revenue=[100, 180, 190, 340], gross_profit=[60, 108, 114, 204]), piotroski=GOED_F)
     assert _t(wild, "T6")["uitkomst"] == "rood"
     assert wild["niveau"] != "rood"
     print("  [OK] T5/T6 geven hooguit geel")
