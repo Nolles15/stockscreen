@@ -1359,7 +1359,9 @@ def _verklein_voor_lijst(r: dict) -> dict:
     groei = r.pop("groei_profiel", None)
     if isinstance(groei, dict):
         r["groei_kop"] = groei.get("kop")
-        r["groei_rood"] = [c for c, u in (groei.get("toetsen") or {}).items() if u == "rood"]
+        # Bij grijs (poort dicht, geen groeier) zegt een rode toets niets over het oordeel.
+        r["groei_rood"] = ([] if groei.get("niveau") == "grijs" else
+                           [c for c, u in (groei.get("toetsen") or {}).items() if u == "rood"])
         r["groei_verlieslatend"] = bool(groei.get("verlieslatend"))
 
     hist = r.get("hist_relative")

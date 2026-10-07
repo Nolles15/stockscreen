@@ -176,10 +176,15 @@ def _t1(v, dubbel_soort, d) -> tuple[dict, Optional[float]]:
                   f"Aantal aandelen groeit {pct:+.1f}% per jaar"), cagr
 
 
-def _t2(v, omzet_g, d) -> tuple[dict, Optional[float]]:
+_BREUK_UITLEG = "Omzetreeks bevat een definitiewissel — deze toets leunt op de omzet en blijft leeg"
+
+
+def _t2(v, omzet_g, d, breuk=None) -> tuple[dict, Optional[float]]:
     activa = _reeks(v, "total_assets", positief=True)
     naam, bron = "Balansgroei", "Cooper, Gulen & Schill 2008; Papanastasopoulos 2017"
     drempel = f"rood: gat ≥ {d['t2_rood_gat']:g} pp én activa ≥ {d['t2_rood_activa']:g}%/jr"
+    if breuk:
+        return _toets("T2", naam, "onbekend", None, drempel, bron, _BREUK_UITLEG), None
     if len(v) < 2 or len(activa) < 2 or activa[0]["jaar"] != int(v[0]["fiscal_year"]) \
             or activa[-1]["jaar"] != int(v[-1]["fiscal_year"]) or omzet_g is None:
         return _toets("T2", naam, "onbekend", None, drempel, bron,
@@ -211,7 +216,7 @@ def _t3(piotroski, d) -> dict:
                       f"Slechts {bekend} van 9 criteria te bepalen")
     uit = "rood" if score <= d["t3_rood"] else "geel" if score <= d["t3_geel"] else "groen"
     return _toets("T3", naam, uit, score, drempel, bron,
-                  f"F-score {score} van 9 ({bekend} criteria bekend)")
+                  f"F-score {int(score)} van 9 ({bekend} criteria bekend)")
 
 
 def _t4(v, d) -> dict:
@@ -250,9 +255,11 @@ def _t5(v, d) -> dict:
                   f"Winst ligt gemiddeld {a:+.1f}% van de activa boven de kasstroom")
 
 
-def _t6(v, d) -> tuple[dict, list[float]]:
+def _t6(v, d, breuk=None) -> tuple[dict, list[float]]:
     naam, bron = "Groeistabiliteit", "Mohanram 2005; Amor-Tapia & Tascón 2016"
     drempel = f"groen < {d['t6_groen']:g} pp, rood > {d['t6_rood']:g} pp (spreiding)"
+    if breuk:
+        return _toets("T6", naam, "onbekend", None, drempel, bron, _BREUK_UITLEG), []
     groei = []
     for a, b in zip(v, v[1:]):
         ra, rb = _f(a, "revenue"), _f(b, "revenue")
@@ -356,8 +363,8 @@ def bouw_profiel(annual: list[dict], sector: str | None = None,
     groei_per_jaar: list[float] = []
     rd_pct = None
     if v:
-        t2, activa_g = _t2(v, cagr, d)
-        t6, groei_per_jaar = _t6(v, d)
+        t2, activa_g = _t2(v, cagr, d, breuk)
+        t6, groei_per_jaar = _t6(v, d, breuk)
         t7, rd_pct = _t7(v, sector_mediaan_rd, d)
         toetsen = [t1, t2, _t3(piotroski, d), _t4(v, d), _t5(v, d), t6, t7]
 
@@ -372,7 +379,7 @@ def bouw_profiel(annual: list[dict], sector: str | None = None,
         if o and a and a > 0:
             per_aandeel.append({"jaar": int(r["fiscal_year"]), "waarde": o / a})
     # Omzet per aandeel is alleen betekenisvol zonder aandelenbreuk.
-    opa_g = _cagr_van(per_aandeel) if t1["uitkomst"] != "onbekend" else None
+    opa_g = _cagr_van(per_aandeel) if t1["uitkomst"] != "onbekend" and not breuk else None
 
     redenen = []
     if cagr is not None:

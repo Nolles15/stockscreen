@@ -97,7 +97,7 @@ def test_t5_t6_zijn_zacht():
                           piotroski=GOED_F)
     assert _t(acc, "T5")["uitkomst"] == "rood" and acc["niveau"] == "geel", acc["niveau"]
     assert "zwak punt" in acc["kop"]
-    wild = gp.bouw_profiel(_gezond(revenue=[100, 300, 330, 600]), piotroski=GOED_F)
+    wild = gp.bouw_profiel(_gezond(revenue=[100, 180, 190, 340]), piotroski=GOED_F)
     assert _t(wild, "T6")["uitkomst"] == "rood"
     assert wild["niveau"] != "rood"
     print("  [OK] T5/T6 geven hooguit geel")
@@ -131,6 +131,9 @@ def test_poorten():
     p = gp.bouw_profiel(adyen, piotroski=GOED_F)
     assert p["niveau"] == "grijs" and "Definitiewissel" in p["kop"], p["kop"]
     assert p["omzet_cagr"] is None and p["omzetbreuk"]
+    # Omzetgebonden toetsen en omzet per aandeel blijven leeg bij een breuk.
+    assert _t(p, "T2")["uitkomst"] == "onbekend" and _t(p, "T6")["uitkomst"] == "onbekend"
+    assert p["omzet_per_aandeel_cagr"] is None
     print("  [OK] poorten: data_status, te weinig rijen, omzetbreuk")
 
 
