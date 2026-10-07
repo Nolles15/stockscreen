@@ -89,9 +89,16 @@ def _herstellers(rijen: list[Rij]) -> list[Rij]:
     return uit
 
 
+# Rood staat onderaan maar blijft zichtbaar: markeren, niet wegfilteren.
+NIVEAU_RANG = {"groen": 3, "geel": 2, "grijs": 1, "rood": 0}
+
+
 def _groeiers(rijen: list[Rij]) -> list[Rij]:
-    uit = [r for r in rijen if r.get("is_growth_lossmaker")]
-    uit.sort(key=lambda r: -_getal(r, "revenue_cagr", 0))
+    """Alle snelle groeiers, gerangschikt op het groeiprofiel (zeef, geen oordeel)."""
+    uit = [r for r in rijen if r.get("is_groeier")]
+    uit.sort(key=lambda r: (-NIVEAU_RANG.get(r.get("groei_niveau"), 1),
+                            -_getal(r, "groei_score", -1),
+                            -_getal(r, "revenue_cagr", 0)))
     return uit
 
 

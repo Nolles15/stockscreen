@@ -231,6 +231,10 @@ def init_db() -> None:
             ("fv_methods_dropped", "TEXT"),   # JSON: redenen per weggevallen methode
             ("revenue_cagr",    "REAL"),      # 3-jaars omzet-CAGR (voor groei-markering)
             ("implied_growth",  "REAL"),      # ingeprijsde groei %/jr (omgekeerde som, 2026-08-08)
+            # Groeiprofiel (docs/plan-groeiprofiel.md): zeef voor snelle groeiers.
+            ("groei_niveau",    "TEXT"),      # groen/geel/rood/grijs
+            ("groei_score",     "REAL"),      # 0-10 of NULL
+            ("groei_profiel",   "TEXT"),      # JSON, alleen scalars (groei_profiel.compact)
         ):
             cur.execute(f"ALTER TABLE calculated_scores ADD COLUMN IF NOT EXISTS {col} {typ}")
         # Migratie: native-only — rename oude *_eur kolommen zodat historische
@@ -923,7 +927,7 @@ def upsert_scores(ticker: str, **fields) -> None:
 # Voeg hier elke nieuwe JSON-kolom aan toe, anders herhaalt dit zich.
 JSON_SCORE_KOLOMMEN = (
     "quality_breakdown", "piotroski_breakdown", "warnings",
-    "hist_relative", "fv_methods_dropped",
+    "hist_relative", "fv_methods_dropped", "groei_profiel",
 )
 
 
@@ -1260,6 +1264,7 @@ _DASHBOARD_SQL = """
             c.fv_confidence, c.fv_spread_pct, c.fv_methods_used,
             c.fv_methods_dropped, c.revenue_cagr, c.implied_growth,
             c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
+            c.groei_niveau, c.groei_score, c.groei_profiel,
             fy.latest_fy, fy.laatste_yahoo,
             dq.completeness_pct, dq.years_available, dq.freshness_days,
             dq.fetch_success, dq.consecutive_failures, dq.data_status,
@@ -1321,7 +1326,7 @@ def get_dashboard_row(ticker: str) -> dict | None:
 
 
 _JSON_VELDEN = ("quality_breakdown", "piotroski_breakdown", "warnings",
-                "hist_relative", "data_issues", "fv_methods_dropped")
+                "hist_relative", "data_issues", "fv_methods_dropped", "groei_profiel")
 
 # Alleen deze sleutels uit `hist_relative` worden op het dashboard getoond (de
 # EV/EBITDA-badge naast de ticker). De rest van het blok — P/B, P/E, medianen
@@ -1348,6 +1353,14 @@ def _verklein_voor_lijst(r: dict) -> dict:
     r["data_issue_count"] = len(r.get("data_issues") or [])
     r.pop("warnings", None)
     r.pop("fv_methods_dropped", None)
+
+    # Het groeiprofiel is ~300 B per rij; de lijst krijgt alleen de kop en de
+    # codes van de rode toetsen. De rest staat op /stock/<ticker>.
+    groei = r.pop("groei_profiel", None)
+    if isinstance(groei, dict):
+        r["groei_kop"] = groei.get("kop")
+        r["groei_rood"] = [c for c, u in (groei.get("toetsen") or {}).items() if u == "rood"]
+        r["groei_verlieslatend"] = bool(groei.get("verlieslatend"))
 
     hist = r.get("hist_relative")
     if isinstance(hist, dict):

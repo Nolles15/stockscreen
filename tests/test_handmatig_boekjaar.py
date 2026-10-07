@@ -42,6 +42,7 @@ _SCORE_KOLOMMEN = (
     "base_fv", "optimistic_fv", "fv_confidence", "fv_spread_pct", "fv_methods_used",
     "signal", "margin_of_safety", "warnings", "last_calculated", "accruals_ratio",
     "hist_relative", "fv_methods_dropped", "revenue_cagr",
+    "groei_niveau", "groei_score", "groei_profiel",
 )
 
 

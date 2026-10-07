@@ -29,6 +29,7 @@ def aandeel(ticker, **kv):
         "margin_of_safety": 10.0, "rank_score": 1.0, "market": "NL",
         "fv_confidence": "high", "price_vs_fv_pct": 90.0,
         "is_growth_lossmaker": False, "revenue_cagr": None,
+        "is_groeier": False, "groei_niveau": None, "groei_score": None,
         "low_quality": False, "reason_label": None, "reason_code": None,
     }
     basis.update(kv)
@@ -48,7 +49,12 @@ UNIVERSUM = [
     aandeel("DUUR.AS", quality_score=6.0, price_vs_fv_pct=95.0),
     aandeel("VAAG.AS", quality_score=6.0, price_vs_fv_pct=60.0, fv_confidence="low"),
     # Groeier en twee zonder oordeel.
-    aandeel("GROEI.AS", is_growth_lossmaker=True, revenue_cagr=0.4, signal="INSUFFICIENT DATA"),
+    aandeel("GROEI.AS", is_growth_lossmaker=True, is_groeier=True, revenue_cagr=0.4,
+            signal="INSUFFICIENT DATA", groei_niveau="geel", groei_score=5.0),
+    # Winstgevende groeiers: horen nu ook in de tab, gerangschikt op het profiel.
+    aandeel("GROEN.AS", is_groeier=True, revenue_cagr=0.2, groei_niveau="groen", groei_score=8.0),
+    aandeel("ROOD.AS", is_groeier=True, revenue_cagr=0.9, groei_niveau="rood", groei_score=2.0),
+    aandeel("GRIJS.AS", is_groeier=True, revenue_cagr=0.5, groei_niveau="grijs"),
     aandeel("LEEG.WA", signal="INSUFFICIENT DATA", reason_label="GEEN DATA", rank_score=None),
     aandeel("OUD.WA", signal="INSUFFICIENT DATA", reason_label="CIJFERS VEROUDERD", rank_score=None),
     aandeel("SLECHT.AS", low_quality=True),
@@ -77,9 +83,14 @@ fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] Herstellers: alleen wie aan alle vijf eisen voldoet: {k}")
 
 k = tickers(selectie.selecteer(UNIVERSUM, tab="groeiers"))
+ok = k == ["GROEN.AS", "GROEI.AS", "GRIJS.AS", "ROOD.AS"]
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] Groeiers: groen, geel, grijs, rood — rood onderaan maar zichtbaar: {k}")
+
+k = tickers(selectie.selecteer(UNIVERSUM, tab="alles", extra={"reden": "growth"}))
 ok = k == ["GROEI.AS"]
 fout += not ok
-print(f"  [{'OK ' if ok else 'FOUT'}] Groeiers: {k}")
+print(f"  [{'OK ' if ok else 'FOUT'}] reden=growth blijft verlies + groei: {k}")
 
 # Gesorteerd op reden, en een rij zonder reden komt vooraan -- precies wat
 # `(a.reason_label || '').localeCompare(...)` in de browser deed. In de echte
@@ -169,7 +180,7 @@ print(f"  [{'OK ' if ok else 'FOUT'}] sector wordt binnen het land geteld "
 # en dan zegt het niets.
 
 u = selectie.selecteer(UNIVERSUM, tab="kansen", land="Nederland")
-ok = u["in_selectie"] == 10 and len(u["rijen"]) <= 10
+ok = u["in_selectie"] == 13 and len(u["rijen"]) <= 13
 fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] in_selectie telt voor het tabblad: {u['in_selectie']}")
 

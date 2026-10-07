@@ -56,6 +56,7 @@ class _NepDb:
 
     def upsert_scores(self, *a, **kw):
         self.schrijfacties += 1
+        self.laatste = kw
 
     def get_financials(self, ticker, period_type):
         return [] if period_type == "ttm" else [_jaarrij(y) for y in (2025, 2024, 2023)]
@@ -67,6 +68,9 @@ class _NepDb:
     def get_stock(self, ticker):
         return {"ticker": ticker, "name": "Testbedrijf", "sector": "Industrials",
                 "currency": "EUR", "market": "NL"}
+
+    def get_all_stocks(self):
+        return [self.get_stock("TEST.AS")]
 
     def get_historical_multiples(self, ticker):
         return [{"fiscal_year": y, "pe_ratio": 15.0, "ev_ebitda": 9.0,
@@ -91,6 +95,16 @@ def _met_nepdb(fn):
         return fn(), nep
     finally:
         screener.db = echt
+
+
+def test_groeiprofiel_wordt_opgeslagen():
+    """De groei_*-kolommen horen bij de opgeslagen scores, anders leest de tab niets."""
+    _, nep = _met_nepdb(lambda: screener.run_ticker("TEST.AS", _config(), persist=True))
+    kw = nep.laatste
+    assert kw["groei_niveau"] in ("groen", "geel", "rood", "grijs"), kw.get("groei_niveau")
+    assert "groei_score" in kw and isinstance(kw["groei_profiel"], dict)
+    assert "series" not in kw["groei_profiel"], "alleen scalars in de opgeslagen kolom"
+    print("  [OK] groei_niveau, groei_score en groei_profiel worden meegeschreven")
 
 
 def test_proefdraai_schrijft_niets_weg():
@@ -154,6 +168,7 @@ def test_proefdraai_en_echte_ronde_rekenen_hetzelfde():
 
 
 if __name__ == "__main__":
+    test_groeiprofiel_wordt_opgeslagen()
     test_proefdraai_schrijft_niets_weg()
     print("  [OK] proefdraai rekent door en schrijft niets weg")
     test_echte_ronde_schrijft_wel_weg()

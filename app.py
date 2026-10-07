@@ -30,6 +30,7 @@ from engine import exit_regels
 from engine import markets
 from engine import normalizer
 from engine import moat_profile
+from engine import groei_profiel
 from engine import oordelen
 from engine import refresh
 from engine import scorebord as scorebord_mod
@@ -39,7 +40,7 @@ from engine.data_fetcher import (
     fetch_market_only,
     fetch_all_tickers,
 )
-from engine.screener import run_ticker, determine_signal
+from engine.screener import run_ticker, determine_signal, dubbel_soort_van
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -522,6 +523,25 @@ def _moat_profiel(ticker: str, annual: list[dict] | None = None) -> dict | None:
         return None
 
 
+def _groei_profiel(stock: dict | None, annual: list[dict], scores: dict | None,
+                   dq: dict | None) -> dict | None:
+    """Het volledige groeiprofiel, of None als het bouwen mislukt (de pagina leeft dan door)."""
+    try:
+        scores = scores or {}
+        t = (stock or {}).get("ticker") or ""
+        return groei_profiel.bouw_profiel(
+            annual, sector=(stock or {}).get("sector"),
+            piotroski={"score": scores.get("piotroski_score"),
+                       "criteria": scores.get("piotroski_breakdown")},
+            data_status=(dq or {}).get("data_status"),
+            groei_drempel=load_config().get("screening", {}).get("growth_lossmaker_cagr", 0.15),
+            dubbel_soort=dubbel_soort_van(t),
+        )
+    except Exception:
+        log.warning("groeiprofiel bouwen mislukt", exc_info=True)
+        return None
+
+
 def _moat_niveau(ticker: str) -> str | None:
     """Alleen het niveau (groen/geel/rood) uit het moat-profiel."""
     return (_moat_profiel(ticker) or {}).get("niveau")
@@ -726,6 +746,12 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             and r.get("data_status") not in ("bad", "missing")
             and rev_cagr is not None and rev_cagr >= growth_thr
         )
+        # Elke snelle groeier, winstgevend of niet: dat is de populatie van het
+        # groeiprofiel. `is_growth_lossmaker` houdt zijn betekenis (🌱, filter "growth").
+        is_groeier = (
+            r.get("data_status") not in ("bad", "missing")
+            and rev_cagr is not None and rev_cagr >= growth_thr
+        )
 
         rows.append({
             "ticker":               t,
@@ -789,6 +815,12 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             "reason_color":         reason["reason_color"],
             "revenue_cagr":         rev_cagr,
             "is_growth_lossmaker":  is_growth_lossmaker,
+            "is_groeier":           is_groeier,
+            "groei_niveau":         r.get("groei_niveau"),
+            "groei_score":          r.get("groei_score"),
+            "groei_kop":            r.get("groei_kop"),
+            "groei_rood":           r.get("groei_rood") or [],
+            "groei_verlieslatend":  bool(r.get("groei_verlieslatend")),
         })
 
     _markeer_dubbelingen(rows)
@@ -2672,7 +2704,8 @@ def api_trace(ticker: str):
     cfg = load_config()
     annual = db.get_financials(t, "annual")
     try:
-        calc = run_ticker(t, cfg)
+        # persist=False: een GET hoort niets weg te schrijven.
+        calc = run_ticker(t, cfg, persist=False)
     except Exception as e:
         log.exception("trace-berekening mislukt voor %s", t)
         return jsonify({"error": f"berekening faalde: {e}"}), 500
@@ -2737,6 +2770,7 @@ def api_trace(ticker: str):
             "waarden": calc.get("piotroski_waarden"),
         },
         "moat": moat_profile.bouw_profiel(annual, db.get_price_history(t)),
+        "groei": calc.get("groei_profiel"),
         "signaal": {
             "signal": calc.get("signal"),
             "margin_of_safety": calc.get("margin_of_safety"),
@@ -3131,6 +3165,7 @@ def _run_scores_recompute_job(jid: str, tickers: list[str], cfg: dict, dry_run: 
     # get_all_scores() geeft een lijst, geen map op ticker.
     voor = {r["ticker"]: r for r in db.get_all_scores()}
     sig_overgang: dict = {}
+    groei_overgang: dict = {}
     fv_gewijzigd = 0
     verschuivingen: list[dict] = []
     fouten: dict = {}
@@ -3149,6 +3184,12 @@ def _run_scores_recompute_job(jid: str, tickers: list[str], cfg: dict, dry_run: 
         if s_oud != s_nieuw:
             sleutel = f"{s_oud} -> {s_nieuw}"
             sig_overgang[sleutel] = sig_overgang.get(sleutel, 0) + 1
+
+        # Het effect van de groeizeef zichtbaar maken, los van signalen.
+        g_oud, g_nieuw = oud.get("groei_niveau") or "geen", nieuw.get("groei_niveau") or "geen"
+        if g_oud != g_nieuw:
+            sleutel = f"{g_oud} -> {g_nieuw}"
+            groei_overgang[sleutel] = groei_overgang.get(sleutel, 0) + 1
 
         fv_oud, fv_nieuw = oud.get("combined_fv"), nieuw.get("combined_fv")
         if fv_oud and fv_nieuw:
@@ -3170,6 +3211,8 @@ def _run_scores_recompute_job(jid: str, tickers: list[str], cfg: dict, dry_run: 
             "fv_gewijzigd": fv_gewijzigd,
             "signaal_overgangen": dict(sorted(sig_overgang.items(),
                                               key=lambda kv: -kv[1])),
+            "groei_overgangen": dict(sorted(groei_overgang.items(),
+                                            key=lambda kv: -kv[1])),
             "grootste_verschuivingen": verschuivingen[:25],
         },
         errors=fouten,
@@ -3396,6 +3439,9 @@ def api_stock_detail(ticker):
         # dit aandeel goedkoop omdat het bedrijf zwak is? Dat onderscheid bepaalt
         # in de diepe analyses vrijwel het hele oordeel.
         "moat": moat_profile.bouw_profiel(annual, prijzen),
+        # Het zesde blok: zeef voor snelle groeiers. Live gebouwd (mét series),
+        # zoals het moat-profiel; de F-score is die van de opgeslagen scores.
+        "groei": _groei_profiel(stock, annual, scores, dq),
     })
 
 

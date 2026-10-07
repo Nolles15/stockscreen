@@ -65,6 +65,18 @@ fout += not ok
 print(f"  [{'OK ' if ok else 'FOUT'}] getallen afgerond: mediaan {hr['median_ev_ebitda']} "
       f"(was {rij['hist_relative']['median_ev_ebitda']})")
 
+# 4b. Het groeiprofiel: de lijst krijgt alleen de kop en de rode codes.
+groei_rij = db._verklein_voor_lijst({
+    "ticker": "G.AS",
+    "groei_profiel": {"niveau": "rood", "kop": "Groei wordt betaald met nieuwe aandelen",
+                      "toetsen": {"T1": "rood", "T2": "groen", "T3": "geel"},
+                      "verlieslatend": True, "omzet_cagr": 0.3},
+})
+ok = ("groei_profiel" not in groei_rij and groei_rij["groei_rood"] == ["T1"]
+      and groei_rij["groei_kop"].startswith("Groei wordt") and groei_rij["groei_verlieslatend"])
+fout += not ok
+print(f"  [{'OK ' if ok else 'FOUT'}] groei_profiel blijft uit de lijst; kop en rode codes blijven")
+
 # 5. Een lege rij mag niet omvallen.
 leeg = db._verklein_voor_lijst({"ticker": "LEEG.AS"})
 ok = leeg["warning_count"] == 0 and leeg["data_issue_count"] == 0

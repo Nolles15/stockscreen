@@ -13,12 +13,15 @@ Pipeline per ticker:
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Optional
 
 from . import db
 from . import data_quality
+from . import dubbelingen
 from . import exit_regels
+from . import groei_profiel
 from .normalizer import normalize_all, historical_median_multiple
 from .quality_score import quality_score as calc_quality
 from .valuation import combined_fair_value, implied_growth_pct
@@ -142,6 +145,33 @@ def _calc_accruals(rows: list[dict]) -> Optional[float]:
     if not ratios:
         return None
     return round(sum(ratios) / len(ratios) * 100, 2)
+
+
+# Een ticker die afgekeurd wordt of geen cijfers heeft moet ook een oud groeioordeel
+# kwijtraken; `upsert_scores` schrijft alleen wat meegegeven wordt.
+_GROEI_GRIJS = {"groei_niveau": "grijs", "groei_score": None, "groei_profiel": None}
+
+
+_DUBBEL_KAART: dict = {"tot": 0.0, "kaart": {}}
+_DUBBEL_TTL_S = 3600
+
+
+def dubbel_soort_van(ticker: str) -> Optional[str]:
+    """'aandelenklasse' als de ticker een tweede klasse van een bedrijf is, anders None.
+
+    Verwatering is bij een klasse niet te meten (het aantal aandelen telt maar één
+    klasse). De kaart wordt per uur ververst: `dubbelingen.vind` kijkt naar het
+    hele universum en hoort niet per ticker te draaien.
+    """
+    nu = time.monotonic()
+    if nu > _DUBBEL_KAART["tot"]:
+        try:
+            _DUBBEL_KAART["kaart"] = dubbelingen.vind(db.get_all_stocks())
+        except Exception:
+            log.exception("Dubbelingen bepalen mislukt; groeiprofiel zonder klassecontrole")
+            _DUBBEL_KAART["kaart"] = {}
+        _DUBBEL_KAART["tot"] = nu + _DUBBEL_TTL_S
+    return (_DUBBEL_KAART["kaart"].get(ticker) or {}).get("dubbel_soort")
 
 
 def _omzetvenster(annual_rows: list[dict], years: int = 3) -> list[dict]:
@@ -270,6 +300,7 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
             signal="INSUFFICIENT DATA",
             warnings=warnings,
             last_calculated=datetime.utcnow().isoformat(),
+            **_GROEI_GRIJS,
         )
         return {"ticker": ticker, "signal": "INSUFFICIENT DATA", "warnings": warnings}
 
@@ -286,6 +317,7 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
             warnings=warnings,
             revenue_cagr=rev_cagr,
             last_calculated=datetime.utcnow().isoformat(),
+            **_GROEI_GRIJS,
         )
         return {
             "ticker": ticker,
@@ -324,6 +356,15 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
     q_result  = calc_quality(calc_rows, normalized)
     q_total   = q_result["total"]
     warnings += q_result.get("warnings", [])
+
+    # Groeiprofiel: over de jaarrijen, niet over calc_rows — de TTM-rij is geen
+    # boekjaar. De F-score is dezelfde als die van de kwaliteitsscore.
+    groei = groei_profiel.bouw_profiel(
+        annual_rows, sector=sector, piotroski=q_result.get("piotroski"),
+        data_status=dq_status,
+        groei_drempel=config.get("screening", {}).get("growth_lossmaker_cagr", 0.15),
+        omzetbreuk=breuk, dubbel_soort=dubbel_soort_van(ticker),
+    )
 
     min_quality = config.get("screening", {}).get("min_quality_score", 7)
     below_threshold = q_total < min_quality
@@ -459,6 +500,9 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         # Extra indicators
         "hist_relative":   hist_relative,
         "accruals_ratio":  accruals_ratio,
+        "groei_niveau":    groei["niveau"],
+        "groei_score":     groei["score"],
+        "groei_profiel":   groei,
         # Meta
         "below_quality_threshold": below_threshold,
         "warnings":         warnings,
@@ -498,6 +542,9 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         last_calculated=result["last_calculated"],
         hist_relative=hist_relative,
         accruals_ratio=accruals_ratio,
+        groei_niveau=groei["niveau"],
+        groei_score=groei["score"],
+        groei_profiel=groei_profiel.compact(groei),
     )
 
     return result
