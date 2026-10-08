@@ -159,7 +159,7 @@ alleen die rijen. Wat een tabblad is — welk filter, welke volgorde — staat i
 | Kansen | 20 | **28 kB** (was 2,9 MB) |
 | Herstellers | 12 | 16 kB |
 | Kwaliteit | 67 | 80 kB |
-| Groeiers | 86 | 94 kB |
+| Groeiers | 573 | 723 kB |
 | Geen oordeel | 634 | 660 kB |
 | Alles | 2.812 | afgekapt op 1.500 |
 
@@ -272,6 +272,27 @@ een HOLD.
 - **Een oordeel gaat over het bedrijf, niet over de notering.** `engine/oordelen.py` hangt de uitslag van een tussencheck of analyse aan de screener-rijen. Koppelen op ticker alleen is niet genoeg: Silvano staat in Warschau als `SFG.WA` en in Tallinn als `SFG1T.TL` en die delen geen enkele letter, terwijl het één bedrijf met één tussencheck is. Op 4 augustus 2026 bezetten ze samen twee van de twintig plekken in Kansen met een oordeel OVERSLAAN dat de pagina niet kende. Vandaar drie sleutels in volgorde: Yahoo-symbool uit de metadata, de kale ticker (alleen als er precies één kandidaat is, anders zou een tussencheck op `AD` zich aan elke `AD.*` hechten), en de bedrijfsnaam. Een koppeling via de naam krijgt `via` mee en dan wordt het koersverschil bewust níet berekend — de andere notering staat in een andere valuta.
 - **De module verwijdert niets uit Kansen.** Dat is een keuze, geen omissie: een lijst waar dingen ongemerkt uit verdwijnen ga je wantrouwen. Het oordeel wordt getoond, de rangorde blijft van de screener.
 - **Rapporten mengen Europese en Amerikaanse getalnotatie.** `1.239,40` (ASML) staat naast `93.79` (NVDA). Wie de punt blind als decimaalteken leest, maakt van ASML's koers 1,239 en krijgt een upside van +114476%. `engine/analyses.py:_parse_getal` handelt dit af: komma wint altijd als decimaalteken, een punt met precies drie cijfers erachter is een duizendtalscheiding.
+
+## Groeiprofiel (2026-10)
+
+Plan, literatuur en statuslog: [docs/plan-groeiprofiel.md](docs/plan-groeiprofiel.md). Motor:
+[engine/groei_profiel.py](engine/groei_profiel.py), spiegel van `moat_profile`. Tab 🌱 Groeiers = **alle**
+aandelen met omzetgroei ≥ 15% (`growth_lossmaker_cagr`), gerangschikt op het profiel; 🌱 blijft het
+merkteken voor verlieslatend (`is_growth_lossmaker`), `is_groeier` is de brede populatie.
+
+- **Het is een zeef, geen oordeel.** Groen = "de cijfers spreken niet tegen", nooit koopadvies. Die zin
+  staat op de tab, in blok 6 en op /methode en hoort er te blijven. Rood blijft zichtbaar, onderaan.
+- **Een ontbrekende R&D-regel is onbekend, nooit nul** en R&D kan nooit rood geven. De kolom
+  `rd_expense` is bewust niet in de volledigheidsscore.
+- **Datapoorten geven grijs, nooit rood:** `data_status` bad/missing, < 3 boekjaren, omzetbreuk (Adyen),
+  niet-groeier, en banken/verzekeraars (`NIET_TOEGEPAST_SECTOREN`). Bij een omzetbreuk zwijgen ook de
+  omzetgebonden toetsen T2 en T6.
+- **De TTM-rij telt niet mee** (`fiscal_year=0`); de F-score is wel die van `run_ticker` (mét TTM).
+- **Drempels zijn voorlopig** tot fase B. Op 8 okt 2026 was 27% van de tab groen: waarschijnlijk te soepel.
+  Niet op gevoel bijstellen — de ijking beslist.
+- **Bekende beperking:** reverse mergers (Moreld, +9.484%) lopen door de breukregel heen omdat de
+  brutowinst meebeweegt. Het profiel is daar rood, maar de omzetgroei in de kolom is onzin.
+- `/api/trace` schrijft niet meer bij een GET (`persist=False`).
 
 ## Verkoopregels en bezit (2026-08-13)
 
