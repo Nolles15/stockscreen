@@ -137,6 +137,13 @@ def test_poorten():
     print("  [OK] poorten: data_status, te weinig rijen, omzetbreuk")
 
 
+def test_financials_zijn_grijs():
+    p = gp.bouw_profiel(_gezond(), sector="Financial Services", piotroski=GOED_F)
+    assert p["niveau"] == "grijs" and "banken" in p["kop"]
+    assert len(p["toetsen"]) == 7
+    print("  [OK] Financial Services: grijs, toetsen wel berekend")
+
+
 def test_niet_groeier_is_grijs_met_toetsen():
     p = gp.bouw_profiel(_jaren(revenue=[100, 102, 104, 106], total_assets=[200, 205, 210, 215],
                                gross_profit=[50, 51, 52, 53]), piotroski=GOED_F)

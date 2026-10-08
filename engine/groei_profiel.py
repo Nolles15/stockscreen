@@ -303,13 +303,22 @@ def _score(toetsen: list[dict]) -> Optional[float]:
     return round(10 * teller / noemer, 1)
 
 
+# Voor banken en verzekeraars betekenen activagroei, brutowinst/activa en de
+# F-score iets anders (de balans ís het product). De kwaliteitsscore toont daar
+# ook "n.v.t." (zie kwaliteitCel in index.html). Op 8 okt 2026 stonden er 40 groen
+# in de Groeiers-tab, op grond van toetsen die voor hen niets meten.
+NIET_TOEGEPAST_SECTOREN = ("Financial Services",)
+
+
 def _oordeel(toetsen, score, aantal_rijen, data_status, breuk, cagr, groei_drempel,
-             d) -> tuple[str, str]:
+             d, sector=None) -> tuple[str, str]:
     """Geeft (niveau, kop). Eerste treffer wint."""
     if data_status in ("bad", "missing"):
         return "grijs", "Cijfers afgekeurd — geen groeiprofiel"
     if aantal_rijen < d["min_rijen"]:
         return "grijs", "Te weinig boekjaren om groei te beoordelen"
+    if sector in NIET_TOEGEPAST_SECTOREN:
+        return "grijs", "Niet toegepast op banken en verzekeraars — de toetsen meten daar iets anders"
     if breuk:
         # Een definitiewissel bij Yahoo is een data-artefact, geen zwakte van het
         # bedrijf: grijs, niet rood (de Adyen-valse-vlag).
@@ -369,7 +378,7 @@ def bouw_profiel(annual: list[dict], sector: str | None = None,
         toetsen = [t1, t2, _t3(piotroski, d), _t4(v, d), _t5(v, d), t6, t7]
 
     score = _score(toetsen)
-    niveau, kop = _oordeel(toetsen, score, len(v), data_status, breuk, cagr, groei_drempel, d)
+    niveau, kop = _oordeel(toetsen, score, len(v), data_status, breuk, cagr, groei_drempel, d, sector)
 
     omzet = _reeks(v, "revenue")
     aandelen = _reeks(v, "shares_outstanding", positief=True)
