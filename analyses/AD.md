@@ -1,6 +1,6 @@
 # Research: AD — Koninklijke Ahold Delhaize N.V.
 
-> **Stage 1 output van cowork, versie 2.0.** Volledig nieuwe analyse; de versie van 28-04-2026 is vervangen omdat die voor slechts twee jaren een primaire bron had en geschatte waarden bevatte (zie sectie 15).
+> **Stage 1 output van cowork, versie 2.1.** Volledig nieuwe analyse, in versie 2.1 herrekend met een bottom-up beta (zie sectie 12); de versie van 28-04-2026 is vervangen omdat die voor slechts twee jaren een primaire bron had en geschatte waarden bevatte (zie sectie 15).
 > Methode: `research/METHODE.md`. Structuur: `research/TEMPLATE.md`. Peildatum: 2026-10-12 (slotkoers maandag, de eerste handelsdag na het begin van het cyberincident).
 > Eén valuta: alle bedragen in **EUR mln** tenzij anders vermeld; bedragen per aandeel in EUR.
 
@@ -157,21 +157,21 @@ Zelf-check (Stap 0.5, regel 6): elke numerieke cel in sectie 3 is herleidbaar na
 
 - **Kernthese:** Ahold Delhaize is een supermarktgroep met lokale merken als Albert Heijn, Delhaize, Food Lion en Stop & Shop. In 2025 haalde de groep €92,4 mld omzet, waarvan 57,5% in de VS. De onderliggende bedrijfsmarge is al jaren stabiel rond 4%. Die winst wordt omgezet in geld: de vrije kasstroom na huur lag acht jaar tussen €1,6 en €2,6 mld. Door inkoop staan er 31% minder aandelen uit dan in 2016. Voor een waardebelegger is het aandeel interessant omdat het tegen ruim twaalf keer de winst noteert, ver onder het eigen gemiddelde. De groei komt uit online boodschappen, eigen merken en €5 mld besparingen tot 2028. Het grootste risico is de Amerikaanse markt, waar prijsconcurrentie de marge drukt. Sinds 11 oktober 2026 kampt de groep bovendien met een cyberincident waarvan de schade nog onbekend is.
 - **Oordeel:** HOLD. De scorekaart komt op 31 van 45 punten: de waardering biedt ruimte, maar het rendement op kapitaal ligt maar circa vier procentpunt boven de kapitaalkosten en de groei is laag.
-- **Fair value basis** (basisscenario, EUR): 81,23
-- **Fair value kansgewogen**: 68,40
-- **EPV per aandeel** (Earnings Power Value, zonder groeipremie): 49,97
-- **Upside pct**: 158,9
+- **Fair value basis** (basisscenario, EUR): 53,20
+- **Fair value kansgewogen**: 46,12
+- **EPV per aandeel** (Earnings Power Value, zonder groeipremie): 36,92
+- **Upside pct**: 69,5
 - **Fair value scenarios**:
 
 | Scenario | Fair value | Upside % | FCF groei % | WACC % | Kans % |
 |---|---|---|---|---|---|
-| Pessimistisch | 40,01 | 27,5 | 0,0 | 7,27 | 35 |
-| Basis | 81,23 | 158,9 | 3,0 | 5,52 | 45 |
-| Optimistisch | 89,18 | 184,2 | 4,5 | 5,52 | 20 |
+| Pessimistisch | 30,03 | −4,3 | 0,0 | 8,95 | 35 |
+| Basis | 53,20 | 69,5 | 3,0 | 7,20 | 45 |
+| Optimistisch | 58,34 | 85,9 | 4,5 | 7,20 | 20 |
 
-  Belangrijke kanttekening: deze DCF-uitkomsten volgen uit een WACC van 5,52% die de rubric oplevert met een regressiebeta van 0,31. De koers van €31,38 impliceert bij dezelfde groeiaannames een WACC van 10,30%. De synthese in sectie 12 weegt daarom DCF, EPV en multiples en komt uit op €49,52 centraal (koopniveau €37,14 bij 25% veiligheidsmarge).
+  De DCF gebruikt een WACC van 7,20% met een bottom-up beta van 1,06, in afwijking van de rubric (regressiebeta 0,31, WACC 5,52%, basis €81,23; zie sectie 12). De synthese van DCF, EPV en multiples komt uit op **€38,46** centraal, dicht bij het gemiddelde analistenkoersdoel van €37,83. Het koopniveau bij 25% veiligheidsmarge is €28,84, onder de huidige koers.
 
-- **Reverse-DCF impliciete groei pct:** −7,3% per jaar gedurende tien jaar (bij WACC 5,52% en 2,0% eindgroei). Anders gezegd: bij 3% groei rekent de markt met een disconteringsvoet van 10,3%.
+- **Reverse-DCF impliciete groei pct:** −3,1% per jaar gedurende tien jaar (bij WACC 7,20% en 2,0% eindgroei). Anders gezegd: bij 3% groei rekent de markt met een disconteringsvoet van 10,3%.
 - **Grootste kans:** de markt prijst Ahold Delhaize alsof de vrije kasstroom de komende tien jaar krimpt, terwijl die over 2018-2025 met circa 3% per jaar groeide en het management €9 mld cumulatieve vrije kasstroom over 2025-2028 heeft beloofd.
 - **Grootste risico:** een langdurige prijsoorlog in de VS (Walmart, Kroger, Aldi) en een zwakkere Amerikaanse consument die de onderliggende marge structureel onder 4% drukken, met het cyberincident van oktober 2026 als extra kosten- en reputatieschade.
 - **IPO-correctie van toepassing?** Nee. Albert Heijn ging in 1948 naar de beurs; de huidige structuur ontstond in 2016 door een fusie in aandelen, zonder geldopname of schuldopbouw door insiders.
@@ -309,19 +309,19 @@ Definities: bruto schuld en nettoschuld volgens Ahold Delhaize (inclusief leasev
 
 | Jaar | ROIC % | WACC % (huidige schatting) | Spread pp | Oordeel |
 |---|---|---|---|---|
-| 2016 | 7,7 | 5,52 | 2,2 | waardecreatie, smal (vóór IFRS 16, niet vergelijkbaar) |
-| 2017 | 10,5 | 5,52 | 5,0 | waardecreatie, smal (vóór IFRS 16, niet vergelijkbaar) |
-| 2018 | 10,2 | 5,52 | 4,7 | waardecreatie, smal |
-| 2019 | 8,7 | 5,52 | 3,1 | waardecreatie, smal |
-| 2020 | 11,5 | 5,52 | 6,0 | waardecreatie, smal |
-| 2021 | 10,3 | 5,52 | 4,7 | waardecreatie, smal |
-| 2022 | 10,3 | 5,52 | 4,8 | waardecreatie, smal |
-| 2023 | 9,7 | 5,52 | 4,2 | waardecreatie, smal |
-| 2024 | 9,8 | 5,52 | 4,3 | waardecreatie, smal |
-| 2025 | 10,1 | 5,52 | 4,6 | waardecreatie, smal |
+| 2016 | 7,7 | 7,20 | 0,5 | waardecreatie, smal (vóór IFRS 16, niet vergelijkbaar) |
+| 2017 | 10,5 | 7,20 | 3,3 | waardecreatie, smal (vóór IFRS 16, niet vergelijkbaar) |
+| 2018 | 10,2 | 7,20 | 3,0 | waardecreatie, smal |
+| 2019 | 8,7 | 7,20 | 1,5 | waardecreatie, smal |
+| 2020 | 11,5 | 7,20 | 4,3 | waardecreatie, smal |
+| 2021 | 10,3 | 7,20 | 3,1 | waardecreatie, smal |
+| 2022 | 10,3 | 7,20 | 3,1 | waardecreatie, smal |
+| 2023 | 9,7 | 7,20 | 2,5 | waardecreatie, smal |
+| 2024 | 9,8 | 7,20 | 2,6 | waardecreatie, smal |
+| 2025 | 10,1 | 7,20 | 2,9 | waardecreatie, smal |
 
 
-- **Toelichting rendement:** Het rendement op geïnvesteerd kapitaal (ROIC: bedrijfsresultaat na belasting gedeeld door eigen vermogen plus nettoschuld inclusief lease) ligt sinds 2017 tussen 8,7% en 11,5%, met 10,1% in 2025. Dat is stabiel en ligt elk jaar boven de WACC van 5,52% die de rubric oplevert, met een spread van 3 tot 6 procentpunt. Kanttekening: die WACC is laag door een regressiebeta van 0,31. Bij de disconteringsvoet die de koers impliceert (circa 10%) is de spread nul. De ROIC wordt gedrukt door €8,4 mld goodwill en €3,4 mld merknamen uit de fusie en overnames; op het tastbare kapitaal is het rendement hoger (Greenblatt-ROC 22,8%, sectie 7). Conclusie: Ahold Delhaize creëert waarde, maar met een smalle marge. ROE 2025: 15,9%; ROA 4,6%.
+- **Toelichting rendement:** Het rendement op geïnvesteerd kapitaal (ROIC: bedrijfsresultaat na belasting gedeeld door eigen vermogen plus nettoschuld inclusief lease) ligt sinds 2017 tussen 8,7% en 11,5%, met 10,1% in 2025. Dat is stabiel en ligt elk jaar boven de WACC van 7,20%, met een spread van 1,5 tot 4,3 procentpunt (2,9 in 2025). Bij de disconteringsvoet die de koers impliceert (circa 10%) is de spread nul. Met de regressie-WACC van 5,52% zou de spread 3 tot 6 procentpunt zijn. De ROIC wordt gedrukt door €8,4 mld goodwill en €3,4 mld merknamen uit de fusie en overnames; op het tastbare kapitaal is het rendement hoger (Greenblatt-ROC 22,8%, sectie 7). Conclusie: Ahold Delhaize creëert waarde, maar met een smalle marge. ROE 2025: 15,9%; ROA 4,6%.
 
 ### Earnings quality
 
@@ -425,7 +425,7 @@ Vergelijkbare omzetgroei uit het meerjarenoverzicht in JV 2025 (herziene cijfers
 | Kostenvoordeel | middel (AANWEZIG) | Ahold Delhaize koopt jaarlijks voor bijna €64 mld aan producten in (2025) en neemt deel aan Europese inkoopallianties. Lokale dichtheid van winkels en distributiecentra verlaagt de logistieke kosten per winkel. Het besparingsprogramma leverde €1,3 mld op in 2025, en de brutomarge blijft al tien jaar binnen een procentpunt. Walmart, Kroger, Aldi en Lidl hebben vergelijkbare of grotere inkoopschaal, dus het voordeel is relatief, niet absoluut. |
 | Efficiënte schaal | sterk (STERK) | In Nederland heeft Albert Heijn 38,2% van de supermarktmarkt (NielsenIQ 2025), bijna twee keer zoveel als nummer twee Jumbo (19,9%), met een landelijk netwerk van winkels, distributiecentra en thuisbezorging. Food Lion en Hannaford zijn in hun Amerikaanse regio's sterk vertegenwoordigd. In zulke lokale markten is beperkt ruimte voor een nieuwe speler op dezelfde schaal. Deze positie verklaart waarom de Europese marge stijgt (3,3% in 2023 naar 3,8% in 2025). |
 
-- **Kwantitatief bewijs:** De ROIC lag sinds 2017 tussen 8,7% en 11,5% (10,1% in 2025), een spread van 3-6 procentpunt boven de WACC van 5,52%. De onderliggende bedrijfsmarge bleef tien jaar tussen 3,8% en 4,8%, de brutomarge tussen 26,5% en 27,5%. In Nederland won Albert Heijn in 2025 0,5 procentpunt marktaandeel. In de VS meldt het bedrijf marktaandeelwinst bij de meeste merken (Nielsen, Q1 2026), maar de vergelijkbare omzetgroei bleef onder 1% in 2024 en Q2 2026.
+- **Kwantitatief bewijs:** De ROIC lag sinds 2017 tussen 8,7% en 11,5% (10,1% in 2025), een spread van 1,5 tot 4,3 procentpunt boven de WACC van 7,20%. De onderliggende bedrijfsmarge bleef tien jaar tussen 3,8% en 4,8%, de brutomarge tussen 26,5% en 27,5%. In Nederland won Albert Heijn in 2025 0,5 procentpunt marktaandeel. In de VS meldt het bedrijf marktaandeelwinst bij de meeste merken (Nielsen, Q1 2026), maar de vergelijkbare omzetgroei bleef onder 1% in 2024 en Q2 2026.
 - **Toelichting moat:** Ahold Delhaize heeft een smalle slotgracht. Die zit vooral in lokale schaal: waar een merk de grootste is, zoals Albert Heijn in Nederland met 38% marktaandeel, kan het met een dicht netwerk van winkels, distributiecentra en bezorging lagere kosten per klant halen dan een kleinere concurrent, en die schaal is moeilijk na te bouwen. Daarnaast helpen inkoopschaal en eigen merken. De zwakke plek is dat supermarktklanten niets betalen om over te stappen: de slotgracht beschermt de positie, maar niet de prijs. Dat zie je aan de cijfers. Het rendement op kapitaal is stabiel rond 10%, maar ligt maar enkele procentpunten boven de kapitaalkosten, en de marge van 4% moet elk jaar opnieuw verdiend worden met besparingen. In de VS, waar de groep geen nummer één is tegen Walmart en Kroger, is de bescherming dunner dan in de Benelux.
 - **Duurzaamheid:** 5-10 jaar
 - **Duurzaamheid toelichting:** Boodschappen blijven nodig, dus de vraag verdwijnt niet. De slotgracht wordt van drie kanten aangevallen. In de VS dwingen Walmart en Aldi, en een consument die op prijs let, tot een prijsinvestering van $1 mld over 2025-2028; als besparingen dat niet compenseren, krimpt de marge. Online maakt lokale winkeldichtheid minder doorslaggevend: Amazon en in Nederland Picnic bezorgen zonder winkelnetwerk. En de afhankelijkheid van IT is gegroeid: twee cyberincidenten binnen twee jaar laten zien dat een storing de hele keten kan stilleggen, met distributiecentra die niet leveren en klanten die naar de concurrent gaan. De Nederlandse positie lijkt robuust voor tien jaar of langer; de Amerikaanse positie hangt af van de uitvoering onder de nieuwe CEO.
@@ -525,7 +525,7 @@ Leesregel: de rubrics uit METHODE.md H9 lees ik als cascade van score 5 naar ben
 ### Buffett / Munger
 - **Oordeel:** GEDEELTELIJK
 - **ROIC structureel boven WACC?** true
-- **Toelichting:** Het bedrijf is begrijpelijk en de kasstromen zijn voorspelbaar: mensen blijven boodschappen doen en de vrije kasstroom na lease lag acht jaar tussen €1,6 en €2,6 mld. Het rendement op kapitaal ligt elk jaar boven de kapitaalkosten, maar met circa 10% niet twee keer zo hoog als de WACC van 5,52%. Dat past bij een smalle slotgracht: lokale schaal, geen prijsmacht. Het management is degelijk. De prijs is redelijk tot aantrekkelijk, met een koers/vrije kasstroom van 12,5. Buffett zou het een goed bedrijf tegen een eerlijke prijs noemen, geen uitzonderlijk bedrijf. Het punt van zorg is de Amerikaanse markt, waar Walmart de prijzen bepaalt.
+- **Toelichting:** Het bedrijf is begrijpelijk en de kasstromen zijn voorspelbaar: mensen blijven boodschappen doen en de vrije kasstroom na lease lag acht jaar tussen €1,6 en €2,6 mld. Het rendement op kapitaal ligt elk jaar boven de kapitaalkosten, maar met circa 10% niet twee keer zo hoog als de WACC van 7,20%. Dat past bij een smalle slotgracht: lokale schaal, geen prijsmacht. Het management is degelijk. De prijs is redelijk tot aantrekkelijk, met een koers/vrije kasstroom van 12,5. Buffett zou het een goed bedrijf tegen een eerlijke prijs noemen, geen uitzonderlijk bedrijf. Het punt van zorg is de Amerikaanse markt, waar Walmart de prijzen bepaalt.
 - **Score (1-5):** 3 (ROIC > WACC structureel, moat NARROW, P/FCF 12,54 ≤ 30; geen 2× WACC)
 
 ### Peter Lynch
@@ -548,13 +548,13 @@ Leesregel: de rubrics uit METHODE.md H9 lees ik als cascade van score 5 naar ben
 - **Score (1-5):** 3 (earnings yield ≥ 5%; score 4 vereist ook ROC ≥ 30%)
 
 ### Moat
-- **Score (1-5):** 2. NARROW MOAT met één categorie STERK (efficiënte schaal), maar de ROIC-WACC-spread ligt in 2025 op 4,6 procentpunt en in acht van de tien jaren onder 5 procentpunt. De rubric voor score 3 eist een spread boven 5 procentpunt; daarom score 2 ("spread < 5pp").
+- **Score (1-5):** 2. NARROW MOAT met één categorie STERK (efficiënte schaal), maar de ROIC-WACC-spread ligt in 2025 op 2,9 procentpunt en in alle tien jaren onder 5 procentpunt. De rubric voor score 3 eist een spread boven 5 procentpunt; daarom score 2 ("spread < 5pp").
 
 ### Management
 - **Score (1-5):** 4. Capital allocation GOED (stabiele kasstroom, ruime uitkering, één misser in FreshDirect), prikkels aligned (bonus op rendement op kapitaal, kasstroom en EPS), geen materiële governancecontroverses. Score 5 vereist excellente capital allocation en meer dan 1% insiderbelang; het bestuur bezit 0,06%.
 
 ### Fair Value DCF
-- **Score (1-5):** 5. Basis-fair-value €81,23 tegen koers €31,38: upside 158,9% (≥ 30%). Deze score kantelt naar 4 bij een WACC van 8,06%, naar 3 bij 9,20%, naar 2 bij 10,30% en naar 1 bij 11,35% (sectie 12).
+- **Score (1-5):** 5. Basis-fair-value €53,20 tegen koers €31,38: upside 69,5% (≥ 30%). Deze score kantelt naar 4 bij een WACC van 8,06%, naar 3 bij 9,20%, naar 2 bij 10,30% en naar 1 bij 11,35% (sectie 12).
 
 ### Fair Value IPO-gecorr.
 - **Score (1-5):** 5. Beursnotering sinds 1948 en fusie in 2016 zonder geldopname: meer dan tien jaar, dus gelijk aan Fair Value DCF.
@@ -563,7 +563,7 @@ Leesregel: de rubrics uit METHODE.md H9 lees ik als cascade van score 5 naar ben
 - **Totaalscore:** 4 + 3 + 2 + 3 + 3 + 2 + 4 + 5 + 5 = **31**
 - **Max:** 45
 - **Eindoordeel:** **HOLD** (31 is niet ≥ 33, dus geen KOOP; niet < 24 en DCF-score niet 1, dus geen PASS)
-- **Samenvatting:** Ahold Delhaize is een degelijke supermarktgroep met een smalle slotgracht: sterk in Nederland, middelgroot in de VS, met een stabiele marge van 4% en een rendement op kapitaal rond 10%. De koers van €31,38 is laag ten opzichte van de eigen historie (P/E 12,5 tegen gemiddeld 15,3) en ten opzichte van de kasstroom (rendement circa 8%). De DCF komt met de rubric-WACC van 5,52% op €81,23, maar die uitkomst rust vooral op een regressiebeta van 0,31; de markt rekent impliciet met circa 10%. De synthese van DCF, multiples en EPV geeft €49,52, met een koopniveau van €37,14 bij 25% veiligheidsmarge. De koers ligt daaronder, maar de scorekaart komt op 31 en dus HOLD, omdat moat, groei en PEG zwak scoren. Het oordeel blijft HOLD bij elke WACC tussen 5,5% en 11,3%; pas boven 11,35% wordt het PASS. De belangrijkste onzekerheid is de Amerikaanse marge; de eerstvolgende toets zijn de Q3-cijfers op 4 november 2026, met de eerste inschatting van de schade door het cyberincident.
+- **Samenvatting:** Ahold Delhaize is een degelijke supermarktgroep met een smalle slotgracht: sterk in Nederland, middelgroot in de VS, met een stabiele marge van 4% en een rendement op kapitaal rond 10%. De koers van €31,38 is laag ten opzichte van de eigen historie (P/E 12,5 tegen gemiddeld 15,3) en ten opzichte van de kasstroom (rendement circa 8%). De DCF komt met een realistische WACC van 7,20% op €53,20 in het basisscenario; de markt rekent impliciet met circa 10%. De synthese van DCF, multiples en EPV geeft €38,46, dicht bij het gemiddelde analistenkoersdoel, met een koopniveau van €28,84 bij 25% veiligheidsmarge. De koers ligt daarboven. De scorekaart komt op 31 en dus HOLD, omdat moat, groei en PEG zwak scoren. Het oordeel blijft HOLD bij elke WACC tussen 5,5% en 11,3%; pas boven 11,35% wordt het PASS. De belangrijkste onzekerheid is de Amerikaanse marge; de eerstvolgende toets zijn de Q3-cijfers op 4 november 2026, met de eerste inschatting van de schade door het cyberincident.
 
 ---
 
@@ -575,7 +575,7 @@ Leesregel: de rubrics uit METHODE.md H9 lees ik als cascade van score 5 naar ben
 | 2 | Prijsoorlog en zwakke consument in de VS | HOOG | GROOT | onderliggende marge, groei fase 1 | Walmart, Kroger en Albertsons waarschuwden in 2026 voor een zwakkere Amerikaanse markt. Ahold Delhaize investeert $1 mld in lagere prijzen tot 2028 en de vergelijkbare omzetgroei in de VS was in Q2 2026 maar 0,8%. UBS verwacht geen margeherstel meer in de VS. Een daling van de groepsmarge van 4,0% naar 3,5% kost circa €0,46 mld bedrijfsresultaat per jaar, ruim 12% van het totaal. |
 | 3 | Nieuwe CEO verandert strategie of kapitaalbeleid | MIDDEN | MIDDEL | groei, capex, uitkering | Thierry Garnier komt van Kingfisher, een doe-het-zelfketen, en neemt in 2027 over. Een nieuwe topman kan de strategie herzien, afboekingen nemen of de investeringen verhogen ten koste van de inkoop. Zijn loopbaan lag volgens het persbericht bij Carrefour en Kingfisher, niet in de Amerikaanse supermarktmarkt waar de grootste uitdaging ligt. De markt reageerde op de aankondiging met een koersdaling van ruim 2% op 7 mei 2026. |
 | 4 | Zwakkere dollar | HOOG | MIDDEL | gerapporteerde omzet en FCF in euro | 57,5% van de omzet is in dollars. In H1 2026 kromp de omzet 2,0% in euro's terwijl die tegen constante koersen 2,0% groeide. Een dollar die 10% zwakker wordt, verlaagt de groepsomzet in euro's met circa 6% en de waarde van de Amerikaanse kasstromen in gelijke mate. Het bedrijf dekt dit omrekeningsrisico niet af. |
-| 5 | Kapitaalkosten hoger dan de rubric aanneemt | MIDDEN | GROOT | WACC, terminal value | De WACC van 5,52% rust op een regressiebeta van 0,31. Met een bottom-up beta (Damodaran, supermarkten VS, 1,06) wordt de WACC 7,20% en de basis-fair-value €53,20. De koers impliceert 10,3%. Een stijging van de Duitse tienjaarsrente (nu 3,48%) verhoogt de WACC verder. Dit risico is het grootst voor het DCF-oordeel. |
+| 5 | Kapitaalkosten hoger dan de rubric aanneemt | MIDDEN | GROOT | WACC, terminal value | De WACC van 7,20% rust op een bottom-up beta van 1,06; de koers impliceert 10,3%. Elk procentpunt hogere WACC verlaagt de basis-fair-value met circa €7 tot €10 (sectie 12). Een stijging van de Duitse tienjaarsrente (nu 3,48%) werkt direct door. Boven 8,06% zakt de DCF-score van 5 naar 4. Dit risico is het grootst voor het DCF-oordeel. |
 | 6 | Arbeidskosten, vakbonden en pensioenen | MIDDEN | MIDDEL | marge | Ahold Delhaize heeft veel vakbondspersoneel in de VS met bedrijfstakpensioenfondsen; de afkoop daarvan kostte in 2020 €1,4 mld. In 2024 kostte de overgang naar een nieuwe Nederlandse pensioenregeling €277 mln. Loonstijgingen in Nederland en België komen bovenop de prijsinvesteringen, en personeel is na inkoop de grootste kostenpost (€12,9 mld in 2025, 14% van de omzet). Elke cao-ronde zonder compenserende besparingen gaat direct van de marge van 4% af. |
 | 7 | Integratie Profi en Midden- en Oost-Europa | LAAG | KLEIN | groei, marge Europa | Profi (Roemenië) had in 2025 een licht negatief effect op de nettowinst. De goodwill van €0,73 mld en de inflatie in Roemenië (boven 9% volgens het jaarverslag) en Servië maken deze landen gevoeliger voor afboekingen en margedruk. Ook de Delfood-overname (februari 2026) moet nog worden ingepast. Samen zijn deze activiteiten een klein deel van de groep. |
 | 8 | Pre-IPO financial engineering | LAAG | KLEIN | n.v.t. | Niet geconstateerd. Albert Heijn is sinds 1948 genoteerd; de fusie van 2016 was in aandelen, zonder schuldopbouw bij verbonden partijen, zonder dividendherkapitalisatie en zonder uitstap van insiders. Er zijn geen beursgangopbrengsten gebruikt om schulden aan insiders af te lossen. Een gecorrigeerde fair value is daarom niet nodig; de IPO-gecorrigeerde score is gelijk aan de DCF-score. |
@@ -586,7 +586,7 @@ Gevoeligste DCF-aannames: de WACC (risico 5) en de marge (risico 2). Niet te ver
 
 ## 9. These invalide bij
 
-Deze HOLD-these met waarderingsbuffer is weerlegd wanneer (a) de onderliggende bedrijfsmarge twee kwartalen achter elkaar onder 3,5% zakt zonder valuta- of eenmalige verklaring, (b) de vrije kasstroom volgens het bedrijf in 2026 of 2027 onder €2,0 mld uitkomt, (c) uit het cyberincident blijkt dat klant- of betaaldata zijn gestolen of dat de verstoring langer dan twee weken duurt, of (d) de nieuwe CEO het inkoopprogramma stopzet voor een grote overname. Omgekeerd verdwijnt de waarderingsbuffer boven circa €50 per aandeel, het centrale punt van de synthese.
+Deze HOLD-these met waarderingsbuffer is weerlegd wanneer (a) de onderliggende bedrijfsmarge twee kwartalen achter elkaar onder 3,5% zakt zonder valuta- of eenmalige verklaring, (b) de vrije kasstroom volgens het bedrijf in 2026 of 2027 onder €2,0 mld uitkomt, (c) uit het cyberincident blijkt dat klant- of betaaldata zijn gestolen of dat de verstoring langer dan twee weken duurt, of (d) de nieuwe CEO het inkoopprogramma stopzet voor een grote overname. Omgekeerd verdwijnt de waarderingsbuffer boven circa €38 per aandeel, het centrale punt van de synthese.
 
 ---
 
@@ -622,12 +622,14 @@ Deze HOLD-these met waarderingsbuffer is weerlegd wanneer (a) de onderliggende b
 ---
 ## 12. Fair value — kwantitatief (DCF)
 
+> **Bewuste afwijking van METHODE.md H7 stap 4D (versie 2.1, op verzoek van Janco).** De rubric schrijft voor een liquide aandeel met meer dan vijf jaar notering de regressiebeta voor. Die is voor Ahold Delhaize 0,31 (Blume 0,54) en geeft een WACC van 5,52% en een basis-fair-value van €81,23: 159% boven de koers, 115% boven het gemiddelde analistenkoersdoel (€37,83) en 148% boven de waardering op peer-multiples (€32,71). Een regressiebeta van 0,31 meet hier vooral dat het aandeel de afgelopen vijf jaar niet met de beurs meebewoog, niet dat het weinig risico heeft. Daarom gebruik ik in deze versie de **bottom-up beta** (sectorbeta van Damodaran, aangepast voor de schuld van Ahold Delhaize). De regressievariant staat hieronder als gevoeligheid. Stage 2 moet deze invoeren gebruiken, niet de regressiebeta.
+
 ### DCF-invoeren
 
 ```
 Basis            fcf=2441 shares=873.76 net_cash=-5186 gross_debt=8486 revenue=91424
                  koers=31.38 ipo_jaar=1948
-WACC             rf=3.48 erp=4.23 beta=0.54 crp=0.30 size_premium=0
+WACC             rf=3.48 erp=4.23 beta=1.06 crp=0.30 size_premium=0
                  cost_of_debt_pretax=4.72 tax_rate=20.7
 Pessimistisch    g1=0.0 g2=1.0 gt=1.5 wacc_adj=1.75 kans=35
 Basis            g1=3.0 g2=2.5 gt=2.0 wacc_adj=0.0 kans=45
@@ -644,32 +646,33 @@ Eenheid          bedragen in EUR mln; percentages als getal (3.05 = 3,05%)
 ```
 
 Toelichting op de invoeren (nodig om na te rekenen):
+- `beta=1.06` is een **bottom-up beta** (beta_type = bottom_up): Damodaran unlevered beta Retail (Grocery and Food), VS, januari 2026, gecorrigeerd voor kas: 0,85, opnieuw belast met de schuld van Ahold Delhaize: 0,85 × (1 + (1 − 0,207) × 8.486 / 27.419) = 1,06. Geen Blume-aanpassing (die geldt voor regressiebeta's).
 - `fcf` = genormaliseerde FCFF na netto leasebetalingen en na SBC (zie DCF model-specs). Omdat de huur als bedrijfslast in de FCFF zit, is `net_cash` de nettoschuld **exclusief** leaseverplichtingen (−5.186 = −(19.261 − 10.775 − 3.300), per 28-06-2026) en `gross_debt` de financiële schuld exclusief lease (8.486). De leaseverplichting van 10.775 nogmaals aftrekken zou de huur dubbel tellen.
 - `shares` = 873,76 mln per 28-06-2026, dezelfde datum als de nettoschuld.
 - Model: 2-fase, jaren 1-5 groei g1, jaren 6-10 groei g2, Gordon-eindwaarde op jaar 10 met gt. Mid-year convention: kasstroom van jaar t verdisconteerd met (1+WACC)^(t−0,5); eindwaarde verdisconteerd met (1+WACC)^10.
 - `crp` = 0,575 × 0,23% (VS) + 0,210 × 0,78% (overige landen, Belgisch tarief) = 0,30%.
-- `roic_wacc_spread_5j_plus=true` betekent: ROIC boven WACC in alle jaren 2017-2025; de spread is nooit boven 10 procentpunt geweest.
+- `roic_wacc_spread_5j_plus=true` betekent: ROIC boven WACC in alle jaren 2016-2025; de spread is nooit boven 5 procentpunt geweest.
 - `debt_equity` = bruto schuld incl. lease / eigen vermogen per 28-06-2026 (19.261 / 14.445).
 - EPV-formule: zie EPV-blok; ik trek lease-rente af van het genormaliseerde EBIT. Een script dat dat niet doet, komt hoger uit (zie Opmerkingen voor Claude Code).
 
 ### WACC-componenten
 - **Risicovrije rente %:** 3,48
 - **Bron risicovrije rente:** Duitse 10-jaars staatsobligatie op 13-10-2026 (tradingeconomics.com). Euro, omdat alle kasstromen in euro zijn gemodelleerd.
-- **Type:** spot. De spot ligt ruim 150 bp boven het gemiddelde van de afgelopen tien jaar (de Bund was in 2019-2021 negatief). Een genormaliseerde rente zou de WACC verder verlagen en de DCF-uitkomst nog verder van de markt brengen; gezien het lage-beta-probleem hieronder kies ik bewust de hogere spotrente.
+- **Type:** spot. De spot ligt ruim 150 bp boven het gemiddelde van de afgelopen tien jaar (de Bund was in 2019-2021 negatief). Een genormaliseerde rente zou de WACC verlagen; ik kies bewust de hogere spotrente omdat die de huidige rendementseis van beleggers weergeeft.
 - **ERP (equity risk premium) %:** 4,23
 - **Bron ERP:** Damodaran, implied ERP (FCFE) begin 2026, histimpl.html (update januari 2026)
-- **Beta (adjusted, Blume):** 0,54 (= 0,67 × 0,31 + 0,33)
-- **Bron beta:** regressiebeta 5 jaar 0,31, StockAnalysis (AD, okt. 2026); Yahoo gaf geen waarde. Ter controle: peers Kroger 0,35, Albertsons 0,23, Tesco 0,56, Carrefour 0,58, Sainsbury 0,98 (zelfde bron).
-- **Type beta:** regressie (5 jaar). Ahold Delhaize is ruim vijf jaar genoteerd en liquide (gemiddeld 2,35 mln aandelen per dag), dus METHODE schrijft de regressiebeta voor.
-- **Robuustheid:** bottom-up beta = Damodaran unlevered beta Retail (Grocery and Food, VS, jan 2026, gecorrigeerd voor kas) 0,85 × (1 + (1 − 0,207) × 8.486/27.419) = 1,06 → cost of equity 8,26%, WACC 7,20%, basis-fair-value €53,20. Damodaran's eigen sector-WACC voor Amerikaanse supermarkten is 7,24%.
+- **Beta:** 1,06 (bottom-up)
+- **Bron beta:** Damodaran, Betas by Sector (US), januari 2026, Retail (Grocery and Food): unlevered beta gecorrigeerd voor kas 0,85; opnieuw belast met D/E 0,31 (financiële schuld 8.486 / marktwaarde 27.419) en belastingtarief 20,7%.
+- **Type beta:** bottom_up. Afwijking van de rubric, zie het kader bovenaan deze sectie.
+- **Ter vergelijking, regressiebeta:** 5 jaar 0,31 (StockAnalysis), Blume 0,54. Peers op dezelfde bron: Kroger 0,35, Albertsons 0,23, Tesco 0,56, Carrefour 0,58, Sainsbury 0,98. Met de regressiebeta: cost of equity 6,06%, WACC 5,52%, basis-fair-value €81,23, EPV €49,97.
 - **Country risk premium %:** 0,30
 - **Size premium %:** 0 (marktwaarde €27,4 mld)
-- **Cost of equity %:** 3,48 + 0,54 × 4,23 + 0,30 = 6,06
+- **Cost of equity %:** 3,48 + 1,06 × 4,23 + 0,30 = 8,26
 - **Schuldkosten na belasting %:** 4,72 × (1 − 0,207) = 3,74
 - **E/V gewicht %:** 76,37 (marktwaarde €27.419 mln / (27.419 + financiële schuld 8.486))
 - **D/V gewicht %:** 23,63
-- **WACC %:** 5,52
-- **Sector WACC % (referentie Damodaran):** 7,24 (Retail Grocery and Food, VS, jan 2026)
+- **WACC %:** 7,20
+- **Sector WACC % (referentie Damodaran):** 7,24 (Retail Grocery and Food, VS, jan 2026). De gekozen WACC ligt daar vrijwel op.
 - **Illiquiditeitskorting %:** null
 
 ### DCF model-specs
@@ -684,17 +687,17 @@ Toelichting op de invoeren (nodig om na te rekenen):
 - **Terminal methode:** Gordon growth; exit multiple als controle
 - **Exit multiple gebruikt:** 6,3 × EBITDA na leasebetalingen
 - **Bron exit multiple:** mediaan EV/EBITDA van Kroger (7,39), Albertsons (6,09), Carrefour (6,22), Tesco (8,04) en Sainsbury (6,31), StockAnalysis okt. 2026
-- **Terminal value Gordon growth:** 92.892 (in jaar 10; contante waarde 54.301)
+- **Terminal value Gordon growth:** 62.858 (in jaar 10; contante waarde 31.376)
 - **Terminal value exit multiple:** 45.175 (6,3 × EBITDA na lease in jaar 10 van 7.171)
-- **Terminal value % van totaal:** 71,3 (< 75%)
-- **Terminal implied EV/EBITDA:** 12,7 (op EBITDA na lease); de exit-multiple-variant ligt 51% lager, wat laat zien dat de markt supermarkten tegen veel hogere rendementseisen waardeert dan de rubric-WACC
+- **Terminal value % van totaal:** 60,7 (< 75%)
+- **Terminal implied EV/EBITDA:** 8,6 (op EBITDA na lease). Dat ligt boven de huidige peermediaan van 6,3 en het eigen gemiddelde van 6,4 (IFRS 16-basis); de exit-multiple-variant ligt 28% lager.
 - **Terminal groei consistentie:** Terminal groei 2,0% vereist bij een ROIC van circa 10% een herinvesteringsgraad van 20% van het bedrijfsresultaat na belasting. In het model is de FCFF circa 90% van de NOPAT, dus de impliciete herinvestering is 10% en het veronderstelde rendement op nieuwe investeringen circa 20%. Dat is ruim, maar verdedigbaar omdat groei in een supermarkt grotendeels via prijsinflatie op een bestaand netwerk loopt. 2,0% ligt onder de langetermijngroei van het nominale bbp in de eurozone en de VS.
 - **Mid-year convention:** true
 - **Aandelen uitstaand (mln):** 873,76
 - **Nettoschuld huidig:** 5.186 (excl. lease; incl. lease 15.961)
 
 ### DCF-toelichting
-Ahold Delhaize is niet cyclisch, dus ik neem de FCFF over acht jaar (2018-2025, alle jaren onder IFRS 16) als vertrekpunt. Huur behandel ik als bedrijfslast: de volledige netto leasebetaling gaat van de kasstroom af en de leaseverplichting telt niet mee in de schuld. De kasbelasting is genormaliseerd (REGEL 5): in plaats van de betaalde belasting reken ik 20,7% over het onderliggende bedrijfsresultaat na lease-rente; dat verlaagt de FCFF 2025 met €177 mln. De FCFF lag tussen €1.784 mln (2019, dal) en €2.482 mln (2025, piek), gemiddeld €2.082 mln. Het gekozen startpunt van €2.441 mln (mediaanmarge 2,67% × huidige omzet) ligt 1,7% onder 2025 en 12,6% boven de TTM, die gedrukt is door werkkapitaal; geen van beide wijkt meer dan 20% af. De eindwaarde is 71% van de waarde. De grote zwakte is de WACC van 5,52%, die rust op een beta van 0,31.
+Ahold Delhaize is niet cyclisch, dus ik neem de FCFF over acht jaar (2018-2025, alle jaren onder IFRS 16) als vertrekpunt. Huur behandel ik als bedrijfslast: de volledige netto leasebetaling gaat van de kasstroom af en de leaseverplichting telt niet mee in de schuld. De kasbelasting is genormaliseerd (REGEL 5): in plaats van de betaalde belasting reken ik 20,7% over het onderliggende bedrijfsresultaat na lease-rente; dat verlaagt de FCFF 2025 met €177 mln. De FCFF lag tussen €1.784 mln (2019, dal) en €2.482 mln (2025, piek), gemiddeld €2.082 mln. Het gekozen startpunt van €2.441 mln (mediaanmarge 2,67% × huidige omzet) ligt 1,7% onder 2025 en 12,6% boven de TTM, die gedrukt is door werkkapitaal. De WACC van 7,20% gebruikt een bottom-up beta in plaats van de regressiebeta van 0,31 (zie kader). De eindwaarde is 61% van de waarde.
 
 ### 5-jaars projectie (basisscenario; J1 = jul-2026 t/m jun-2027)
 
@@ -712,12 +715,12 @@ EBIT = onderliggend, IFRS 16 (vóór lease-rente). NOPAT = (EBIT − lease-rente
 
 | Scenario | FCF-groei % (fase 1 / fase 2 / eind) | WACC % | Fair value | Upside % | Kans % |
 |---|---|---|---|---|---|
-| Pessimistisch | 0,0 / 1,0 / 1,5 | 7,27 | 40,01 | 27,5 | 35 |
-| Basis | 3,0 / 2,5 / 2,0 | 5,52 | 81,23 | 158,9 | 45 |
-| Optimistisch | 4,5 / 3,0 / 2,0 | 5,52 | 89,18 | 184,2 | 20 |
+| Pessimistisch | 0,0 / 1,0 / 1,5 | 8,95 | 30,03 | −4,3 | 35 |
+| Basis | 3,0 / 2,5 / 2,0 | 7,20 | 53,20 | 69,5 | 45 |
+| Optimistisch | 4,5 / 3,0 / 2,0 | 7,20 | 58,34 | 85,9 | 20 |
 
-- **Kansgewogen fair value:** 0,35 × 40,01 + 0,45 × 81,23 + 0,20 × 89,18 = **68,40**
-- **Motivering kansen:** afwijkend van 25/50/25. Het pessimistische scenario krijgt 35% en een WACC die 1,75 procentpunt hoger ligt (7,27%, gelijk aan de WACC met een bottom-up beta en aan Damodaran's sector-WACC van 7,24%), omdat de rubric-WACC hier waarschijnlijk te laag is. Het pessimistische scenario beschrijft bovendien wat de markt vreest: tien jaar zonder groei door de Amerikaanse prijsoorlog. Het optimistische scenario (20%) veronderstelt dat online en Profi de groei tot 4,5% opstuwen.
+- **Kansgewogen fair value:** 0,35 × 30,03 + 0,45 × 53,20 + 0,20 × 58,34 = **46,12**
+- **Motivering kansen:** afwijkend van 25/50/25. Het pessimistische scenario beschrijft wat de markt lijkt te vrezen: tien jaar zonder groei door de Amerikaanse prijsoorlog, met een rendementseis die 1,75 procentpunt hoger ligt (8,95%) en daarmee dichter bij de 10,3% die de koers impliceert. Omdat de koers juist dat scenario weerspiegelt, krijgt het 35% in plaats van 25%. Het optimistische scenario (20%) veronderstelt dat online en Profi de groei tot 4,5% opstuwen.
 
 ### Kantelpunten WACC (basis-groei 3,0 / 2,5 / 2,0)
 | Fair Value DCF-score | Geldt tot WACC | Totaalscore | Eindoordeel |
@@ -728,11 +731,13 @@ EBIT = onderliggend, IFRS 16 (vóór lease-rente). NOPAT = (EBIT − lease-rente
 | 2 (downside 0-15%) | 11,35% | 25 | HOLD |
 | 1 (downside > 15%) | boven 11,35% | 23 | PASS |
 
+De gekozen WACC van 7,20% ligt 0,87 procentpunt onder de grens waar de DCF-score van 5 naar 4 gaat.
+
 ### Reverse DCF
-- **Impliciete groei %:** −7,3 (FCFF-krimp per jaar gedurende tien jaar, bij WACC 5,52% en 2,0% eindgroei). Anders geformuleerd: bij 3,0% / 2,5% / 2,0% groei is de koers van €31,38 alleen te verklaren met een WACC van 10,30%.
+- **Impliciete groei %:** −3,1 (FCFF-krimp per jaar gedurende tien jaar, bij WACC 7,20% en 2,0% eindgroei). Anders geformuleerd: bij 3,0% / 2,5% / 2,0% groei is de koers van €31,38 alleen te verklaren met een WACC van 10,30%.
 - **Historische FCF CAGR %:** 2,8 (genormaliseerde FCFF 2018-2025: van 2.041 naar 2.482)
 - **Consensus groei % (analisten):** omzet 1,4% (2026), 2,3% (2027), 2,9% (2028); EPS 6,8% per jaar 2025-2028 (MarketScreener)
-- **Interpretatie:** Met de rubric-WACC moet de vrije kasstroom tien jaar lang 7% per jaar krimpen om de koers te rechtvaardigen, terwijl die de afgelopen zeven jaar 2,8% per jaar groeide en analisten 2-3% omzetgroei en 7% winstgroei per aandeel verwachten. Dat is onwaarschijnlijk pessimistisch. De betere lezing is dat de markt een veel hogere rendementseis hanteert, circa 10%, en daarmee Ahold Delhaize waardeert als een bedrijf zonder slotgracht dat alleen zijn kapitaalkosten terugverdient. Wie die 10% te hoog vindt voor een defensieve supermarkt met BBB+-rating, ziet hier een koopkans; wie de Amerikaanse risico's zwaar weegt, niet.
+- **Interpretatie:** Bij een rendementseis van 7,2% moet de vrije kasstroom tien jaar lang 3% per jaar krimpen om de koers te rechtvaardigen, terwijl die de afgelopen zeven jaar 2,8% per jaar groeide en analisten 2-3% omzetgroei en 7% winstgroei per aandeel verwachten. Dat is een somber scenario. De andere lezing is dat de markt een hogere rendementseis hanteert, circa 10%, en Ahold Delhaize waardeert als een bedrijf zonder slotgracht dat alleen zijn kapitaalkosten terugverdient. Wie de Amerikaanse risico's zwaar weegt, kan die 10% verdedigen; wie de stabiliteit van de afgelopen tien jaar zwaarder weegt, ziet een licht ondergewaardeerd aandeel.
 
 ### EPV (Bruce Greenwald)
 - **Genormaliseerde EBIT-marge %:** 4,24 (mediaan onderliggende bedrijfsmarge 2018-2025)
@@ -740,9 +745,9 @@ EBIT = onderliggend, IFRS 16 (vóór lease-rente). NOPAT = (EBIT − lease-rente
 - **Genormaliseerde NOPAT:** 2.705 = (3.875 − lease-rente 465) × (1 − 20,7%)
 - **Maintenance capex:** 2.208 (gelijk gesteld aan de afschrijvingen exclusief gebruiksrechten in 2025: materiële vaste activa 1.656 + vastgoed 39 + immaterieel 513; de bruto capex van 2.564 bevat groei-investeringen)
 - **Adjusted earnings power:** 2.694 = NOPAT 2.705 + afschrijvingen excl. gebruiksrechten 2.208 − onderhoudscapex 2.208 + kascorrectie lease 47 (netto leasebetaling TTM 1.796 tegenover lease-rente 465 + afschrijving gebruiksrechten 1.378) − SBC 58
-- **EPV ondernemingswaarde:** 48.847 (2.694 / 5,52%)
-- **EPV per aandeel:** 49,97 = (48.847 − 5.186) / 873,76. Bij de pessimistische WACC van 7,27%: 36,50.
-- **Groeipremie %:** 62,6 ((81,23 − 49,97) / 49,97). De koers ligt 37% **onder** de EPV: de markt betaalt niet voor groei, maar prijst zelfs een daling van de huidige verdiencapaciteit in.
+- **EPV ondernemingswaarde:** 37.444 (2.694 / 7,20%)
+- **EPV per aandeel:** 36,92 = (37.444 − 5.186) / 873,76. Bij de pessimistische WACC van 8,95%: 28,53.
+- **Groeipremie %:** 44,1 ((53,20 − 36,92) / 36,92). De koers ligt 15% **onder** de EPV: de markt betaalt niets voor groei en prijst een lichte daling van de huidige verdiencapaciteit in.
 
 ### Andere methoden
 - **DDM uitgevoerd?** false. Het dividend volgt de winst (40-50% uitkering) en het grootste deel van de uitkering loopt via inkoop; de FCFF-DCF vangt beide.
@@ -751,39 +756,41 @@ EBIT = onderliggend, IFRS 16 (vóór lease-rente). NOPAT = (EBIT − lease-rente
 
 ### Synthese fair value
 - **Bandbreedte laag:** 32,71 (multiples)
-- **Bandbreedte centraal:** 49,52
-- **Bandbreedte hoog:** 68,40 (kansgewogen DCF)
+- **Bandbreedte centraal:** 38,46
+- **Bandbreedte hoog:** 46,12 (kansgewogen DCF)
 - **Methode-gewichten:**
-  - DCF %: 35 (kansgewogen 68,40)
-  - EPV %: 25 (49,97)
+  - DCF %: 35 (kansgewogen 46,12)
+  - EPV %: 25 (36,92)
   - Multiples %: 40 (32,71)
 - **Margin of safety vereist %:** 25
-- **Koopniveau:** 37,14 (49,52 × 0,75)
-- **Synthese-toelichting:** De drie methoden lopen ver uiteen, en dat zegt vooral iets over de disconteringsvoet. De DCF en de EPV gebruiken de rubric-WACC van 5,52% en komen op €68 en €50; de multiples, die de rendementseis van de markt bevatten, komen op €33. Daarom krijgt de DCF maar 35% gewicht en de multiples 40%. De centrale waarde is €49,52. Ook de EPV, die geen enkele groei veronderstelt, ligt 59% boven de koers; zelfs bij een WACC van 7,27% is dat nog 16%. Ik eis 25% veiligheidsmarge in plaats van 15-20%, vanwege de onzekerheid over de WACC, de CEO-wissel en het lopende cyberincident. Het koopniveau van €37,14 ligt boven de huidige koers.
+- **Koopniveau:** 28,84 (38,46 × 0,75)
+- **Synthese-toelichting:** Met een realistische rendementseis van 7,2% liggen de methoden dichter bij elkaar: de DCF komt kansgewogen op €46, de waarde zonder groei (EPV) op €37 en de peer-multiples op €33. De DCF krijgt 35% gewicht en de multiples 40%, omdat de DCF ook nu nog 41% boven de multiples ligt en de multiples de rendementseis van de markt bevatten. De centrale waarde van €38,46 ligt dicht bij het gemiddelde analistenkoersdoel van €37,83 en 23% boven de koers. Ik eis 25% veiligheidsmarge vanwege de onzekerheid over de Amerikaanse marge, de CEO-wissel en het lopende cyberincident. Het koopniveau van €28,84 ligt daarmee 8% onder de huidige koers: het aandeel is redelijk tot licht ondergewaardeerd geprijsd, maar biedt nog geen ruime veiligheidsmarge.
 
 ### Gevoeligheid (DCF)
-- **WACC range:** [5,0%, 5,5%, 6,0%, 6,5%, 7,0%, 7,5%]
+- **WACC range:** [6,0%, 6,5%, 7,0%, 7,5%, 8,0%, 8,5%, 9,0%]
 - **Groei range:** [−1,0%, 0,0%, 1,0%, 2,0%, 3,0%] (fase 1 = fase 2; eindgroei 2,0%)
 - **Matrix (fair value per aandeel, EUR):**
 
-| Groei \ WACC | 5,0% | 5,5% | 6,0% | 6,5% | 7,0% | 7,5% |
-|---|---|---|---|---|---|---|
-| −1,0% | 67,81 | 57,74 | 50,18 | 44,29 | 39,59 | 35,73 |
-| 0,0% | 74,48 | 63,36 | 55,01 | 48,52 | 43,33 | 39,08 |
-| 1,0% | 81,74 | 69,47 | 60,27 | 53,12 | 47,40 | 42,72 |
-| 2,0% | 89,64 | 76,11 | 65,98 | 58,10 | 51,80 | 46,65 |
-| 3,0% | 98,22 | 83,33 | 72,17 | 63,50 | 56,57 | 50,92 |
+| Groei \ WACC | 6,0% | 6,5% | 7,0% | 7,5% | 8,0% | 8,5% | 9,0% |
+|---|---|---|---|---|---|---|---|
+| −1,0% | 50,18 | 44,29 | 39,59 | 35,73 | 32,52 | 29,80 | 27,46 |
+| 0,0% | 55,01 | 48,52 | 43,33 | 39,08 | 35,54 | 32,55 | 29,98 |
+| 1,0% | 60,27 | 53,12 | 47,40 | 42,72 | 38,82 | 35,52 | 32,70 |
+| 2,0% | 65,98 | 58,10 | 51,80 | 46,65 | 42,37 | 38,74 | 35,64 |
+| 3,0% | 72,17 | 63,50 | 56,57 | 50,92 | 46,21 | 42,23 | 38,82 |
 
 - **Eindgroei × WACC (fase 1 3,0%, fase 2 2,5%):**
 
-| Eindgroei \ WACC | 5,0% | 5,5% | 6,0% | 6,5% | 7,0% | 7,5% |
-|---|---|---|---|---|---|---|
-| 1,0% | 76,48 | 67,25 | 59,88 | 53,86 | 48,85 | 44,61 |
-| 1,5% | 84,92 | 73,54 | 64,70 | 57,64 | 51,86 | 47,06 |
-| 2,0% | 96,17 | 81,62 | 70,72 | 62,25 | 55,49 | 49,96 |
-| 2,5% | 111,91 | 92,40 | 78,47 | 68,03 | 59,92 | 53,43 |
+| Eindgroei \ WACC | 6,0% | 6,5% | 7,0% | 7,5% | 8,0% | 8,5% | 9,0% |
+|---|---|---|---|---|---|---|---|
+| 1,0% | 59,88 | 53,86 | 48,85 | 44,61 | 40,99 | 37,86 | 35,12 |
+| 1,5% | 64,70 | 57,64 | 51,86 | 47,06 | 43,01 | 39,53 | 36,53 |
+| 2,0% | 70,72 | 62,25 | 55,49 | 49,96 | 45,36 | 41,47 | 38,13 |
+| 2,5% | 78,47 | 68,03 | 59,92 | 53,43 | 48,13 | 43,72 | 39,99 |
 
-Elke cel in beide tabellen ligt boven de koers van €31,38. De koers wordt pas bereikt bij een WACC van 10,3% (basisgroei) of bij tien jaar krimp van 7% per jaar (rubric-WACC).
+- **Rubric-variant (regressiebeta):** beta 0,54, WACC 5,52%: basis €81,23, kansgewogen €68,40 (met dezelfde scenario's), EPV €49,97, synthese €49,52, koopniveau €37,14. Opgenomen voor vergelijkbaarheid met eerdere analyses; niet gebruikt.
+
+Bij een WACC tussen 7% en 8% en nulgroei ligt de fair value tussen €35,54 en €43,33. De koers van €31,38 wordt pas bereikt bij een WACC rond 8,5% en krimp, of bij 10,3% met de basisgroei.
 
 ---
 
@@ -918,14 +925,15 @@ De vijf meest recente jaren (2021-2025) zijn allemaal HOOG; alle URL's eindigen 
 | 2026-04-28 | 1.0 | Eerste publicatie (koers €40,05; HOLD 32/45; fair value basis €50). Slechts 2024-2025 uit primaire bron; 2020-2023 AGGREGATOR zonder URL; 2015-2019 leeg; beta en nettoschuld geschat. |
 | 2026-08-03 | 1.0.1 | Oordeel in de executive summary gecorrigeerd van KOOP naar HOLD conform scorekaart. |
 | 2026-10-13 | 2.0 | Volledig nieuwe analyse na koersdaling en cyberincident van 11-10-2026. Alle tien jaren (2016-2025) en TTM op HOOG uit de jaarverslagen. Nieuwe FCFF-definitie met netto leasebetalingen en genormaliseerde kasbelasting; WACC met regressiebeta 0,31 en robuustheidsvariant; synthese met DCF 35% / multiples 40% / EPV 25%. Correcties t.o.v. 1.0: beschermingsstichting SCAD bestaat wel; CFO sinds 1-10-2023 (ex-Van Oord); TAM zonder bron geschrapt; aandeelhouders alleen uit het AFM-register. Uitkomst: HOLD 31/45, fair value basis €81,23, kansgewogen €68,40, synthese €49,52, koopniveau €37,14. |
+| 2026-10-13 | 2.1 | Herrekend met bottom-up beta 1,06 (WACC 7,20%) in plaats van regressiebeta 0,31 (WACC 5,52%), op verzoek van Janco omdat de basis-fair-value van €81,23 ver boven peers en consensus lag. Nieuwe uitkomsten: basis €53,20, kansgewogen €46,12, EPV €36,92, synthese €38,46, koopniveau €28,84. Scorekaart ongewijzigd: HOLD 31/45. ROIC-WACC-spread nu 1,5-4,3 pp. |
 
 ---
 
 ## Opmerkingen voor Claude Code
 
-1. **De DCF-score hangt aan de beta.** De rubric (regressiebeta bij > 5 jaar notering en voldoende liquiditeit) geeft beta 0,54 (Blume, uit 0,31) en WACC 5,52%. Daarmee komt de basis-fair-value op €81,23, 159% boven de koers en 115% boven de analistenconsensus (gemiddeld koersdoel €37,83 volgens StockAnalysis). Dat is precies het patroon uit de TMUS-analyse. Ik heb de rubric aangehouden en het opgevangen met (a) een pessimistisch scenario op +1,75 pp WACC met 35% kans, (b) synthese-gewichten DCF 35 / multiples 40 / EPV 25, en (c) de kantel-tabel in sectie 12. Het eindoordeel HOLD blijft gelijk voor elke WACC tussen 5,5% en 11,35%.
+1. **Afwijking van de rubric: bottom-up beta in plaats van regressiebeta (versie 2.1).** De rubric (regressiebeta bij > 5 jaar notering en voldoende liquiditeit) geeft beta 0,54 (Blume, uit 0,31) en WACC 5,52%. Daarmee kwam de basis-fair-value op €81,23, 159% boven de koers, 115% boven het gemiddelde analistenkoersdoel (€37,83 volgens StockAnalysis) en 148% boven de peer-multiples. Op verzoek van Janco is de DCF herrekend met de bottom-up beta van 1,06 (Damodaran Retail Grocery, unlevered 0,85, opnieuw belast): WACC 7,20%, basis €53,20, kansgewogen €46,12, synthese €38,46. Gebruik in stage 2 `beta=1.06` uit het invoerblok, niet de regressiebeta; anders komt het script weer op €81,23. Het eindoordeel HOLD blijft gelijk voor elke WACC tussen 5,5% en 11,35%. Voorstel voor een algemene regel in METHODE.md volgt apart.
 2. **Leasebehandeling, belangrijk voor het rekenscript.** De FCFF is na netto leasebetalingen (aflossing incl. rente minus ontvangen leasetermijnen). Daarom is `net_cash` = −5.186 (excl. lease) en `gross_debt` = 8.486 (excl. lease). Wie de nettoschuld incl. lease (15.961) aftrekt van deze FCFF, telt de huur dubbel en komt circa €12 per aandeel te laag uit. Voor de multiples (EV/EBITDA) gebruik ik wél EV incl. lease, consistent met EBITDA onder IFRS 16.
-3. **EPV-formule.** Ik trek de lease-rente (465) van het genormaliseerde EBIT af vóór belasting en tel een kascorrectie op leases (+47) en SBC (−58) mee. Een script dat NOPAT = marge × omzet × (1 − t) rekent, komt op circa €57,8 per aandeel in plaats van €49,97.
+3. **EPV-formule.** Ik trek de lease-rente (465) van het genormaliseerde EBIT af vóór belasting en tel een kascorrectie op leases (+47) en SBC (−58) mee. Een script dat NOPAT = marge × omzet × (1 − t) rekent, komt bij WACC 7,20% op circa €42,96 per aandeel in plaats van €36,92.
 4. **Kasbelasting genormaliseerd** (REGEL 5): 20,7% (W&V-belasting / winst vóór belasting 2018-2025) over underlying EBIT na lease-rente. Effect 2025: −€177 mln op de FCFF. Over acht jaar betaalde het bedrijf 90% van de W&V-last.
 5. **Aandelen en nettoschuld op dezelfde datum** (28-06-2026). Begin oktober stonden er circa 864,6 mln aandelen uit (24.418.253 ingekocht tot 2-10, ten opzichte van 886,9 mln eind 2025 en na 2,1 mln uitgegeven voor beloningen in H1); de bijbehorende nettoschuld per die datum is niet gepubliceerd.
 6. **Niet in de brug:** netto pensioenverplichting €504 mln (eind 2025) is niet afgetrokken; joint ventures (boekwaarde €259 mln) zitten via ontvangen dividenden in de FCFF en zijn daarom niet apart opgeteld. Wil stage 2 pensioenen als schuld meenemen, dan daalt de fair value met circa €0,58 per aandeel.
@@ -933,5 +941,5 @@ De vijf meest recente jaren (2021-2025) zijn allemaal HOOG; alle URL's eindigen 
 8. **CRP 0,30%** is een benadering: de omzet buiten NL en VS (21%) is niet per land gepubliceerd; ik heb daarop het Belgische tarief (0,78%) toegepast. Met het Roemeense tarief (2,85%) voor die hele groep zou de CRP 0,73% zijn.
 9. **Insidertransacties** niet geverifieerd (AFM-register niet doorzoekbaar).
 10. **Oude AD.md bevatte fouten** die ook in de JSON op de site kunnen staan: "geen beschermingsstichting" (onjuist, SCAD bestaat), CFO "sinds april 2024, ex-Vopak" (onjuist, sinds 1-10-2023, ex-Van Oord), TAM €7.000 mld (geen bron), aandeelhouderspercentages BlackRock/Capital/Vanguard/Norges (niet uit het AFM-register), Natalie Knight "vertrok onder controverse" (niet geverifieerd). Graag de oude JSON volledig vervangen.
-11. **Koopniveau boven koers maar toch HOLD.** De synthese (€49,52, koopniveau €37,14) en de scorekaart (31/45) wijzen verschillende kanten op. Dat is geen rekenfout: de scorekaart straft de smalle ROIC-spread (moat 2), de PEG (Lynch 2) en het ontbreken van een onderzoeksbudget (Fisher 3), terwijl de synthese puur op waarde kijkt.
+11. **Synthese en scorekaart.** De synthese (€38,46, koopniveau €28,84) zegt: redelijk geprijsd, nog geen ruime veiligheidsmarge. De scorekaart (31/45) geeft HOLD. Die twee wijzen nu dezelfde kant op. Let wel: de DCF-score blijft 5 (upside 69,5%) terwijl de synthese maar 23% boven de koers ligt; dat komt doordat de rubric alleen naar het DCF-basisscenario kijkt.
 12. **Bronnen die structureel blokkeerden** (voor de lijst in METHODE.md): rd.nl (robots.txt), beurs.nl en beursduivel.be (robots.txt), deaandeelhouder.nl (fout bij ophalen), Euronext live (geen koersdata in de HTML), Yahoo key-statistics voor AD.AS (beta leeg). Werkte goed: media.aholddelhaize.com (alle PDF's direct downloadbaar, inclusief jaarverslagen sinds 2017), beursgenoten.nl voor slotkoersen, theasset.nl voor analistennieuws.
