@@ -1,69 +1,137 @@
 # Research: AD — Koninklijke Ahold Delhaize N.V.
 
-> **Stage 1 output van cowork.** Claude Code neemt het over voor JSON-injectie, validator en deploy.
-> Methode: `research/METHODE.md`. Structuur: `research/TEMPLATE.md`.
+> **Stage 1 output van cowork, versie 2.0.** Volledig nieuwe analyse; de versie van 28-04-2026 is vervangen omdat die voor slechts twee jaren een primaire bron had en geschatte waarden bevatte (zie sectie 15).
+> Methode: `research/METHODE.md`. Structuur: `research/TEMPLATE.md`. Peildatum: 2026-10-12 (slotkoers maandag, de eerste handelsdag na het begin van het cyberincident).
+> Eén valuta: alle bedragen in **EUR mln** tenzij anders vermeld; bedragen per aandeel in EUR.
 
 ---
 
 ## Bronnen-inventaris (Stap 0.5)
 
+Overzichtspagina geopend: https://aholddelhaize.com/investors/annual-reports/ (links naar de jaarpagina's 2015 t/m 2025). Per jaarpagina staan de PDF's letterlijk gelinkt; alle hieronder genoemde PDF's zijn in deze sessie volledig gedownload en uitgelezen (pdftotext, volledige tekst), dus niet via een samenvatting. Haallijst: niet nodig, alle bronnen waren direct op te halen.
+
 ```
 Jaar 2025 — HOOG
-  Bron: Ahold Delhaize Q4 2025 Results press release (11-02-2026)
-  URL:  https://newsroom.aholddelhaize.com/ahold-delhaize-reports-strong-q4-2025-financial-results-priorities-and-outlook-for-2026-underpin-our-value-creation-and-progress-towards-our-growing-together-ambitions/
-        PDF: https://media.aholddelhaize.com/media/bdsnpbxm/ahold-delhaize-q4-2025-summary-report.pdf
-  Daadwerkelijk geopend: ja (search-snippets uit officiële persrelease)
-  Cijfers overgenomen: net sales 92,4 mld EUR, underlying op-marge 4,0%,
-                       diluted underlying EPS 2,67 EUR,
-                       dividend voorstel 1,24 EUR (+6%),
-                       online +13,3% CC / +11,2% AC,
-                       US net sales Q4 13,0 mld (+2,5% CC / -6% AC FX),
-                       2026-guidance: marge ~4%, mid-to-high-single-digit EPS
-                       groei CC, FCF >2,3 mld, capex ~2,7 mld
-  Cijfers NIET overgenomen: detail-balans 2025, segment-revenue split per merk,
-                            FY-FCF totaal 2025
+  Bron: Ahold Delhaize Annual Report 2025 (PDF, 365 p.) + losse PDF "Financial statements and sustainability notes"
+  URL:  https://media.aholddelhaize.com/media/k0pnhvk5/ad-annual-report-2025-interactive.pdf
+        https://media.aholddelhaize.com/media/xiknotj4/financial-statements-and-sustainability-notes.pdf
+        (gelinkt op https://aholddelhaize.com/investors/annual-reports/2025/)
+  Daadwerkelijk geopend: ja (volledige tekst)
+  Cijfers overgenomen: omzet, brutowinst, operating income, underlying operating income, D&A,
+                       nettowinst, EPS (basic/verwaterd/underlying), aandelen, volledige kasstroom
+                       (cash generated from operations, betaalde belasting, capex, leaseaflossing,
+                       rente, SBC, dividend, inkoop, overnames), volledige balans, nettoschuld-
+                       opbouw incl. lease, goodwill per CGU, segmenten VS/Europa, landenomzet,
+                       winkelaantallen, belastingtarief, beloning bestuur, aandeelhouders >3%,
+                       tienjarenoverzicht 2016-2025 (p. 63-64)
+  Cijfers NIET overgenomen: (geen)
 
 Jaar 2024 — HOOG
-  Bron: Ahold Delhaize Q4 2024 Results press release (12-02-2025)
-  URL:  https://newsroom.aholddelhaize.com/ahold-delhaize-reports-q4-2024-financial-results-and-introduces-outlook-for-2025-with-projected-growth-in-sales-and-earnings-in-line-with-its-growing-together-strategic-ambitions/
-        + analyst-presentation PDF
-  Daadwerkelijk geopend: ja (search-snippets)
-  Cijfers overgenomen: net sales 89,4 mld EUR, underlying op-marge 4,0%,
-                       diluted underlying EPS 2,54 EUR,
-                       dividend 1,17 EUR (+6,4%), FCF >2,5 mld,
-                       buyback 1.000 mln EUR uitgegeven in 2024
-  Cijfers NIET overgenomen: detail-segment-mix, debt-maturity schedule
+  Bron: Annual Report 2025 (vergelijkende kolom) + Financial statements Annual Report 2024 (PDF)
+  URL:  https://media.aholddelhaize.com/media/bkym3erk/financial-statements-annual-report-2024.pdf
+        (gelinkt op https://aholddelhaize.com/investors/annual-reports/2024/)
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, goodwill
+  Cijfers NIET overgenomen: (geen)
 
-Jaar 2023 — AGGREGATOR
-  Bron: AD Q4 2024 persrelease vergelijkende kolom
-  Cijfers overgenomen (afgeleid): net sales ~88,7 mld EUR (search-snippet),
-                       underlying op-marge ~4,0%, EPS ~2,40 EUR,
-                       dividend ~1,10 EUR (FY2024 1,17 / 1,064)
-  Cijfers NIET overgenomen: detail-balans
+Jaar 2023 — HOOG
+  Bron: Financial statements Annual Report 2024 (vergelijkende kolom, "restated")
+        + Annual Report 2023 (PDF) voor underlying operating income en D&A
+  URL:  https://media.aholddelhaize.com/media/bkym3erk/financial-statements-annual-report-2024.pdf
+        https://media.aholddelhaize.com/media/bbwfuqw5/annual-report-2023.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels. Omzet 2023 = 88.734 (herzien in
+                       JV 2024; JV 2023 gaf 88.649). Underlying EBIT 3.604 uit JV 2023.
+  Cijfers NIET overgenomen: (geen)
 
-Jaar 2022 — AGGREGATOR
-  Bron: search-snippets, companiesmarketcap.com
-  Cijfers overgenomen: net sales ~87,0 mld EUR (recovery + inflatie-pricing)
-  Conclusie: indicatief
+Jaar 2022 — HOOG
+  Bron: Annual Report 2023 (vergelijkende kolom, herzien voor IFRS 17)
+  URL:  https://media.aholddelhaize.com/media/bbwfuqw5/annual-report-2023.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, underlying EBIT 3.728
+  Cijfers NIET overgenomen: goodwill (niet uitgesplitst in de gebruikte tabel)
 
-Jaar 2021 — AGGREGATOR
-  Bron: search-snippets
-  Cijfers overgenomen: net sales ~75,6 mld EUR
-  Conclusie: indicatief
+Jaar 2021 — HOOG
+  Bron: Annual Report 2021 (PDF)
+  URL:  https://media.aholddelhaize.com/media/j3tncmcj/annual-report-2021.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, underlying EBIT 3.331
+  Cijfers NIET overgenomen: goodwill
 
-Jaar 2020 — AGGREGATOR (Covid-piek voor supermarkten)
-  Bron: search-snippets
-  Cijfers overgenomen: net sales ~74,7 mld EUR
-  Conclusie: indicatief
+Jaar 2020 — HOOG
+  Bron: Annual Report 2021 (vergelijkende kolom; 2020 = 53 weken)
+  URL:  https://media.aholddelhaize.com/media/j3tncmcj/annual-report-2021.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, underlying EBIT 3.594,
+                       eenmalige Amerikaanse pensioenafkoop (FELRA/MAP e.a.)
+  Cijfers NIET overgenomen: goodwill
 
-Jaren 2015-2019 — GEEN BRON BESCHIKBAAR (binnen sessie-tijd)
-  Zoekpoging(en): companiesmarketcap.com (snippet-only), Ahold Delhaize-IR-
-                  pagina jaarverslagen-PDF (binnen context-limiet niet
-                  geëxtraheerd)
-  Conclusie: 2015-2019 LAAT LEEG. Genoteerd in sectie 13.
+Jaar 2019 — HOOG
+  Bron: Annual Report 2019 (PDF), incl. vijfjarenoverzicht
+  URL:  https://media.aholddelhaize.com/media/tumbdiev/annual-report-2019.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, underlying EBIT 2.777
+  Cijfers NIET overgenomen: goodwill
+
+Jaar 2018 — HOOG
+  Bron: Annual Report 2019 (vergelijkende kolom, herzien voor IFRS 16)
+  URL:  https://media.aholddelhaize.com/media/tumbdiev/annual-report-2019.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels (IFRS 16-basis), underlying EBIT 2.761
+  Cijfers NIET overgenomen: goodwill
+
+Jaar 2017 — HOOG
+  Bron: Annual Report 2017 (PDF)
+  URL:  https://media.aholddelhaize.com/media/wsafdah4/annual-report-2017.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, underlying EBIT 2.456 (IAS 17, niet
+                       vergelijkbaar met 2018+)
+  Cijfers NIET overgenomen: goodwill, leaseverplichting (onder IAS 17 niet op dezelfde basis)
+
+Jaar 2016 — HOOG
+  Bron: Annual Report 2017 (vergelijkende kolom); Delhaize pas geconsolideerd vanaf 24-07-2016
+  URL:  https://media.aholddelhaize.com/media/wsafdah4/annual-report-2017.pdf
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: alle P&L-, balans- en kasstroomregels, underlying EBIT 1.899
+  Cijfers NIET overgenomen: goodwill, leaseverplichting (IAS 17)
+
+TTM / H1 2026 — HOOG
+  Bron: Q2 2026 Interim Report (5-8-2026)
+  URL:  https://media.aholddelhaize.com/media/si2dlnia/ahold-delhaize-q2-2026-interim-report.pdf
+        (gelinkt op https://aholddelhaize.com/investors/quarterly-results/q2-2026/)
+  Daadwerkelijk geopend: ja
+  Cijfers overgenomen: H1 2026 en H1 2025: omzet, (underlying) EBIT, EBITDA, nettowinst, EPS,
+                       volledige kasstroom, balans per 28-06-2026, nettoschuld, aandelen,
+                       aandeleninkoop, guidance 2026
+  Cijfers NIET overgenomen: lease-interest H1 (niet apart gerapporteerd; FY2025-waarde gebruikt)
+
+Jaar 2015 — buiten de reeks
+  Reden: 2015 is Ahold vóór de fusie met Delhaize (geen vergelijkbare entiteit); de tienjarenreeks
+  loopt daarom 2016-2025 + TTM. Niet opgenomen in de tabellen.
 ```
 
-**Bronnen-inventaris-conclusie:** twee jaren HOOG (2024-2025) via officiële persreleases, drie tot vier jaren AGGREGATOR (2020-2023), vijf jaren leeg (2015-2019). Ahold Delhaize is een defensieve consumer staple — kortere historie methodisch verdedigbaar. De 2016-fusie (Ahold + Delhaize) maakt 2015-2016 cijfers structureel anders (separate entiteiten); een vervolg-pas zou de pro-forma combined cijfers vanaf 2016-jaarverslag moeten halen voor consistente reeks.
+**Marktdata en overige bronnen** (alle geopend):
+
+```
+Koers 31,38 (slot 12-10-2026): MarketScreener NL (artikel 12-10-2026, "laatste koers €31,38, −2,79%")
+  https://nl.marketscreener.com/beursnieuws/albert-heijn-etos-en-gall-gall-slachtoffer-van-cybersecurity-incident-ce785ddcd08cf424
+  bevestigd door Beursgenoten (laatste koers 31,38 om 17:38:40 op 12-10-2026)
+  https://www.beursgenoten.nl/koersen/euronext-aandelen-amsterdam/ahold-delhaize/koers
+  NB: Yahoo Finance toonde dinsdag 13-10 rond 10:57 een intradaykoers van 30,75; niet als peildatum
+  gebruikt omdat de handelsdag niet afgesloten was.
+Slot 9-10-2026 (32,28), beta 5 jaar 0,31, gemiddeld dagvolume 2,35 mln: StockAnalysis
+  https://stockanalysis.com/quote/ams/AD/statistics/   (AGGREGATOR)
+Duitse 10-jaarsrente 3,48% (13-10-2026): https://tradingeconomics.com/germany/government-bond-yield
+ERP 4,23% (implied, jan 2026): https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histimpl.html
+Country risk premiums (5-1-2026): https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html
+Sectorbeta/WACC Retail (Grocery and Food), VS, jan 2026:
+  https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/Betas.html
+  https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/wacc.html
+Consensus 2026-2028: https://www.marketscreener.com/quote/stock/AHOLD-DELHAIZE-N-V-120788121/valuation/  (AGGREGATOR)
+Peers (EV/EBITDA, marge, ROIC, beta; okt 2026): stockanalysis.com KR, ACI, CA (Parijs), TSCO, SBRY  (AGGREGATOR)
+```
+
+Zelf-check (Stap 0.5, regel 6): elke numerieke cel in sectie 3 is herleidbaar naar een van de jaarverslag-URL's hierboven of is een berekening op die cijfers. Ratio's zijn eigen berekeningen; de formules staan bij de tabellen.
 
 ---
 
@@ -71,144 +139,276 @@ Jaren 2015-2019 — GEEN BRON BESCHIKBAAR (binnen sessie-tijd)
 - **Ticker (bare):** AD
 - **Yahoo symbol:** AD.AS
 - **Exchange:** AEX (Euronext Amsterdam)
-- **Sector (GICS-achtig):** Consumentengoederen (Defensief)
-- **Industrie:** Voedingsretail (supermarkten + e-commerce)
-- **Land:** Nederland (Zaandam, NL — wereldhoofdkantoor)
-- **Peildatum analyse:** 2026-04-28
-- **Koers op peildatum:** 40,05
+- **Sector (GICS-achtig):** Consumentengoederen (basisbehoeften)
+- **Industrie:** Levensmiddelenretail (supermarkten en online boodschappen)
+- **Land:** Nederland (statutaire zetel en hoofdkantoor Zaandam)
+- **Peildatum analyse:** 2026-10-12
+- **Koers op peildatum:** 31,38
 - **Valuta:** EUR
-- **Marktkapitalisatie:** EUR 37,6 mld (~940 mln aandelen × €40,05)
-- **Marktkap in mln (lokale valuta):** 37.647
-- **Free float pct:** ~99% (geen controlerend aandeelhouder; sinds Ahold-boekhoudschandaal 2003 bewust gespreide eigendomsstructuur)
-- **Indexlidmaatschap:** AEX, Stoxx Europe 600
+- **Marktkapitalisatie:** EUR 27,4 mld
+- **Marktkap in mln (lokale valuta):** 27.419 (31,38 × 873,76 mln uitstaande aandelen per 28-06-2026, Q2-rapport). Door de lopende inkoop lag het aantal begin oktober lager (zie sectie 2).
+- **Free float pct:** Niet verifieerbaar — weggelaten. Er is geen controlerende aandeelhouder; de grootste melding in het AFM-register is BlackRock met 5,63% kapitaal (JV 2025, p. 61).
+- **Indexlidmaatschap:** AEX (bevestigd in de beursverslagen van 12-10-2026, waarin AD "grootste verliezer AEX" was)
 - **Domein:** aholddelhaize.com
 
 ---
 
 ## 1. Executive summary
 
-- **Kernthese:** Ahold Delhaize is de holding boven 16 lokale supermarktmerken in negen landen — Albert Heijn (NL), Delhaize (BE), Stop & Shop, Giant Food, Hannaford, Food Lion (allemaal VS), Maxi (Servië), Mega Image (Roemenië), bol.com (NL e-commerce general merchandise) en Alfa Beta (Griekenland). Twee-derde van de omzet en circa 60% van de operating profit komt uit de VS (€60+ mld omzet); het Europese deel (~€32 mld) is winstgevender per euro omzet (Albert Heijn-merk dominant in NL met ~35% marktaandeel). Het bedrijf heeft sinds de fusie in 2016 een consistente strategie: 4% underlying operating margin als baken, FCF >€2 mld per jaar, dividend met 6-7% jaarlijkse groei, buybacks in lijn met FCF-overschot. Structurele drivers zijn online-groei (+13% in 2025 — bol.com plus AH Online plus Stop & Shop pickup), private-label-uitbreiding (eigen-merk biedt hogere marge), en consolidatie van regionale supermarktketens in fragmenteerde Amerikaanse markten. De grootste structurele risico's zijn de slepende US-marge-druk door Walmart-Aldi-Lidl-concurrentie, de inflatie-druk-cyclus (waar 2022-2023 marges raakte), en de lopende strategische evaluatie van Stop & Shop-divisie (mogelijke afsplitsing of verkoop). Het management onder CEO Frans Muller (sinds 2018, eerder CEO Delhaize Group) heeft consistente discipline geleverd; de 2024-2025-jaren toonden marge-stabiliteit ondanks zware FX-druk (sterke EUR vs USD verlaagde gerapporteerde groei).
-- **Oordeel:** HOLD *(gecorrigeerd 2026-08-03: scorekaart 32/45 < KOOP-drempel 33 — het eindoordeel volgt de deterministische §12-drempels, niet discretie; de eerdere KOOP-bullet week af van de gepubliceerde JSON/site)*
-- **Fair value basis** (kansgewogen, EUR): 49
-- **Fair value kansgewogen**: 49
-- **EPV per aandeel** (Earnings Power Value, zonder groeipremie): 38
-- **Upside pct**: 22
+- **Kernthese:** Ahold Delhaize is een supermarktgroep met lokale merken als Albert Heijn, Delhaize, Food Lion en Stop & Shop. In 2025 haalde de groep €92,4 mld omzet, waarvan 57,5% in de VS. De onderliggende bedrijfsmarge is al jaren stabiel rond 4%. Die winst wordt omgezet in geld: de vrije kasstroom na huur lag acht jaar tussen €1,6 en €2,6 mld. Door inkoop staan er 31% minder aandelen uit dan in 2016. Voor een waardebelegger is het aandeel interessant omdat het tegen ruim twaalf keer de winst noteert, ver onder het eigen gemiddelde. De groei komt uit online boodschappen, eigen merken en €5 mld besparingen tot 2028. Het grootste risico is de Amerikaanse markt, waar prijsconcurrentie de marge drukt. Sinds 11 oktober 2026 kampt de groep bovendien met een cyberincident waarvan de schade nog onbekend is.
+- **Oordeel:** HOLD. De scorekaart komt op 31 van 45 punten: de waardering biedt ruimte, maar het rendement op kapitaal ligt maar circa vier procentpunt boven de kapitaalkosten en de groei is laag.
+- **Fair value basis** (basisscenario, EUR): 81,23
+- **Fair value kansgewogen**: 68,40
+- **EPV per aandeel** (Earnings Power Value, zonder groeipremie): 49,97
+- **Upside pct**: 158,9
 - **Fair value scenarios**:
 
 | Scenario | Fair value | Upside % | FCF groei % | WACC % | Kans % |
 |---|---|---|---|---|---|
-| Pessimistisch | 32 | -20 | 1,0 | 6,3 | 25 |
-| Basis | 50 | 25 | 3,5 | 5,5 | 50 |
-| Optimistisch | 65 | 62 | 5,0 | 5,0 | 25 |
+| Pessimistisch | 40,01 | 27,5 | 0,0 | 7,27 | 35 |
+| Basis | 81,23 | 158,9 | 3,0 | 5,52 | 45 |
+| Optimistisch | 89,18 | 184,2 | 4,5 | 5,52 | 20 |
 
-- **Reverse-DCF impliciete groei pct**: ~2,3% FCF-groei langjarig om huidige koers €40 te rechtvaardigen — onder consensus, lichte onderwaardering.
-- **Grootste kans:** US-margestabilisatie post-2024-pricing-investering plus voortgaande online-groei bij hogere marges dan brick-and-mortar.
-- **Grootste risico:** Walmart/Aldi/Lidl-concurrentiedruk in VS leidt tot structurele marge-erosie van 4% naar 3,5%; raakt EPS met ~12%.
+  Belangrijke kanttekening: deze DCF-uitkomsten volgen uit een WACC van 5,52% die de rubric oplevert met een regressiebeta van 0,31. De koers van €31,38 impliceert bij dezelfde groeiaannames een WACC van 10,30%. De synthese in sectie 12 weegt daarom DCF, EPV en multiples en komt uit op €49,52 centraal (koopniveau €37,14 bij 25% veiligheidsmarge).
+
+- **Reverse-DCF impliciete groei pct:** −7,3% per jaar gedurende tien jaar (bij WACC 5,52% en 2,0% eindgroei). Anders gezegd: bij 3% groei rekent de markt met een disconteringsvoet van 10,3%.
+- **Grootste kans:** de markt prijst Ahold Delhaize alsof de vrije kasstroom de komende tien jaar krimpt, terwijl die over 2018-2025 met circa 3% per jaar groeide en het management €9 mld cumulatieve vrije kasstroom over 2025-2028 heeft beloofd.
+- **Grootste risico:** een langdurige prijsoorlog in de VS (Walmart, Kroger, Aldi) en een zwakkere Amerikaanse consument die de onderliggende marge structureel onder 4% drukken, met het cyberincident van oktober 2026 als extra kosten- en reputatieschade.
+- **IPO-correctie van toepassing?** Nee. Albert Heijn ging in 1948 naar de beurs; de huidige structuur ontstond in 2016 door een fusie in aandelen, zonder geldopname of schuldopbouw door insiders.
 
 ---
 
 ## 2. Bedrijfsprofiel
 
-- **Beschrijving:** Ahold Delhaize is een wereldwijde voedingsretailer met circa 7.700 winkels in negen landen en 402.000 medewerkers. Het verdienmodel is klassiek supermarkt-retail: voedingsmiddelen en huishoudartikelen kopen, verspreiden via eigen distributiecentra, verkopen in fysieke winkels en online, met marges van 2,5-4,5% per merk afhankelijk van markt en mix. Het verschil met concurrenten zit in de multi-merk-multi-geo-strategie: lokale merken (Albert Heijn, Delhaize, Food Lion) behouden eigen brand-equity en lokale aanpassing, terwijl Ahold Delhaize centraal kapitaal-allocatie, technologie (gemeenschappelijke e-commerce-platform AHOLDIO), private-label-ontwikkeling en inkoop-schaal levert. De US-portfolio (Stop & Shop, Giant Food, Hannaford, Food Lion) bedient ~10 noordoostelijke en zuidoostelijke staten met 2.000+ winkels en levert ~65% van de groepsomzet. Europese portfolio bedient NL (dominant), BE, RO, RS, GR, CZ. De online-tak (bol.com, AH Online, Hannaford To Go, Stop & Shop Peapod) groeit dubbele cijfers en is in 2025 ~13% van groepsomzet.
-- **Geschiedenis:** Ahold Delhaize ontstond op 24 juli 2016 uit de fusie van Royal Ahold en Delhaize Group. De wortels van beide partijen reiken ver terug — Delhaize sinds 1867 (Charleroi, België) en Albert Heijn sinds 1887 (Oostzaan, NL). Ahold expandeerde in de jaren 1970-1990 in de VS via overname van Stop & Shop (1996) en Giant Food (1998). Een diepe crisis trof Ahold in 2003 toen US Foodservice-dochter een boekhoudschandaal van $880 mln onthulde — CEO Cees van der Hoeven en CFO Michiel Meurs traden af, marktwaarde halveerde, en het bedrijf moest jaren herstructureren onder CEO Anders Moberg. Delhaize Group volgde een eigen pad in de VS via Food Lion (1974 ingestapt) en Hannaford (2000-overname). De fusie in 2016 bracht twee complementaire portfolio's samen onder een gezamenlijke holding in Zaandam. Onder CEO Dick Boer (2016-2018) en daarna CEO Frans Muller (sinds juli 2018, eerder CEO Delhaize Group) is de strategie geconsolideerd: 4% operating margin als anker, omnichannel-investering (€500 mln+ in 2024 voor pickup, online), lokale merken-autonomie binnen centrale capital-allocation. Belangrijke recente ontwikkelingen: Stop & Shop-strategische review aangekondigd 2024 (waarbij circa 30 winkels gesloten en regio-mix gerationaliseerd), bol.com 100%-ownership sinds 2012 (was eerder JV met FNAC), grootschalige online-investering NL en VS sinds Covid (2020-2021).
-- **Bedrijfsmodel:** Voedingsretail met underlying op-marge structureel 4%. Inkoop centraal via groeps-buying-organisatie levert prijs-voordeel; lokale merken houden assortiment-autonomie. Private-label is ~30-40% van categorieën in volwassen merken (AH-eigen merk, Food Lion-eigen merk) — hogere marges (~30% gross vs 25% nationale merken). Werkkapitaal-cyclus is licht negatief (leveranciers betaald ~30 dagen, klanten cash/card direct), wat structureel cash-genererend is. Capex circa 2,5-3% van omzet voor onderhoud + uitbreiding (online-fulfillment-centers, nieuwe winkels, technologie).
-- **IPO-context:** Ahold N.V. was vanaf 1948 op Amsterdam genoteerd; Delhaize Group sinds 1962 op Brussel (later ook NYSE). Ahold Delhaize-fusie behield Amsterdam-notering. Geen IPO-correctie van toepassing — bedrijf is multi-decennia genoteerd.
-- **Klantprofiel:** B2C met zeer brede consumer-base. Geen klantconcentratie. Loyalty-programma's (AH Bonuskaart, Delhaize Plus, Food Lion MVP) leveren data en repeat-koop.
-- **Oprichtingsjaar:** 1887 (Albert Heijn); 1867 (Delhaize); 2016 (huidige fusie-vorm)
-- **IPO-datum:** Ahold ~1948; Delhaize 1962; Ahold Delhaize fusie 2016
-- **IPO-koers:** historisch niet relevant
-- **Personeel** (FTE-equivalent / werknemers): ~402.000 (mengvorm full-time/part-time)
-- **Landen actief:** 9 (NL, BE, VS, RO, RS, GR, CZ, plus enkele kleinere)
-- **Klantconcentratie:** geen meaningful concentratie
+- **Beschrijving:** Ahold Delhaize verkoopt boodschappen: verse producten, houdbare levensmiddelen, drogisterij- en apotheekartikelen en, via bol, ook non-food. De groep koopt in bij fabrikanten en boeren, bundelt die inkoop deels in Europese inkoopallianties, verspreidt de goederen via eigen distributiecentra en verkoopt ze in 9.551 winkels (eind 2025) en online. Ruim 70% van de omzet komt uit eigen winkels, 11% uit leveringen aan en vergoedingen van franchisenemers (Nederland, België, Luxemburg, Griekenland) en 11% uit online verkoop (JV 2025, noot 7). De omzet ontstaat per transactie: klanten betalen direct, terwijl leveranciers later worden betaald. Daardoor financieren leveranciers een deel van de voorraad en heeft het bedrijf een negatief werkkapitaal van circa €5,3 mld. Wat Ahold Delhaize onderscheidt is de combinatie van sterke lokale merken met dichte winkelnetwerken (Albert Heijn heeft 38,2% van de Nederlandse supermarktmarkt volgens NielsenIQ over 2025), een groeiend aandeel eigen merken (meer dan 40% van de voedselomzet in Q2 2026) en een loyaliteitsprogramma per merk dat klantdata oplevert. Het probleem dat het bedrijf oplost is alledaags: dichtbij, betaalbaar en betrouwbaar boodschappen doen, in de winkel of aan huis. De marge per euro omzet is klein, rond 4% onderliggend bedrijfsresultaat, dus het verdienmodel draait om volume, kostenbeheersing en een hoge omloopsnelheid van voorraad en kapitaal.
+- **Geschiedenis:** De oudste wortel is de winkel die Albert Heijn in 1887 van zijn vader overnam in Oostzaan; de Belgische tak begon in 1867, toen de gebroeders Delhaize een winkel openden in Charleroi. Albert Heijn ging in 1948 naar de beurs en in 1973 werd Ahold NV opgericht als moederbedrijf. In de decennia daarna groeide Ahold vooral via Amerikaanse overnames: Giant Food Stores in 1981 en Stop & Shop in 1995. Die expansie liep in februari 2003 vast toen Ahold boekhoudkundige onregelmatigheden bij dochter U.S. Foodservice meldde; de bedrijfswinst over 2001 en 2002 bleek met meer dan $500 mln overschat, CEO Cees van der Hoeven en CFO Michael Meurs traden af en het aandeel zakte op één dag 27% naar €7,10. In de jaren daarna verkocht Ahold onder meer U.S. Foodservice (2007, $7,1 mld) en Bi-Lo. In 2012 kwam bol in handen van Ahold. Op 24 juni 2015 sloten Ahold en Delhaize Group een fusieovereenkomst; op 24 juli 2016 werd de fusie voltooid en ontstond Koninklijke Ahold Delhaize, met een koopprijs van €10,8 mld die volledig in aandelen werd betaald. Frans Muller, eerder topman van Delhaize Group, werd in juli 2018 CEO. Onder hem volgden de Covid-jaren (2020: omzet +12,8%), de koop en in 2023 weer de verkoop van het Amerikaanse online platform FreshDirect, en de grootste recente overname: de Roemeense keten Profi voor €1,21 mld, afgerond op 3 januari 2025. In mei 2026 maakte de groep bekend dat Muller in 2027 met pensioen gaat en wordt opgevolgd door Thierry Garnier, nu CEO van Kingfisher. In november 2024 en opnieuw in oktober 2026 werd de groep getroffen door een cyberincident.
+- **Bedrijfsmodel:** Ahold Delhaize verdient aan de marge tussen inkoop en verkoop (brutomarge 26,5% in 2025) min de kosten van winkels, personeel, logistiek en hoofdkantoor, wat een onderliggende bedrijfsmarge van circa 4% oplevert. De omzet is sterk terugkerend: mensen kopen elke week eten, ook in een recessie. Naast winkelverkoop groeien aanvullende inkomsten: franchisevergoedingen in de Benelux en Griekenland, commissies op de marktplaats van bol (1,8% van de omzet), en advertentie- en data-inkomsten (0,3%). Per productcategorie is 44,9% vers, 35,1% houdbaar, 12,9% non-food en 4,1% apotheek. De kapitaalbehoefte is aanzienlijk: circa 2,8% van de omzet aan investeringen plus circa 2% aan leasebetalingen voor winkels en distributiecentra, want 85% van de winkellocaties wordt gehuurd.
+- **IPO-context:** Albert Heijn ging in 1948 naar de beurs. De huidige onderneming ontstond op 24 juli 2016 door de fusie van Ahold met Delhaize Group, betaald in aandelen. Er was geen IPO met geldopname, geen schuldopbouw vooraf en geen uitstap van private-equity-eigenaren. Sinds de fusie is het aantal uitstaande aandelen gedaald van 1.272 mln (begin 2017) naar 873,8 mln (juni 2026), vooral door jaarlijkse inkoopprogramma's van circa €1 mld, plus een kapitaalterugbetaling van €1,0 mld in 2016.
+- **Klantprofiel:** Ahold Delhaize verkoopt aan consumenten (B2C), elke week aan circa 60 miljoen klanten (BleepingComputer, op basis van bedrijfsgegevens). Er is geen klantconcentratie: geen enkele klant is materieel. Klanten zijn trouw via loyaliteitsprogramma's per merk (zoals de Bonuskaart van Albert Heijn), maar kunnen zonder kosten naar een concurrent overstappen. De enige zakelijke klantengroep van betekenis zijn franchisenemers: 2.352 winkels in Nederland, België, Luxemburg en Griekenland worden door franchisenemers geëxploiteerd, goed voor €10,5 mld omzet (11,4%). Online bestellingen (11% van de omzet) en de loyaliteitsprogramma's leveren de klantgegevens waarmee de merken persoonlijke aanbiedingen doen (Q2 2026-rapport).
+- **Oprichtingsjaar:** 1887 (Albert Heijn); 1867 (Delhaize); 2016 (Koninklijke Ahold Delhaize)
+- **IPO-datum:** 1948 (Albert Heijn); fusie 24-07-2016
+- **IPO-koers:** Niet verifieerbaar — weggelaten (historisch niet relevant)
+- **Personeel:** 384.000 medewerkers (headcount), 222.000 fte, eind 2025
+- **Landen actief:** Nederland, België, Luxemburg, Verenigde Staten, Tsjechië, Roemenië, Servië, Griekenland; in Indonesië via een joint venture van 51% (Super Indo)
+- **Klantconcentratie:** Geen. Ahold Delhaize verkoopt aan miljoenen huishoudens, en geen enkele klant is goed voor een materieel deel van de omzet. De grootste groep die je als zakelijke klant kunt zien, zijn de franchisenemers met 11,4% van de omzet, maar dat zijn 2.352 winkels van vele zelfstandige ondernemers, die bovendien contractueel aan het merk zijn gebonden. Het risico zit dus niet in concentratie, maar in het gedrag van de consument als geheel.
 
-### Geografische spreiding (omzet 2025 — indicatief)
+### Geografische spreiding (omzet 2025, naar land van bestemming; JV 2025 noot 6)
 | Regio | Omzet % | Valuta-exposure |
 |---|---|---|
-| Verenigde Staten | ~65 | USD (dominant — translation-impact 2024-2025 negatief) |
-| Nederland | ~20 | EUR (Albert Heijn + bol.com) |
-| België + Centraal/Oost-EU | ~12 | EUR + lokale (BGN, RON, RSD, CZK) |
-| Griekenland + overig | ~3 | EUR |
+| Verenigde Staten | 57,5 | USD |
+| Nederland | 21,6 | EUR |
+| Overige landen (België, Luxemburg, Roemenië, Servië, Griekenland, Tsjechië) | 21,0 | EUR, RON, RSD, CZK |
 
-**Toelichting geografie:** De US-exposure (65%) bepaalt het FX-translation-effect. In 2025 verzwakte USD vs EUR met ~6%, wat zichtbaar werd in -6% gerapporteerde US-omzet vs +2,5% in CC. Ahold Delhaize hedget kortlopende transactie-FX maar niet translatie-FX. Het management focust op CC-groei in communicatie. Lokale productie-kostenbasis matcht omzet-valuta dus operationeel is FX-impact beperkt.
+**Toelichting geografie:** Ruim de helft van de omzet en circa 62% van het onderliggende bedrijfsresultaat van de segmenten (€2.384 mln van €3.873 mln in 2025) komt uit de VS. Kosten en opbrengsten vallen per land in dezelfde valuta, dus er is weinig transactierisico, maar wel omrekeningsrisico: in 2025 groeide de omzet 5,9% tegen constante koersen maar slechts 3,4% in euro's, en in H1 2026 kromp de omzet zelfs 2,0% in euro's bij 2,0% groei tegen constante koersen. Een zwakkere dollar drukt dus direct de gerapporteerde winst, het dividend-draagvlak en de waarde in euro's. Het bedrijf dekt dat omrekeningsrisico niet af.
 
-### Segmenten (per regio)
+### Segmenten (2025, JV 2025 noot 6)
 | Naam | Omzet % | Beschrijving |
 |---|---|---|
-| US | ~65 | Stop & Shop, Giant Food, Food Lion, Hannaford. Marge ~4-4,5%. |
-| The Netherlands | ~20 | Albert Heijn (dominant), Etos, Gall & Gall, bol.com. Marge ~5-5,5%. |
-| Belgium | ~7 | Delhaize. Marge onder druk in 2024-2025 door franchise-conversies. |
-| CSE (Centraal- + Zuid-Europa) | ~8 | Mega Image (RO), Maxi (RS), Albert (CZ), Alfa Beta (GR). |
+| Verenigde Staten | 57,5 | Food Lion, Stop & Shop, Hannaford, Giant Food en The Giant Company met 2.017 winkels aan de oostkust, plus apotheken en online bezorging. Onderliggende marge 4,5% in 2025. |
+| Europa | 42,5 | Albert Heijn, Etos, Gall & Gall en bol (NL), Delhaize (BE/LU), Albert (CZ), Mega Image en Profi (RO), Maxi (RS) en Alfa Beta (GR) met 7.534 winkels. Onderliggende marge 3,8% in 2025. |
 
-### Aandeelhouders (top 5)
+### Aandeelhouders (meldingen AFM-register per 24-02-2026, JV 2025 p. 61)
 | Naam | Belang % | Type |
 |---|---|---|
-| BlackRock | ~5-6 | Institutioneel |
-| Capital Group | ~4-5 | Institutioneel |
-| Vanguard | ~3-4 | Institutioneel |
-| Norges Bank Investment Management | ~3 | Institutioneel (sovereign) |
-| Anchorage Capital + andere | <2 | Institutioneel |
+| BlackRock, Inc. | 5,63 (6,91% stemrechten) | Institutioneel |
+| Amundi Asset Management | 3,02 | Institutioneel |
 
-- **Institutioneel eigendomstrend:** stabiel-stijgend. Geen Stichting Continuïteit-vehikel (sinds 2003-schandaal heeft bedrijf bewust transparante governance). Onverwachte takeover-poging (Ahold Delhaize is potentieel doelwit voor Walmart/Amazon-spelers) wordt door reguliere governance-structuren behandeld.
+Andere houders boven 3% staan niet in het register. Geografisch (CMi2i, januari 2025): Noord-Amerika 32,4%, VK/Ierland 20,8%, overig Europa 10,7%, Frankrijk 7,8%, Duitsland 5,0%, Nederland 4,1%, rest van de wereld 2,7%, niet toe te wijzen 16,5%. Er bestaat een beschermingsstichting, Stichting Continuïteit Ahold Delhaize (SCAD), met een optie op cumulatief preferente aandelen (JV 2025, governancehoofdstuk p. 170 en noot 21 op p. 244); de vorige versie van deze analyse stelde ten onrechte dat zo'n stichting ontbrak.
+
+- **Institutioneel eigendomstrend:** Stabiel. De verdeling naar regio veranderde tussen januari 2024 en januari 2025 nauwelijks; het aandeel Brits-Ierse beleggers steeg van 17,6% naar 20,8%, dat van Nederlandse beleggers daalde van 5,2% naar 4,1%. Een trend over meerdere jaren is niet te verifiëren.
+
+**Aandelen uitstaand:** 886,9 mln op 28-12-2025, 873,8 mln op 28-06-2026. Onder het lopende inkoopprogramma van €1 mld waren tot en met 2 oktober 2026 24.418.253 aandelen ingekocht voor €862,6 mln (persbericht 6-10-2026), dus begin oktober circa 864,6 mln uitstaand als er sinds juni geen aandelen voor beloningsregelingen zijn uitgegeven. Voor alle waarderingen gebruik ik het aantal én de nettoschuld per 28-06-2026, zodat beide op dezelfde datum staan.
 
 ---
-
 ## 3. Financieel — historische data (10 jaar + TTM)
 
-### Resultatenrekening (bedragen in EUR mln)
+Alle cijfers in EUR mln uit de jaarverslagen in de bronnen-inventaris (alle jaren HOOG). Drie zaken bepalen de vergelijkbaarheid:
 
-| Jaar | Net sales | Sales-groei % | Underlying OP | Underlying op-marge % | EBIT | EBIT-marge % | Underlying nettowinst | Diluted underlying EPS | EPS-groei % | Aandelen mln |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 2015 | — | — | — | — | — | — | — | — | — | — |
-| 2016 | — | — | — | — | — | — | — | — | — | — |
-| 2017 | — | — | — | — | — | — | — | — | — | — |
-| 2018 | — | — | — | — | — | — | — | — | — | — |
-| 2019 | — | — | — | — | — | — | — | — | — | — |
-| 2020 | ~74.700 | — | ~3.000 | ~4,0 | — | — | — | — | — | ~1.040 |
-| 2021 | ~75.600 | +1,2 | ~3.020 | ~4,0 | — | — | — | — | — | ~1.030 |
-| 2022 | ~87.000 | +15,1 | ~3.480 | ~4,0 | — | — | — | — | — | ~1.000 |
-| 2023 | ~88.700 | +2,0 | ~3.550 | ~4,0 | — | — | — | ~2,40 | — | ~970 |
-| 2024 | 89.400 | +0,8 (FX) / +2 organisch | ~3.580 | 4,0 | — | — | — | 2,54 | +5,8 | ~950 |
-| 2025 | 92.400 | +3,4 (+6,1% Q4 inkl. FX-effect) | ~3.690 | 4,0 | — | — | — | 2,67 | +5,1 | ~940 |
-| TTM | 92.400 | +3,4 | ~3.690 | 4,0 | — | — | — | 2,67 | +5,1 | ~940 |
+1. **IFRS 16 vanaf 2018.** Sinds 2018 staan huurcontracten als leaseverplichting op de balans en zit de huur niet meer in de bedrijfskosten maar in afschrijving (gebruiksrechten) en rente. Daardoor springen EBITDA, CFO en nettoschuld in 2018 omhoog. Jaren 2016-2017 zijn op IAS 17-basis en niet één op één vergelijkbaar; ik normaliseer alleen over 2018-2025.
+2. **Fusiejaar 2016.** Delhaize zit pas vanaf 24 juli 2016 in de cijfers.
+3. **53-weeksjaar 2020** (en weer 2026).
 
-- **Toelichting resultaten:** Ahold Delhaize is een textbook-defensieve consumer-staple. Net sales groeide van ~€74,7 mld in 2020 naar €92,4 mld in 2025 — CAGR ~4,3% over 5 jaar (gemiddeld inflatie + lichte volume-groei + FX-effect). Underlying operating margin schommelt strak rond 4,0% — uitzonderlijk consistent. EPS-groei dubbele cijfer pas mogelijk via combinatie van marge-stabiliteit + buyback (aandelen daalden van ~1.040 mln naar ~940 mln in 5 jaar = -10% via buybacks). Het 2024 en 2025-jaar laten translation-druk zien (-6% USD-EUR was significant) — gerapporteerde groei lager dan organische groei. *De 2015-2019 cijfers zijn in deze sessie niet uit primaire bron geverifieerd; vervolg-update zou de IFRS-jaarverslagen vanaf aholddelhaize.com/en/investors moeten halen.*
-- **Omzet-CAGR** (2020-2025): ~4,3% per jaar.
+TTM = boekjaar 2025 + H1 2026 − H1 2025 (Q2 2026-rapport).
 
-### Kasstromen
 
-| Jaar | CFO | Capex | FCF | FCF-marge % | FCF-conversie % | SBC | Dividend totaal | Aandeleninkoop |
-|---|---|---|---|---|---|---|---|---|
-| 2015-2023 | — | — | — | — | — | — | — | — |
-| 2024 | — | ~2.700 | >2.500 | ~2,8 | ~95 | klein | ~1.090 | 1.000 |
-| 2025 | — | ~2.700 | >2.300 (guidance) | ~2,5 | ~90 | klein | ~1.165 | ~1.000 |
+### Resultatenrekening (EUR mln)
 
-- **Toelichting kasstromen:** Ahold Delhaize genereert structureel €2,3-2,7 mld FCF per jaar — circa 2,5-2,8% van omzet (lager dan ASML/Adyen maar normaal voor capital-intensive supermarket-retail met capex 3% van omzet). FCF/nettowinst-conversie is robuust ~90-95%. Dividend van €1,1-1,2 mld plus buyback van €1 mld dekt circa 90% van FCF — kapitaal-discipline-niveau dat past bij mature retailer. 2026-guidance bevestigt FCF >€2,3 mld trajectorie. 2025-FCF-totaal niet expliciet gevonden — guidance >2,3 mld is een ondergrens.
+| Jaar | Omzet | Omzetgroei % | Brutowinst | Brutomarge % | EBIT (IFRS) | EBIT-marge % | Underlying EBIT | Underl. marge % | EBITDA (IFRS) | EBITDA-marge % | Nettowinst | Nettomarge % | EPS verw. | EPS-groei % | Aandelen mln (ultimo) | Bron |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2016 | 49.695 | — | 13.378 | 26,9 | 1.584 | 3,19 | 1.899 | 3,82 | 3.048 | 6,13 | 830 | 1,67 | 0,81 | — | 1.272 | JV 2017 |
+| 2017 | 62.890 | 26,6 | 16.769 | 26,7 | 2.225 | 3,54 | 2.456 | 3,91 | 4.082 | 6,49 | 1.817 | 2,89 | 1,43 | 76,5 | 1.228 | JV 2017 |
+| 2018 | 62.791 | -0,2 | 16.953 | 27,0 | 2.623 | 4,18 | 2.761 | 4,40 | 5.283 | 8,41 | 1.780 | 2,83 | 1,49 | 4,2 | 1.130 | JV 2019 |
+| 2019 | 66.260 | 5,5 | 18.060 | 27,3 | 2.662 | 4,02 | 2.777 | 4,19 | 5.510 | 8,32 | 1.766 | 2,67 | 1,59 | 6,7 | 1.088 | JV 2019 |
+| 2020 | 74.736 | 12,8 | 20.575 | 27,5 | 2.191 | 2,93 | 3.594 | 4,81 | 5.083 | 6,80 | 1.397 | 1,87 | 1,30 | -18,2 | 1.047 | JV 2021 |
+| 2021 | 75.601 | 1,2 | 20.685 | 27,4 | 3.320 | 4,39 | 3.331 | 4,41 | 6.388 | 8,45 | 2.246 | 2,97 | 2,17 | 66,9 | 1.011 | JV 2021 |
+| 2022 | 86.984 | 15,1 | 23.295 | 26,8 | 3.768 | 4,33 | 3.728 | 4,29 | 7.436 | 8,55 | 2.546 | 2,93 | 2,54 | 17,1 | 977 | JV 2023 |
+| 2023 | 88.734 | 2,0 | 23.854 | 26,9 | 2.846 | 3,21 | 3.604 | 4,06 | 6.690 | 7,54 | 1.874 | 2,11 | 1,94 | -23,6 | 946 | JV 2024 |
+| 2024 | 89.356 | 0,7 | 23.805 | 26,6 | 2.784 | 3,12 | 3.608 | 4,04 | 6.490 | 7,26 | 1.764 | 1,97 | 1,89 | -2,6 | 914 | JV 2025 |
+| 2025 | 92.352 | 3,4 | 24.514 | 26,5 | 3.542 | 3,84 | 3.734 | 4,04 | 7.275 | 7,88 | 2.264 | 2,45 | 2,50 | 32,3 | 887 | JV 2025 |
+| TTM (H1-26) | 91.424 | — | — | — | 3.561 | 3,90 | 3.730 | 4,08 | — | — | 2.238 | 2,45 | 2,51 | — | 873,8 | Q2 2026 + JV 2025 |
 
-### Balans-ratio's (eind 2024-2025 indicatief)
 
-| Item | Eind 2024 | Niveau |
-|---|---|---|
-| Totale activa | ~€49 mld | AGGREGATOR (Simply Wall St) |
-| Eigen vermogen | ~€13,9 mld | AGGREGATOR |
-| Totale schulden | ~€9,4 mld | AGGREGATOR |
-| Cash + ST-investments | ~€3,8 mld | AGGREGATOR |
-| Nettoschuld | ~€5,6 mld | AFGELEID |
-| Goodwill | hoog (gemiddeld supermarkt-acquisities) | SCHATTING |
+- **Toelichting resultaten:** De omzet groeide van €49,7 mld in 2016 (met maar vijf maanden Delhaize) naar €92,4 mld in 2025. Over 2018-2025, de periode met een volledig vergelijkbare groep, is dat 5,7% per jaar, gedreven door de Covid-piek in 2020, de hoge voedselinflatie van 2022-2023 en overnames (DEEN in 2021, Profi in 2025). De brutomarge ligt al tien jaar tussen 26,5% en 27,5%: prijsverlagingen worden steeds goedgemaakt met inkoopvoordelen en besparingen. De onderliggende bedrijfsmarge piekte in 2020 op 4,8% en zakte terug naar 4,0%. De IFRS-winst schommelt veel sterker door bijzondere posten: in 2020 kostte de afkoop van Amerikaanse bedrijfstakpensioenfondsen (FELRA/MAP, de 1500 Plan en het National Plan) samen €1,4 mld, in 2023 en 2024 drukten afboekingen, verliezen op verkopen en reorganisaties de winst met €0,76 en €0,82 mld. De verwaterde winst per aandeel steeg van €0,81 naar €2,50, voor een groot deel doordat er 31% minder aandelen uitstaan.
+- **Omzet-CAGR:** 5,7% per jaar over 2018-2025 (IFRS 16-basis, volledige groep). Over 2016-2025 is het 7,1%, maar dat is opgeblazen door het fusie-effect.
+- **Underlying versus IFRS:** Ahold Delhaize rapporteert "underlying" bedrijfsresultaat: het IFRS-resultaat zonder afboekingen, resultaten op verkoop van activa en leases, en reorganisatie- en overige bijzondere posten. Zie de tabel earnings quality voor het verschil per jaar.
 
-- **Toelichting balans:** Schuld/EBITDA circa 1,5x — comfortabel voor consumer-staple-retailer. Solvabiliteit ~28%. Goodwill is materieel door historische US-acquisities (Stop & Shop, Giant, Hannaford in jaren 90/2000) maar geen recent impairment-risico. Lease-verplichtingen (IFRS-16, winkellocaties) zijn substantieel maar marktconform; balans-impact reeds verwerkt sinds 2019. **Detail-balans pre-2024 in deze sessie niet geverifieerd.**
+### Kasstromen (EUR mln)
 
-### Kapitaalstructuur huidig (eind 2025 indicatief)
-- **Nettoschuld (huidig):** ~5.500-6.000 mln EUR (schatting)
-- **Bruto schuld:** ~9.400 mln EUR
-- **Cash + equivalents:** ~3.800 mln EUR
-- **Lease-verplichtingen (IFRS-16):** materieel (winkelhuren), niet apart in summary persrelease
-- **Gemiddelde rente %:** ~3,5-4% (eurobonds + USD-bonds met looptijd 2027-2035)
-- **Rente-dekking (EBIT/rente):** ~5,8x
+| Jaar | CFO | Capex (bruto) | FCF (CFO−capex) | Netto leasebetaling | FCF na lease | FCF na lease en SBC | FCFF genorm. (zie 12) | FCFF-marge % | FCF-conversie % | SBC | Dividend betaald | Aandeleninkoop | Betaalde winstbelasting | Belastinglast W&V |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2016 | 2.898 | 1.302 | 1.596 | — | — | — | — | — | 175 | 61 | 429 | 0 | 274 | 247 |
+| 2017 | 3.700 | 1.698 | 2.002 | — | — | — | — | — | 100 | 79 | 720 | 992 | 480 | 146 |
+| 2018 | 5.360 | 1.780 | 3.580 | 1.306 | 2.274 | 2.214 | 2.041 | 3,25 | 128 | 60 | 757 | 2.003 | 280 | 373 |
+| 2019 | 5.449 | 2.218 | 3.231 | 1.436 | 1.795 | 1.744 | 1.784 | 2,69 | 102 | 51 | 1.114 | 1.002 | 358 | 417 |
+| 2020 | 6.343 | 2.659 | 3.684 | 1.485 | 2.199 | 2.140 | 2.080 | 2,78 | 157 | 59 | 1.026 | 1.001 | 486 | 331 |
+| 2021 | 5.468 | 2.371 | 3.097 | 1.466 | 1.631 | 1.583 | 2.005 | 2,65 | 73 | 48 | 856 | 994 | 931 | 591 |
+| 2022 | 6.110 | 2.490 | 3.620 | 1.640 | 1.980 | 1.915 | 1.941 | 2,23 | 78 | 65 | 979 | 997 | 397 | 714 |
+| 2023 | 6.466 | 2.434 | 4.032 | 1.698 | 2.334 | 2.281 | 1.974 | 2,22 | 125 | 53 | 1.044 | 999 | 200 | 456 |
+| 2024 | 6.224 | 2.299 | 3.925 | 1.618 | 2.307 | 2.265 | 2.348 | 2,63 | 131 | 42 | 1.037 | 1.000 | 470 | 481 |
+| 2025 | 6.989 | 2.564 | 4.425 | 1.806 | 2.619 | 2.549 | 2.482 | 2,69 | 116 | 70 | 1.070 | 1.008 | 499 | 649 |
+| TTM (H1-26) | 6.598 | 2.566 | 4.032 | 1.796 | 2.236 | 2.178 | 2.168 | 2,37 | — | 58 | — | — | 551 | 658 |
+
+
+Definities: *FCF na lease* = CFO − bruto capex − (aflossing leaseverplichtingen − ontvangen leasetermijnen). De leaseaflossing in het kasstroomoverzicht bevat zowel hoofdsom als rente (JV 2025, noot 33), dus dit is de volledige huurbetaling. *FCF-conversie* = FCF na lease / nettowinst. *FCFF genormaliseerd* staat uitgelegd in sectie 12; die vervangt de betaalde belasting door een genormaliseerde belasting. Betaalde rente op leningen staat bij Ahold Delhaize in de financieringskasstroom, dus de CFO is vóór financieringskosten (controle rente-in-CFO: niet van toepassing). 2016-2017: onder IAS 17 zat de huur van operationele leases nog in de CFO; de kolom netto leasebetaling bevat voor die jaren alleen financiële leases en is daarom leeg gelaten. De FCF-conversie voor 2016-2017 is wel berekend als (CFO − capex − aflossing financiële leases van 141 en 190) / nettowinst, dus op IAS 17-basis en niet vergelijkbaar met 2018+.
+
+- **Toelichting kasstromen:** De vrije kasstroom na lease bewoog tussen €1,6 en €2,6 mld; alle sprongen boven 15% hebben een aanwijsbare oorzaak. 2019 (−21%): hogere investeringen, €2,2 mld tegen €1,8 mld. 2020 (+23%): Covid-omzet en €1,3 mld extra kas uit crediteuren. 2021 (−26%): €931 mln betaalde winstbelasting tegen €591 mln last, plus terugloop van werkkapitaal. 2022 (+21%): betaalde belasting zakte weer naar €397 mln. 2023 (+18%): slechts €200 mln belasting betaald tegen €456 mln last. Het patroon is dus vooral timing van belasting en werkkapitaal, geen structurele verandering. Ook de daling in H1 2026 (FCF volgens het bedrijf €302 mln tegen €715 mln) komt door werkkapitaal: de crediteuren liepen terug na het sterke jaareinde 2025. Aandelenbeloning (SBC) is klein, €42-79 mln per jaar of circa 2-3% van de FCF na lease.
+- **Kasbelasting (METHODE REGEL 5):** De FCF-conversie ligt in zes van de acht IFRS 16-jaren boven 100% en de accruals ratio is structureel negatief; beide signalen vragen om deze controle. Over 2018-2025 betaalde Ahold Delhaize €3.621 mln winstbelasting tegen €4.012 mln last in de W&V (90%). De afwijking wisselt van teken (2021 +€340 mln, 2022 −€317 mln, 2023 −€256 mln, 2025 −€150 mln), dus het is timing en geen permanente belastingvakantie. In de FCFF van sectie 12 vervang ik de betaalde belasting daarom door het genormaliseerde tarief van 20,7% (belastinglast / winst vóór belasting, 2018-2025) op het onderliggende bedrijfsresultaat na lease-rente. Effect op 2025: €676 mln in plaats van €499 mln belasting, oftewel €177 mln lagere kasstroom.
+
+### Balans en ratio's (EUR mln, ultimo boekjaar)
+
+| Jaar | Totale activa | Eigen vermogen | Bruto schuld (incl. lease) | Waarvan lease | Liquide middelen e.d. | Nettoschuld (incl. lease) | Nettoschuld excl. lease | Nettoschuld/EBITDA | Debt/Equity | Current ratio | Quick ratio | Solvabiliteit % | Goodwill % activa | Boekwaarde/aandeel | ROE % | ROA % | ROIC % | Asset turnover |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2016 | 36.275 | 16.276 | 7.561 | — | 4.317 | 3.244 | — | 1,06 | 0,46 | 0,96 | 0,64 | 44,9 | — | 12,80 | 5,1 | 2,3 | 7,7 | 1,37 |
+| 2017 | 33.871 | 15.170 | 7.250 | — | 4.747 | 2.503 | — | 0,61 | 0,48 | 0,97 | 0,67 | 44,8 | — | 12,35 | 12,0 | 5,4 | 10,5 | 1,86 |
+| 2018 | 39.830 | 14.205 | 14.485 | 8.270 | 3.507 | 10.978 | 2.708 | 2,08 | 1,02 | 0,81 | 0,52 | 35,7 | — | 12,57 | 12,5 | 4,5 | 10,2 | 1,58 |
+| 2019 | 41.490 | 14.083 | 15.445 | 8.484 | 3.863 | 11.581 | 3.097 | 2,10 | 1,10 | 0,76 | 0,49 | 33,9 | — | 12,94 | 12,5 | 4,3 | 8,7 | 1,60 |
+| 2020 | 40.692 | 12.432 | 14.554 | 8.442 | 3.119 | 11.434 | 2.992 | 2,25 | 1,17 | 0,70 | 0,44 | 30,6 | — | 11,87 | 11,2 | 3,4 | 11,5 | 1,84 |
+| 2021 | 45.712 | 13.721 | 17.089 | 10.061 | 3.143 | 13.946 | 3.885 | 2,18 | 1,25 | 0,68 | 0,41 | 30,0 | — | 13,57 | 16,4 | 4,9 | 10,3 | 1,65 |
+| 2022 | 48.555 | 15.405 | 17.640 | 10.637 | 3.223 | 14.416 | 3.779 | 1,94 | 1,15 | 0,72 | 0,41 | 31,7 | — | 15,77 | 16,5 | 5,2 | 10,3 | 1,79 |
+| 2023 | 47.821 | 14.755 | 17.766 | 10.545 | 3.500 | 14.267 | 3.722 | 2,13 | 1,20 | 0,73 | 0,44 | 30,9 | 16,3 | 15,60 | 12,7 | 3,9 | 9,7 | 1,86 |
+| 2024 | 51.842 | 15.454 | 20.315 | 10.809 | 6.185 | 14.129 | 3.320 | 2,18 | 1,31 | 0,84 | 0,56 | 29,8 | 15,6 | 16,91 | 11,4 | 3,4 | 9,8 | 1,72 |
+| 2025 | 49.089 | 14.195 | 18.404 | 10.526 | 3.705 | 14.699 | 4.173 | 2,02 | 1,30 | 0,71 | 0,42 | 28,9 | 17,0 | 16,00 | 15,9 | 4,6 | 10,1 | 1,88 |
+
+
+Definities: bruto schuld en nettoschuld volgens Ahold Delhaize (inclusief leaseverplichtingen; liquide middelen inclusief kortlopende deposito's). Nettoschuld/EBITDA = nettoschuld incl. lease / (EBIT + afschrijvingen en bijzondere waardeverminderingen). ROIC = underlying EBIT × (1 − 20,7%) / gemiddeld (eigen vermogen + nettoschuld incl. lease); in 2016 op eindbalans. Asset turnover = omzet / totale activa. ROE en ROA op eigen vermogen en activa ultimo boekjaar (op gemiddeld eigen vermogen was de ROE 2025 15,3%). 2016-2017 op IAS 17-basis.
+
+- **Toelichting balans:** De balans lijkt zwaarder belast dan hij is. Van de bruto schuld van €18,4 mld eind 2025 is €10,5 mld leaseverplichting voor gehuurde winkels en distributiecentra; de financiële schuld (obligaties en leningen) is €7,9 mld, met €3,7 mld liquide middelen ertegenover. De nettoschuld zonder lease was €4,2 mld, ongeveer 1,1 keer het onderliggende bedrijfsresultaat. Bruto schuld en nettoschuld bewogen in 2025 tegengesteld: de bruto schuld daalde €1,9 mld (aflossing kortlopende schuld en een zwakkere dollar), terwijl de nettoschuld €0,6 mld steeg door de Profi-overname. Inclusief lease ligt nettoschuld/EBITDA al acht jaar rond 2. Een current ratio van 0,7 is normaal voor een supermarkt waar klanten direct betalen en leveranciers later. Goodwill is 17% van de activa, vooral uit de fusie en Amerikaanse overnames. S&P en Moody's geven BBB+ en Baa1, beide stabiel.
+
+
+### Kapitaalstructuur huidig (28-06-2026, Q2 2026-rapport)
+- **Nettoschuld (huidig):** 15.961 inclusief lease; 5.186 exclusief lease (de laatste is wat ik in de DCF aftrek, zie sectie 12)
+- **Bruto schuld:** 19.261, waarvan 10.775 lease en 8.486 financiële schuld (obligaties, leningen, kortlopende schuld)
+- **Cash & equivalents:** 3.300 (inclusief kortlopende deposito's)
+- **Lease-verplichtingen (IFRS-16):** 10.775
+- **Gemiddelde rente %:** 4,72 (rentelast leningen 2025 €350 mln gedeeld door de gemiddelde financiële schuld 2024-2025 exclusief de notional cash pool van €590 mln en €1.961 mln die volledig tegen kas wegvalt). Recente obligaties: 3,625% (groene obligatie van €500 mln, maart 2026, looptijd acht jaar), 3,25% (2033), 3,375% (2031), 3,875% (2036).
+- **Rente-dekking (EBIT/rente):** 10,7 keer op financiële rente (underlying EBIT 2025 €3.734 mln / €350 mln); 4,6 keer inclusief lease-rente van €465 mln.
+- **Schuldvervaldatum:** gespreid. Stand eind 2025 (JV 2025 noot 22), aangevuld met de uitgifte van maart 2026 (€300 mln variabel rentende obligatie met looptijd twee jaar en €500 mln groene obligatie met looptijd acht jaar, Q2-rapport noot 9). Obligaties vervallen in 2026 (€900 mln; in H1 2026 is €909 mln aan leningen afgelost, vermoedelijk deze, maar dat staat niet expliciet in het Q2-rapport), 2027 (€500 mln en $71 mln), 2028 (€0,5 mld plus de FRN van €300 mln), 2029 ($500 mln), 2030 (€600 mln), 2031 (€0,5 mld en $271 mln), 2033 (€500 mln), 2034 (€500 mln), 2036 (€700 mln) en 2040 ($470 mln). Daarnaast een ongebruikte kredietfaciliteit van €1,5 mld tot december 2029. Geen herfinancieringsconcentratie.
+- **Pensioenen:** netto pensioenverplichting €504 mln eind 2025; niet in de nettoschuld en niet in de DCF-brug opgenomen (zie Opmerkingen voor Claude Code).
+
+### ROIC versus WACC
+
+| Jaar | ROIC % | WACC % (huidige schatting) | Spread pp | Oordeel |
+|---|---|---|---|---|
+| 2016 | 7,7 | 5,52 | 2,2 | waardecreatie, smal (vóór IFRS 16, niet vergelijkbaar) |
+| 2017 | 10,5 | 5,52 | 5,0 | waardecreatie, smal (vóór IFRS 16, niet vergelijkbaar) |
+| 2018 | 10,2 | 5,52 | 4,7 | waardecreatie, smal |
+| 2019 | 8,7 | 5,52 | 3,1 | waardecreatie, smal |
+| 2020 | 11,5 | 5,52 | 6,0 | waardecreatie, smal |
+| 2021 | 10,3 | 5,52 | 4,7 | waardecreatie, smal |
+| 2022 | 10,3 | 5,52 | 4,8 | waardecreatie, smal |
+| 2023 | 9,7 | 5,52 | 4,2 | waardecreatie, smal |
+| 2024 | 9,8 | 5,52 | 4,3 | waardecreatie, smal |
+| 2025 | 10,1 | 5,52 | 4,6 | waardecreatie, smal |
+
+
+- **Toelichting rendement:** Het rendement op geïnvesteerd kapitaal (ROIC: bedrijfsresultaat na belasting gedeeld door eigen vermogen plus nettoschuld inclusief lease) ligt sinds 2017 tussen 8,7% en 11,5%, met 10,1% in 2025. Dat is stabiel en ligt elk jaar boven de WACC van 5,52% die de rubric oplevert, met een spread van 3 tot 6 procentpunt. Kanttekening: die WACC is laag door een regressiebeta van 0,31. Bij de disconteringsvoet die de koers impliceert (circa 10%) is de spread nul. De ROIC wordt gedrukt door €8,4 mld goodwill en €3,4 mld merknamen uit de fusie en overnames; op het tastbare kapitaal is het rendement hoger (Greenblatt-ROC 22,8%, sectie 7). Conclusie: Ahold Delhaize creëert waarde, maar met een smalle marge. ROE 2025: 15,9%; ROA 4,6%.
+
+### Earnings quality
+
+| Jaar | Accruals ratio | Underlying EBIT vs IFRS EBIT (%) | SBC % van FCF na lease | Betaalde − W&V-belasting |
+|---|---|---|---|---|
+| 2016 | -0,057 | 19,9 | — | — |
+| 2017 | -0,054 | 10,4 | — | — |
+| 2018 | -0,097 | 5,3 | 2,6 | -93 |
+| 2019 | -0,091 | 4,3 | 2,8 | -59 |
+| 2020 | -0,120 | 64,0 | 2,7 | 155 |
+| 2021 | -0,075 | 0,3 | 2,9 | 340 |
+| 2022 | -0,076 | -1,1 | 3,3 | -317 |
+| 2023 | -0,095 | 26,6 | 2,3 | -256 |
+| 2024 | -0,090 | 29,6 | 1,8 | -11 |
+| 2025 | -0,094 | 5,4 | 2,7 | -150 |
+
+
+Accruals ratio = (nettowinst − CFO) / gemiddeld totaal vermogen.
+
+- **Toelichting earnings quality:** De accruals ratio is elk jaar negatief, rond −0,09. Dat oogt conservatief, maar komt grotendeels door IFRS 16: de leaseaflossing staat buiten de CFO. Na aftrek van leasebetalingen ligt de vrije kasstroom gemiddeld rond de nettowinst, wat op een gezonde winstkwaliteit wijst. Het verschil tussen underlying en IFRS-bedrijfsresultaat wisselt: klein in 2021, 2022 en 2025, groot in 2020, 2023 en 2024 door pensioenafkoop, afboekingen op Stop & Shop-winkels en reorganisaties. Omdat er elk jaar bijzondere posten zijn, gebruik ik voor P/E en Graham de IFRS-winst. Aandelenbeloning (SBC) is 2-3% van de vrije kasstroom en 0,26% van de marktwaarde per jaar: verwaarloosbaar.
+
+### Dividendhistorie
+
+| Jaar | DPS (€) | Groei % | Uitkeringsratio % (DPS/EPS verw.) | FCF-dekking (FCF na lease / dividend) | Rendement op slotkoers % | Type | Bijzonderheden |
+|---|---|---|---|---|---|---|---|
+| 2016 | 0,57 | — | 70 | — | 2,85 | regulier contant | fusiejaar; daarnaast kapitaalterugbetaling €1.001 mln |
+| 2017 | 0,63 | 10,5 | 44 | — | 3,44 | regulier contant |  |
+| 2018 | 0,70 | 11,1 | 47 | 3,00 | 3,17 | regulier contant |  |
+| 2019 | 0,76 | 8,6 | 48 | 1,61 | 3,34 | regulier contant |  |
+| 2020 | 0,90 | 18,4 | 69 | 2,14 | 3,89 | regulier contant | 53-weeksjaar; Covid |
+| 2021 | 0,95 | 5,6 | 44 | 1,91 | 3,15 | regulier contant |  |
+| 2022 | 1,05 | 10,5 | 41 | 2,02 | 3,91 | regulier contant |  |
+| 2023 | 1,10 | 4,8 | 57 | 2,24 | 4,23 | regulier contant |  |
+| 2024 | 1,17 | 6,4 | 62 | 2,22 | 3,73 | regulier contant |  |
+| 2025 | 1,24 | 6,0 | 50 | 2,45 | 3,59 | regulier contant |  |
+
+Gemiddeld dividendrendement 5 jaar (2021-2025, op slotkoers): 3,72%; 10 jaar (2016-2025): 3,53%; dividend-CAGR 2016-2025: 9,0%.
+
+
+- **Betaalt dividend:** ja. **Huidig DPS:** €1,24 (over 2025; €0,51 interim + €0,73 slot). **Huidig rendement:** 3,95%. **Gemiddeld rendement 5 jaar:** 3,72%; **10 jaar:** 3,53%. **CAGR dividend 2016-2025:** 9,0%. **FCF-dekking 2025:** 2,45 keer. **FCF-payout 2025:** 41% (dividend €1.070 mln / FCF na lease €2.619 mln). **Progressief beleid:** ja, "sustainable growth in the annual cash dividend" bij 40-50% uitkering van de onderliggende winst (JV 2025, p. 59). **Interimdividend 2026:** €0,51 (Q2-rapport). **Eerstvolgende besluit:** slotdividend over 2026, voorstel bij de jaarcijfers in februari 2027, betaling na de AVA van april 2027 (datum nog niet bekend). **Dividend yield on cost:** 5,4% bij aankoop eind 2020 (€23,11), 6,2% bij aankoop eind 2016 (€20,03).
+- **Toelichting dividend:** Ahold Delhaize betaalt contant dividend in twee delen, een interim in augustus en een slot na de jaarvergadering in april, en verhoogt het elk jaar: van €0,57 over 2016 naar €1,24 over 2025, 9,0% per jaar, ruim boven de inflatie. Het beleid is een uitkeringsratio van 40-50% van de onderliggende nettowinst. In de tien jaar sinds de fusie is het dividend nooit verlaagd, ook niet in Covid-jaar 2020. De vrije kasstroom na lease dekte het dividend in 2025 2,4 keer; samen met de jaarlijkse inkoop van circa €1 mld ging 79% van die kasstroom terug naar aandeelhouders. Het huidige rendement van 3,95% ligt boven het vijfjarige gemiddelde van 3,72% en een half procentpunt boven de Duitse tienjaarsrente van 3,48%. Er zijn geen speciale dividenden of stockdividenden geweest.
+- **Oordeel houdbaarheid:** Redelijk tot conservatief. Met een FCF-dekking van 2,4 keer en een uitkeringsratio van 50% van de IFRS-winst is er ruimte, ook als de vrije kasstroom in 2026 terugvalt naar de €2,3 mld die het bedrijf minimaal verwacht. Het risico zit eerder in het tempo van de aandeleninkoop dan in het dividend zelf.
+
+### Waardering historisch
+
+| Jaar | Slotkoers (€) | P/E (verw. EPS) | P/E (underlying) | EV/EBITDA (IFRS 16) | P/B | Dividendrendement % |
+|---|---|---|---|---|---|---|
+| 2016 | 20,03 | 24,7 | — | — | 1,57 | 2,85 |
+| 2017 | 18,34 | 12,8 | — | — | 1,48 | 3,44 |
+| 2018 | 22,07 | 14,8 | — | 6,8 | 1,76 | 3,17 |
+| 2019 | 22,75 | 14,3 | — | 6,6 | 1,76 | 3,34 |
+| 2020 | 23,11 | 17,8 | 10,2 | 7,0 | 1,95 | 3,89 |
+| 2021 | 30,14 | 13,9 | 13,8 | 7,0 | 2,22 | 3,15 |
+| 2022 | 26,84 | 10,6 | 10,5 | 5,5 | 1,70 | 3,91 |
+| 2023 | 26,02 | 13,4 | 10,2 | 5,8 | 1,67 | 4,23 |
+| 2024 | 31,38 | 16,6 | 12,4 | 6,6 | 1,86 | 3,73 |
+| 2025 | 34,57 | 13,8 | 12,9 | 6,2 | 2,16 | 3,59 |
+
+Gemiddelde P/E 2016-2025: 15,3; gemiddelde EV/EBITDA 2018-2025: 6,4.
+
+
+**Waardering op peildatum (koers €31,38):** P/E (TTM, IFRS-EPS €2,51) 12,50 · P/E forward (consensus 2026 €2,67) 11,75 · P/E gemiddeld 2016-2025: 15,3 · EV/EBITDA (TTM, EV incl. lease €43.380 mln / underlying EBITDA €7.263 mln) 5,97 · gemiddeld 2018-2025: 6,4 · P/FCF (FCF volgens bedrijfsdefinitie, na lease en rente, TTM €2.187 mln) 12,54 · P/FCF na SBC 12,88 · FCF-rendement 7,98% · P/B (eigen vermogen 28-06-2026) 1,90 · EV/omzet 0,47 · dividendrendement 3,95% · PEG 1,83 (P/E 12,50 / consensusgroei EPS 2025-2028 van 6,83% per jaar, MarketScreener).
+
+- **Toelichting waardering:** Op €31,38 noteert Ahold Delhaize tegen 12,5 keer de IFRS-winst van de laatste twaalf maanden, ruim onder het tienjarige gemiddelde van 15,3 keer. De EV/EBITDA van 6,0 ligt onder het eigen gemiddelde van 6,4 sinds 2018 en onder de peermediaan van 6,3. Op de vrije kasstroom die het bedrijf zelf rapporteert betaal je 12,5 keer (TTM) en 10,5 keer (2025), een kasrendement van circa 8%. De korting ten opzichte van de eigen historie is te verklaren door de stokkende Amerikaanse omzet en de onzekerheid over de nieuwe CEO, maar de waardering zit nu op het niveau van Kroger en Carrefour, terwijl Ahold Delhaize stabielere marges en een sterkere balans heeft dan Carrefour.
+- **IPO-correctie:** niet van toepassing (beursnotering sinds 1948, fusie in aandelen in 2016).
+
 
 ### Non-GAAP / aanpassingen
-- **Gebruikt?** true — Ahold Delhaize rapporteert primair "underlying" cijfers (operating profit, EPS) naast IFRS.
-- **Welke aanpassingen:** Underlying excludeert herstructurering (Stop & Shop-review), boekverliezen, juridische voorzieningen, M&A-related amortisation. Underlying op-marge ligt typisch 0,2-0,4pp boven IFRS-marge.
-- **Waarom:** Geeft beter beeld van structurele kasflow-genererende capaciteit; analisten en investeerders volgen deze maatstaf.
+- **Gebruikt?** true
+- **Welke aanpassingen:** (1) Ahold Delhaize stuurt op "underlying" bedrijfsresultaat en EPS, zonder afboekingen, resultaten op verkoop van activa en leases, en reorganisatie- en bijzondere posten. Het verschil met IFRS was in 2025 5,4%, maar in 2020 64%, 2023 27% en 2024 30%. Elk jaar zijn er dus bijzondere posten; ze zijn niet eenmalig. In P/E en EPS-groei gebruik ik daarom de IFRS-winst, het underlying cijfer alleen ter vergelijking. (2) Leases: in de DCF behandel ik huur als bedrijfslast (netto leasebetaling van de kasstroom afgetrokken, leaseverplichting niet in de nettoschuld). (3) Belasting: genormaliseerd naar 20,7% (zie kasstromen).
+- **Waarom:** vergelijkbaarheid over IFRS 16 heen, en voorkomen dat timing van belastingbetalingen de vrije kasstroom opblaast.
+
+### Sector-specifieke KPI's (retail; JV 2025 en tienjarenoverzicht)
+
+| KPI | Eenheid | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|
+| Online omzet | EUR mln | 7.704 | 8.618 | 8.931 | 9.235 | 10.274 |
+| Online als % van omzet | % | 10,2 | 9,9 | 10,1 | 10,3 | 11,1 |
+| Vergelijkbare omzetgroei VS (excl. benzine) | % | — | 6,8 | 2,3 | 0,8 | 3,0 |
+| Vergelijkbare omzetgroei Europa (excl. benzine) | % | — | 2,9 | 6,3 | 2,0 | 3,4 |
+| Aantal winkels (incl. franchise) | stuks | 7.452 | 7.659 | 7.716 | 7.765 | 9.551 |
+| Bruto capex als % van omzet | % | 3,1 | 2,9 | 2,7 | 2,6 | 2,8 |
+
+Vergelijkbare omzetgroei uit het meerjarenoverzicht in JV 2025 (herziene cijfers; JV 2023 gaf voor Europa 2023 nog 6,5%). Online omzet 2016-2020: 1.991 / 2.393 / 2.817 / 3.493 / 5.547. Aandeel eigen merk in voedselomzet: meer dan 40% in Q2 2026 (Q2-rapport). Voorraadomloop (kostprijs omzet / voorraad ultimo) 2025: 14,2 keer.
+
+- **Toelichting sector-KPI's:** De belangrijkste trend is online: van €2,0 mld in 2016 naar €10,3 mld in 2025, nu 11% van de omzet, met in Q2 2026 nog 14,5% groei in de VS tegen constante koersen. De vergelijkbare omzetgroei (dezelfde winkels, jaar op jaar) laat de Amerikaanse zwakte zien: 0,8% in 2024 en 0,8% in Q2 2026, gedrukt door goedkopere eieren, lagere SNAP-voedselbonnen en lagere apotheekprijzen door de Inflation Reduction Act. Europa doet het stabieler. De sprong in winkelaantal in 2025 komt door de 1.768 Profi-winkels in Roemenië.
+
 
 ---
 
@@ -219,134 +419,151 @@ Jaren 2015-2019 — GEEN BRON BESCHIKBAAR (binnen sessie-tijd)
 
 | Naam | Sterkte (sterk/middel/zwak/geen) | Toelichting |
 |---|---|---|
-| Immateriële activa | middel | Albert Heijn (NL) en Food Lion (US-Zuidoost) hebben sterke regionale brand-equity en loyalty-programma's. Wereldwijd geen mondiaal merk. |
-| Overstapkosten | zwak | Consumenten kunnen vrij naar concurrent-supermarkt overstappen; alleen loyalty-programma-erosion-friction. |
-| Netwerkeffecten | geen | n.v.t. voor supermarkt. |
-| Kostenvoordeel | middel | Schaal in inkoop (vooral private-label), distributie-densiteit lokaal, en eigen-DC-network. Walmart en Aldi hebben vergelijkbare of grotere schaal. |
-| Efficiënte schaal | middel | Lokaal sterke marktpositie (NL ~35% AH; US-Noordoost Stop & Shop dominant in dichte urban density), maar marktstructuur staat 3-5 spelers per regio toe. |
+| Immateriële activa | middel (AANWEZIG) | De lokale merken zijn sterk en staan voor €3,4 mld aan merkwaarde op de balans (Food Lion €1,2 mld, Delhaize €0,8 mld, Hannaford €0,7 mld). Eigen merken zijn goed voor meer dan 40% van de voedselomzet en geven een hogere marge dan A-merken. Een merk alleen houdt klanten in de supermarkt echter niet vast als de prijs niet klopt; er zijn geen patenten of vergunningen die concurrenten buitensluiten. |
+| Overstapkosten | zwak (BEPERKT) | Een klant kan morgen bij een andere supermarkt boodschappen doen zonder kosten. De loyaliteitsprogramma's (Bonuskaart, MVP-kaart bij Food Lion) en persoonlijke aanbiedingen in de app maken overstappen iets minder aantrekkelijk, en een online klant met vaste lijstjes en bezorgabonnement blijft vaker. Dat zijn gewoontes, geen echte kosten. Picnic meldde tijdens het cyberincident van oktober 2026 direct meer bestellingen. |
+| Netwerkeffecten | geen (AFWEZIG) | Een supermarkt wordt niet waardevoller voor de ene klant omdat er meer andere klanten zijn. Alleen bij bol is sprake van een marktplaats waar meer verkopers meer kopers trekken en omgekeerd, maar bol is een klein deel van de groep. De advertentie- en dataplatforms (0,3% van de omzet) profiteren van schaal, niet van een netwerkeffect in de klassieke zin. |
+| Kostenvoordeel | middel (AANWEZIG) | Ahold Delhaize koopt jaarlijks voor bijna €64 mld aan producten in (2025) en neemt deel aan Europese inkoopallianties. Lokale dichtheid van winkels en distributiecentra verlaagt de logistieke kosten per winkel. Het besparingsprogramma leverde €1,3 mld op in 2025, en de brutomarge blijft al tien jaar binnen een procentpunt. Walmart, Kroger, Aldi en Lidl hebben vergelijkbare of grotere inkoopschaal, dus het voordeel is relatief, niet absoluut. |
+| Efficiënte schaal | sterk (STERK) | In Nederland heeft Albert Heijn 38,2% van de supermarktmarkt (NielsenIQ 2025), bijna twee keer zoveel als nummer twee Jumbo (19,9%), met een landelijk netwerk van winkels, distributiecentra en thuisbezorging. Food Lion en Hannaford zijn in hun Amerikaanse regio's sterk vertegenwoordigd. In zulke lokale markten is beperkt ruimte voor een nieuwe speler op dezelfde schaal. Deze positie verklaart waarom de Europese marge stijgt (3,3% in 2023 naar 3,8% in 2025). |
 
-- **Kwantitatief bewijs:** ROIC ~10-12% structureel boven WACC ~5,5% — spread ~5-7pp. Underlying op-marge consistent 4,0% over 5+ jaar. Niet zo dominant als WIDE-moat-bedrijven; binnen NARROW-moat-categorie bovengemiddeld door multi-geo-spreiding.
-- **Duurzaamheid:** 10-15 jaar zekerheid op kerntoepassingen. Voedingsretail is structureel niet bedreigd — mensen blijven boodschappen doen. Marktstructuur kan wel verschuiven (Aldi/Lidl-marktaandeel-winst, Amazon Fresh-uitbreiding).
-- **Erosierisico's:** (1) US-Walmart/Aldi/Lidl verlagen prijzen consequent, dwingen Stop & Shop tot pricing-investeringen die marge raken. (2) Amazon Fresh + WholeFoods-uitbreiding in Noordoost VS overlapt Stop & Shop/Giant-territorium. (3) Inflatie-deflatie-cycli raken volume/marge-mix; 2023-2024 was hier zichtbaar. (4) Online-shift vraagt fulfillment-investeringen die kortetermijn-marges drukken (Stop & Shop online verlieslatend tot 2024).
+- **Kwantitatief bewijs:** De ROIC lag sinds 2017 tussen 8,7% en 11,5% (10,1% in 2025), een spread van 3-6 procentpunt boven de WACC van 5,52%. De onderliggende bedrijfsmarge bleef tien jaar tussen 3,8% en 4,8%, de brutomarge tussen 26,5% en 27,5%. In Nederland won Albert Heijn in 2025 0,5 procentpunt marktaandeel. In de VS meldt het bedrijf marktaandeelwinst bij de meeste merken (Nielsen, Q1 2026), maar de vergelijkbare omzetgroei bleef onder 1% in 2024 en Q2 2026.
+- **Toelichting moat:** Ahold Delhaize heeft een smalle slotgracht. Die zit vooral in lokale schaal: waar een merk de grootste is, zoals Albert Heijn in Nederland met 38% marktaandeel, kan het met een dicht netwerk van winkels, distributiecentra en bezorging lagere kosten per klant halen dan een kleinere concurrent, en die schaal is moeilijk na te bouwen. Daarnaast helpen inkoopschaal en eigen merken. De zwakke plek is dat supermarktklanten niets betalen om over te stappen: de slotgracht beschermt de positie, maar niet de prijs. Dat zie je aan de cijfers. Het rendement op kapitaal is stabiel rond 10%, maar ligt maar enkele procentpunten boven de kapitaalkosten, en de marge van 4% moet elk jaar opnieuw verdiend worden met besparingen. In de VS, waar de groep geen nummer één is tegen Walmart en Kroger, is de bescherming dunner dan in de Benelux.
+- **Duurzaamheid:** 5-10 jaar
+- **Duurzaamheid toelichting:** Boodschappen blijven nodig, dus de vraag verdwijnt niet. De slotgracht wordt van drie kanten aangevallen. In de VS dwingen Walmart en Aldi, en een consument die op prijs let, tot een prijsinvestering van $1 mld over 2025-2028; als besparingen dat niet compenseren, krimpt de marge. Online maakt lokale winkeldichtheid minder doorslaggevend: Amazon en in Nederland Picnic bezorgen zonder winkelnetwerk. En de afhankelijkheid van IT is gegroeid: twee cyberincidenten binnen twee jaar laten zien dat een storing de hele keten kan stilleggen, met distributiecentra die niet leveren en klanten die naar de concurrent gaan. De Nederlandse positie lijkt robuust voor tien jaar of langer; de Amerikaanse positie hangt af van de uitvoering onder de nieuwe CEO.
+- **Erosierisico's:** (1) Prijsconcurrentie in de VS van Walmart, Kroger en harddiscounters. (2) Online spelers zonder winkelnetwerk. (3) Herhaalde IT-uitval die klanten wegjaagt. (4) Regelgeving op voedselprijzen en apotheekvergoedingen (Inflation Reduction Act, SNAP-bezuinigingen) die omzet zonder compensatie wegneemt.
 
 ---
 
 ## 5. Management
 
-- **CEO-naam + tenure:** Frans Muller, sinds juli 2018 (8 jaar). Nederlands, eerder CEO Delhaize Group (2013-2016) en deputy-CEO Ahold Delhaize 2016-2018. Diepe retail-ervaring; communicatie gedisciplineerd-conservatief.
-- **CFO-naam + tenure:** Jolanda Poots-Bijl, sinds april 2024. Nederlands, eerder CFO Vopak en daarvoor PriceWaterhouse. Nieuwe CFO — opvolging van Natalie Knight die in 2024 vertrok onder enige controverse rond haar publieke uitspraken over de Stop & Shop-review.
-- **Oprichter nog betrokken?** Nee — Ahold-familie (Albert Heijn-erfgenamen) en Delhaize-familie zijn al lang uitgestapt na fusie 2016 (en eerder).
-- **Insider ownership %:** Bestuurdersbelang totaal <0,2% van uitstaande aandelen. Geen meaningful insider-ownership.
+- **CEO-naam + tenure:** Frans Muller, President en CEO sinds 1 juli 2018, lid van de Raad van Bestuur sinds de fusie op 24 juli 2016 (eerst als vice-CEO en Chief Integration Officer). Van 2013 tot de fusie CEO van Delhaize Group; daarvoor ruim 15 jaar bij Metro AG, onder meer als bestuurslid en CEO van Metro Cash & Carry, en eerder bij KLM Cargo. Nederlander, 64 jaar. Op 6 mei 2026 maakte de Raad van Commissarissen bekend dat Muller in 2027 met pensioen gaat.
+- **Opvolger (voorgedragen):** Thierry Garnier, sinds september 2019 CEO van Kingfisher plc (onder meer B&Q en Castorama), daarvoor ruim twintig jaar bij Carrefour, onder meer als CEO van Carrefour International en Carrefour Asia; niet-uitvoerend bestuurder bij Tesco plc. Benoeming vereist een buitengewone aandeelhoudersvergadering (datum nog niet bekend); overdracht rond de AVA van april 2027.
+- **CFO-naam + tenure:** Jolanda Poots-Bijl, CFO sinds 1 oktober 2023. Daarvoor zeven jaar CFO van Van Oord en eerder financiële en bestuursfuncties bij Ordina, VolkerWessels, Connexxion en ProRail. Nederlander, 56 jaar. Zij volgde Natalie Knight op, die op 10 juli 2023 vertrok. (De vorige versie van deze analyse noemde een andere datum en een ander vorig werkgever; die gegevens waren onjuist.)
+- **Overige bestuursleden:** JJ Fleeman, CEO Ahold Delhaize USA sinds 12 april 2023 (eerder president van Peapod Digital Labs en Chief Strategy Officer van Food Lion; Amerikaan, 52). Claude Sarrailh, CEO Europa en Indonesië sinds 1 oktober 2024 (eerder bestuurslid en Chief Customer & Merchandise Officer bij Metro AG, CEO van Metro Italië en China, en Carrefour; Fransman, 54).
+- **Oprichter nog betrokken?** Nee.
+- **Insider ownership %:** Frans Muller hield eind 2025 515.850 aandelen plus 9.579 ADR's, samen circa €16,5 mln bij de huidige koers en 0,06% van het kapitaal. De andere bestuursleden bouwen hun verplichte aandelenbezit (300-400% van het basissalaris) op via de aandelenregeling. Totaal bestuur: 556.165 aandelen (0,06%).
+- **Insider-transacties (24 maanden):** Niet verifieerbaar — weggelaten. Het AFM-register voor transacties van leidinggevenden was in deze sessie niet op Ahold Delhaize te doorzoeken. Volgens het beloningsrapport vereist de opbouw van het verplichte aandelenbezit geen aankopen op de beurs.
 - **Capital allocation track record:**
 
-| Jaar | Dividend totaal | Aandeleninkoop | M&A uitgaven | Organische capex |
+| Jaar | Dividend totaal | Aandeleninkoop | M&A uitgaven (netto kas) | Organische capex |
 |---|---|---|---|---|
-| 2024 | ~1.090 | 1.000 | ~150 (bolt-on) | ~2.700 |
-| 2025 | ~1.165 | ~1.000 | ~150 | ~2.700 |
+| 2016 | 429 | 0 (+ kapitaalterugbetaling 1.001) | +2.205 (kas ontvangen bij fusie) | 1.302 |
+| 2017 | 720 | 992 | 50 | 1.698 |
+| 2018 | 757 | 2.003 | 30 | 1.780 |
+| 2019 | 1.114 | 1.002 | 43 | 2.218 |
+| 2020 | 1.026 | 1.001 | 4 | 2.659 |
+| 2021 | 856 | 994 | 529 (DEEN, FreshDirect) | 2.371 |
+| 2022 | 979 | 997 | 20 | 2.490 |
+| 2023 | 1.044 | 999 | 34 | 2.434 |
+| 2024 | 1.037 | 1.000 | 26 | 2.299 |
+| 2025 | 1.070 | 1.008 | 1.197 (Profi) | 2.564 |
 
-(Bedragen in EUR mln; 2025 indicatief.)
+Gemiddelde inkoopprijs per programma (jaarverslagen en Q2-rapport): 2019 €21,92; 2021 €25,87; 2023 €29,29; 2024 €28,85; 2025 €34,67; H1 2026 €36,97; laatste week september 2026 €31,92. Afgezet tegen de IFRS-winst per aandeel van dat jaar kocht het bedrijf in tegen 12 tot 15 keer de winst; de huidige P/E is 12,5.
 
-- **M&A-track-record:** Sinds fusie 2016 voornamelijk bolt-on (kleine regionale supermarkt-overnames in CSE-regio, FreshDirect online-verkoop in 2024). Geen grote misser. De 2003 boekhoud-affaire blijft een waarschuwing voor governance-belang.
-- **Beloning:** Bonus-KPI's gekoppeld aan underlying operating margin, FCF, comparable sales-groei en TSR vs peers (Tesco, Carrefour, Walmart). LTI in performance shares met 3-jaars vesting. Muller-compensatie 2024 ~€7-8 mln totaal.
+- **Capital allocation:** Ahold Delhaize investeert circa 2,8% van de omzet in winkels, distributiecentra en technologie, keert 40-50% van de onderliggende winst uit als groeiend dividend en koopt elk jaar voor circa €1 mld aandelen in. Overnames zijn beperkt en vooral regionale aanvullingen; de grootste sinds de fusie was Profi voor €1,21 mld.
+- **Capital allocation detail:** Sinds de fusie gaf Ahold Delhaize ruim €10 mld uit aan inkoop en €9,0 mld aan dividend, terwijl de vrije kasstroom na lease over 2018-2025 samen €17,1 mld bedroeg. Het aantal aandelen daalde van 1.272 mln naar 874 mln. De inkoop gebeurde niet anticyclisch: de programma's lopen elk jaar gelijkmatig, ook toen de koers in H1 2026 op gemiddeld €36,97 stond, 18% boven de huidige koers. Bij de overnames is het beeld gemengd. Profi verdubbelde de aanwezigheid in Roemenië en droeg in 2025 €2,9 mld omzet bij, met een licht negatief effect op de nettowinst. Het Amerikaanse online platform FreshDirect werd in 2021 gekocht en in november 2023 alweer aan Getir verkocht; de prijs is niet bekendgemaakt. In 2023-2025 nam het bedrijf samen €0,75 mld aan bijzondere waardeverminderingen, vooral op Amerikaanse winkels en, in 2025, op de rationalisatie van de Amerikaanse e-commerceactiviteiten. De kern, de jaarlijkse investeringen, levert een stabiel rendement van circa 10% op.
+- **M&A-track-record:** Sinds 2016 een handvol deals. Groot: de fusie met Delhaize (2016, €10,8 mld in aandelen), die de huidige groep vormde en de geplande synergieën leverde (fusie-integratie in Q2 2019 afgerond volgens JV 2019). Middelgroot: Profi (2025, €1,21 mld). Klein: DEEN-winkels in Nederland (2021), Delfood (2026, ruim €200 mln omzet verwacht). Misser: FreshDirect (2021 gekocht, 2023 verkocht).
+- **Beloning:** De CEO kostte het bedrijf in 2025 €7,5 mln (IFRS-kosten), waarvan 19% vast en 81% variabel. Het basissalaris was €1,3 mln. De jaarbonus hangt af van omzetgroei zonder benzine (30%), onderliggende bedrijfsmarge (25%), operationele kasstroom na leasebetalingen (20%) en ESG- en strategische doelen (25%). De langetermijnregeling in aandelen (drie jaar) hangt af van rendement op kapitaal (35%), groei van de onderliggende EPS (25%), relatief totaalrendement voor aandeelhouders ten opzichte van een peergroep (15%) en vermindering van CO2-uitstoot (25%). Aandelen moeten vijf jaar na toekenning worden aangehouden, ook na vertrek. De CEO-beloning was in 2025 130 keer het gemiddelde loon in de groep. SBC is 0,26% van de marktwaarde per jaar; de netto verwatering is negatief door de inkoop.
+- **Integriteit:** Het bedrijf publiceert alle bonusdoelen en de realisatie achteraf volledig (sinds 2022) en rapporteert bijzondere posten ruim in zijn jaarverslag. De doelen uit het strategieplan worden grotendeels gehaald: de marge rond 4% over 2025 is gerealiseerd, de vrije kasstroom van €2,6 mld lag boven de verwachting van minimaal €2,2 mld. Minder sterk is de informatievoorziening rond IT-incidenten: bij het incident van november 2024 werd pas later bekend dat de gegevens van ruim 2,2 miljoen mensen, vooral (oud-)medewerkers, waren buitgemaakt, en bij het incident van oktober 2026 verwees de woordvoerder naar het persbericht zonder vragen over versleuteling of omvang te beantwoorden. Het boekhoudschandaal van 2003 ligt ver terug en betrof een ander bestuur. Er zijn geen lopende rechtszaken of toezichtsacties van materieel belang gevonden.
 - **Oordeel management:** STERK
-- **Toelichting:** Muller heeft 8 jaar consistente strategie geleverd — "Growing Together"-framework focust op underlying margin-stabiliteit, online-uitbreiding en kapitaal-discipline. 2024-CFO-overgang was suboptimaal (Knight vertrok onder publieke spanning) maar is goed opgepakt met Poots-Bijl. Capital allocation consistent: organische investering eerst, dividend met progressive policy (6-7% jaarlijks), buybacks met €1 mld/jaar consistent. Stop & Shop-review (aangekondigd 2024) is moedige strategische zet — divisie kost moeite, beslissing om af te stoten of significant te restructureren is langer geduld dan veel concurrenten zouden tonen.
+- **Toelichting:** Het management onder Frans Muller heeft acht jaar lang gedaan wat het beloofde: een marge rond 4%, groeiende vrije kasstroom, elk jaar een hoger dividend en een stabiel inkoopprogramma. De beloning is gekoppeld aan rendement op kapitaal, kasstroom en winst per aandeel, dus aan wat aandeelhouders ook belangrijk vinden. Daar staan drie kanttekeningen tegenover. De inkoop gebeurt mechanisch, ook bij hoge koersen. FreshDirect was een dure omweg. En de groep is binnen twee jaar twee keer door een cyberincident getroffen, waarvan het tweede de Nederlandse distributie lamlegde. Met het vertrek van Muller in 2027 en de komst van een buitenstaander uit de doe-het-zelfsector komt er bovendien onzekerheid over de koers na 2027. Per saldo is het oordeel STERK, maar met minder marge dan de vorige analyse suggereerde.
 
 ---
 
 ## 6. Sector & concurrentie
 
-- **Sector-groeivooruitzicht:** Wereldwijde voedingsretail groeit ~3-5% per jaar in waarde (volume-groei beperkt, prijsstijging vooral inflatie-gedreven). Online-segment binnen voedingsretail ~10-15% per jaar — versnelt na Covid. Volwassen markten (Europa, VS) zien marktaandeel-verschuiving naar discount (Aldi, Lidl) en online (Amazon).
+- **Sectorprofiel:** defensief, kapitaalintensief (winkels, distributiecentra, huurcontracten), lokaal geconsolideerd. Sentiment: negatief in de VS (waarschuwingen van Walmart, Kroger en Albertsons, volgens UBS 7-10-2026), neutraal in Europa.
+- **Sector-groeivooruitzicht:** Niet verifieerbaar met een sectorbron — weggelaten. Als referentie: de consensus verwacht voor Ahold Delhaize 1,4% omzetgroei in 2026, 2,3% in 2027 en 2,9% in 2028 (MarketScreener); het USDA verwacht voor 2026 2,3% prijsstijging van voedsel voor thuisgebruik in de VS (JV 2025, p. 58).
+- **Toelichting sector:** Supermarkten verkopen een product dat iedereen elke week nodig heeft, dus de vraag is stabiel, maar de marges zijn dun: een bedrijfsmarge van 2 tot 4,5% is normaal. In de VS domineren Walmart en Kroger, met harddiscounters als Aldi en online spelers als Amazon die terrein winnen. In Nederland is Albert Heijn marktleider voor Jumbo, Lidl en Aldi; in België strijden Colruyt, Delhaize, Carrefour, Aldi en Lidl. De markt groeit in waarde ongeveer met de voedselinflatie. De grote trends zijn online bestellen, eigen merken, prijsbewuste consumenten die naar discounters gaan, en technologie en data voor persoonlijke aanbiedingen. De sector is aantrekkelijk voor wie stabiele kasstromen en dividend zoekt, minder voor wie groei zoekt.
 - **Porter five forces:**
-  - **Rivaliteit:** hoog — supermarkt-markt fragmenteerd, prijsconcurrentie continu. In US zware Walmart/Aldi/Lidl-druk.
-  - **Nieuwe toetreders:** middel — schaal-vereisten beperken; Amazon Fresh is reëel maar groeit langzaam.
-  - **Substituten:** middel — restaurant-meal-kit-bezorging (HelloFresh), discount-supermarkten, online-verticals (Picnic in NL).
-  - **Macht leveranciers:** laag — voor grote retailers (Coca-Cola, Unilever) wel macht; voor kleinere FMCG-leveranciers hebben supermarkten inkoopmacht.
-  - **Macht afnemers:** middel-hoog — consumenten zijn prijsgevoelig, vergelijken eenvoudig.
-- **Concurrenten:**
+  - **Rivaliteit:** HOOG. Supermarkten concurreren dagelijks op prijs; in de VS kondigde Ahold Delhaize zelf $1 mld prijsinvesteringen aan over 2025-2028 en verlaagde Stop & Shop in 2026 de prijzen in al zijn winkels. In Nederland verlaagde Albert Heijn de prijs van meer dan 500 producten (Q2 2026). Concurrenten zijn vergelijkbaar en klanten vergelijken makkelijk.
+  - **Nieuwe toetreders:** MIDDEL. Een landelijk netwerk van winkels en distributiecentra kost miljarden en jaren. Discounters (Aldi, Lidl) en online spelers (Amazon, Picnic) komen toch binnen, omdat zij met een eigen, goedkoper model werken in plaats van het bestaande na te bouwen.
+  - **Substituten:** MIDDEL. Maaltijdbezorging, restaurants en maaltijdboxen vervangen een deel van de boodschappen. Bij een zwakkere consument verschuift dat juist terug naar de supermarkt; in Covid-jaar 2020 groeide de omzet 12,8%.
+  - **Macht leveranciers:** MIDDEL. Grote A-merkfabrikanten hebben macht, maar Ahold Delhaize koopt jaarlijks voor bijna €64 mld aan producten in, werkt met Europese inkoopallianties en verkoopt voor meer dan 40% eigen merk. Kleinere leveranciers hebben weinig onderhandelingsruimte.
+  - **Macht afnemers:** HOOG. Consumenten zijn prijsgevoelig, vergelijken via apps en folders, en betalen niets om over te stappen. Ze zijn individueel klein, maar hun gezamenlijke gedrag dwingt de prijsinvesteringen af.
+  - **Conclusie Porter:** gemiddelde sector. Hoge rivaliteit en machtige klanten drukken de marges, maar de toetredingsdrempels en de stabiele vraag zorgen dat goed geleide spelers met lokale schaal een rendement boven de kapitaalkosten halen, zoals Ahold Delhaize met circa 10%.
+- **Concurrenten (StockAnalysis, okt. 2026; groei = consensus omzetgroei per jaar over drie jaar):**
 
-| Concurrent | Marktaandeel positie |
-|---|---|
-| Walmart | wereldgrootste retailer, dominant US |
-| Costco | warehouse-club, sterke US-focus |
-| Kroger (US) | US-supermarkten, vergelijkbare schaal als AD-US |
-| Aldi (private) | discount-druk wereldwijd |
-| Lidl (Schwarz Group) | discount-druk wereldwijd |
-| Carrefour (FR) | EU-supermarkten |
-| Tesco (UK) | UK-dominant supermarkt |
-| Amazon Fresh / Whole Foods | online + premium |
-| Picnic (NL) | online voedingsretail in NL |
+| Concurrent | Marktaandeel % | Omzetgroei % (3j-verwachting) | EBIT-marge % | ROIC % | Debt/EBITDA | EV/EBITDA | P/FCF | Beta 5j |
+|---|---|---|---|---|---|---|---|---|
+| Kroger (KR) | — | 1,75 | 3,20 | 13,87 | 2,71 | 7,39 | 15,50 | 0,35 |
+| Albertsons (ACI) | — | −0,08 | 1,99 | 9,14 | 3,41 | 6,09 | 10,48 | 0,23 |
+| Carrefour (CA.PA) | — | 0,72 | 2,57 | 5,05 | 4,82 | 6,22 | 4,53 | 0,58 |
+| Tesco (TSCO.L) | — | 2,28 | 4,30 | 10,95 | 2,84 | 8,04 | 10,72 | 0,56 |
+| J Sainsbury (SBRY.L) | — | 1,83 | 3,14 | 5,88 | 3,18 | 6,31 | 16,38 | 0,98 |
+| Jumbo (NL, privaat) | 19,9 (NL, NielsenIQ 2025) | — | — | — | — | — | — | — |
+| Aldi (NL) | 5,9 (NL, NielsenIQ 2025) | — | — | — | — | — | — | — |
+| **Ahold Delhaize (AD)** | **38,2 (Albert Heijn, NL)** | — | **4,07** | **9,46** | **2,84** | **6,50** | **7,00** | **0,31** |
 
-- **Positie van het bedrijf:** In NL wereldnummer 1 (Albert Heijn ~35% marktaandeel). In US-Noordoost top-3 in dichtbevolkte staten (Stop & Shop). In US-Zuidoost top-3 via Food Lion. Wereldwijd top-10 voedingsretailer.
+  StockAnalysis rekent P/FCF op CFO − capex, dus vóór leasebetalingen; dat flatteert IFRS-rapporteerders (AD, Carrefour, Tesco) ten opzichte van de VS. De AD-regel staat op de slotkoers van 9-10-2026 (€32,28).
+- **Positie van het bedrijf:** Leider in Nederland (Albert Heijn 38,2%) en sterk in België en delen van de Amerikaanse oostkust; in de VS als geheel een middelgrote speler na Walmart en Kroger.
+- **Positie toelichting:** Tegenover de peers scoort Ahold Delhaize goed op winstgevendheid: de bedrijfsmarge van circa 4% is hoger dan Kroger (3,2%), Carrefour (2,6%), Sainsbury (3,1%) en Albertsons (2,0%), en alleen Tesco komt met 4,3% hoger uit. Het rendement op kapitaal van circa 9,5% ligt onder Kroger en Tesco, maar ruim boven Carrefour en Sainsbury. De schuld is gemiddeld. Qua waardering zit Ahold Delhaize met een EV/EBITDA van 6,5 dicht bij de mediaan van 6,3 en onder Tesco (8,0) en Kroger (7,4). Gezien de stabielere marges en de sterke Nederlandse positie lijkt een korting op Tesco niet nodig; de markt geeft die toch, vermoedelijk vanwege de Amerikaanse blootstelling en het lagere groeitempo.
 
 ### TAM/SAM/SOM
-- **TAM (mln EUR):** ~€7.000 mld (wereldwijde voedingsretail-markt)
-- **TAM-groei %:** ~3-4% per jaar
-- **SAM (mln EUR):** ~€1.500 mld (markten waar AD opereert: VS-Oost + Benelux + CSE + GR)
-- **SAM-groei %:** ~3-4%
-- **Huidige penetratie %** (omzet AD / SAM): ~6%
-- **Impliciete penetratie na horizon %:** ~6-7%
+- **TAM (mln lokale valuta):** Niet verifieerbaar — weggelaten
+- **TAM-groei %:** Niet verifieerbaar — weggelaten
+- **SAM (mln):** Niet verifieerbaar — weggelaten
+- **SAM-groei %:** Niet verifieerbaar — weggelaten
+- **Huidige penetratie %** (omzet / SAM): Niet verifieerbaar — weggelaten
+- **Impliciete penetratie na horizon %:** Niet verifieerbaar — weggelaten
 - **Groei plausibel?** true
-- **Bron TAM/SAM:** Euromonitor International, IGD Research, AD Investor Day-presentaties.
-- **Toelichting:** Ahold Delhaize hoeft alleen marktaandeel-stabiliteit + lichte uitbreiding voor 4-5% omzetgroei — onder marktgroei mag, omdat lokaal marktleider-positie bestaat in de meeste regio's.
+- **Bron TAM/SAM:** geen bron gevonden met een marktomvang voor precies de markten waar Ahold Delhaize actief is.
+- **Toelichting:** Ik heb geen openbare, controleerbare bron gevonden voor de omvang van de supermarktmarkt in exact de acht landen en Amerikaanse regio's waar Ahold Delhaize actief is; de vorige versie noemde een TAM van €7.000 mld zonder bron, die is geschrapt. De groei in het basisscenario (3% per jaar) vraagt geen marktaandeelwinst: ze ligt rond voedselinflatie plus een beperkte volumegroei, en onder de omzetgroei van 5,7% per jaar over 2018-2025. Daarom acht ik die groei plausibel.
 
 ---
 
-## 7. Analyse-frameworks (9 frameworks, SCORES 0-5)
+## 7. Analyse-frameworks (9 frameworks, SCORES 1-5)
+
+Leesregel: de rubrics uit METHODE.md H9 lees ik als cascade van score 5 naar beneden; de eerste regel die klopt, geldt.
 
 ### Graham
 - **Oordeel:** GEDEELTELIJK
-- **Graham number:** ~€36 (sqrt(22,5 × 2,67 × 14,8 EV per share) ≈ €36)
-- **Margin of safety %:** -10% (koers €40 vs €36 Graham number — net iets boven)
-- **Toelichting:** Ahold Delhaize voldoet bijna volledig aan Graham — P/E ~15 (op €2,67 EPS), P/B ~2,7, dividend-historie sterk. Schuld is materieel (D/E 68%) wat Graham als rood vlag zou zien maar binnen retail-norm valt. Net niet voldoende margin-of-safety bij €40 maar zeer dichtbij.
-- **Score (0-5):** 3
+- **Graham number:** 30,56 (√(22,5 × EPS TTM €2,51 × boekwaarde per aandeel €16,53))
+- **Margin of safety %:** −2,6 (koers €31,38 ligt net boven het Graham number)
+- **Toelichting:** Ahold Delhaize voldoet aan Grahams waarderingscriteria: de koers/winst van 12,5 ligt onder 15 en de koers/boekwaarde van 1,90 onder 2,0. Het dividend wordt al tien jaar elk jaar verhoogd en de winst per aandeel is sinds 2016 ruim verdrievoudigd. Wat Graham niet zou bevallen, is de schuld: inclusief leaseverplichtingen is de schuld 1,3 keer het eigen vermogen en de current ratio ligt met 0,7 ver onder zijn eis van 2. Voor een supermarkt met dagelijkse kasinstroom is dat normaal, maar het blijft een afwijking. Het Graham number van €30,56 ligt vrijwel op de koers, dus er is geen veiligheidsmarge volgens deze maatstaf.
+- **Score (1-5):** 4 (P/E 12,50 ≤ 15 én P/B 1,90 ≤ 2,0; score 5 vereist P/B ≤ 1,5 en 30% veiligheidsmarge)
 
 ### Buffett / Munger
-- **Oordeel:** VOLDOET
-- **ROIC structureel boven WACC?** true (ROIC ~10-12% vs WACC ~5,5% — spread ~5-6pp)
-- **Toelichting:** Buffett heeft historisch waardering voor consumer-retail-compounders (Coca-Cola, See's Candies). Ahold Delhaize past — voorspelbare omzet, sterke regionale brand-equity, consistente kapitaal-discipline. Prijs is redelijk (P/E 15, P/FCF ~16) — Buffett-zone. Het Buffett-bezwaar is zware US-concurrentie van Walmart en discount-spelers.
-- **Score (0-5):** 4
+- **Oordeel:** GEDEELTELIJK
+- **ROIC structureel boven WACC?** true
+- **Toelichting:** Het bedrijf is begrijpelijk en de kasstromen zijn voorspelbaar: mensen blijven boodschappen doen en de vrije kasstroom na lease lag acht jaar tussen €1,6 en €2,6 mld. Het rendement op kapitaal ligt elk jaar boven de kapitaalkosten, maar met circa 10% niet twee keer zo hoog als de WACC van 5,52%. Dat past bij een smalle slotgracht: lokale schaal, geen prijsmacht. Het management is degelijk. De prijs is redelijk tot aantrekkelijk, met een koers/vrije kasstroom van 12,5. Buffett zou het een goed bedrijf tegen een eerlijke prijs noemen, geen uitzonderlijk bedrijf. Het punt van zorg is de Amerikaanse markt, waar Walmart de prijzen bepaalt.
+- **Score (1-5):** 3 (ROIC > WACC structureel, moat NARROW, P/FCF 12,54 ≤ 30; geen 2× WACC)
 
 ### Peter Lynch
-- **Categorie:** Stalwart (volwassen large-cap met betrouwbare matige groei)
-- **Oordeel:** INTERESSANT
-- **PEG-ratio:** P/E 15 / verwachte EPS-groei 6-7% = PEG ~2,3. Boven Lynch's <1,5 zone.
-- **Toelichting:** Stalwart-categorie. Verhaal is helder ("supermarkten in NL en VS; mensen blijven eten"). PEG ~2,3 te hoog voor Lynch's voorkeur — hij zou wachten op koers <€32 voor PEG <2.
-- **Score (0-5):** 3
+- **Categorie:** Stalwart
+- **Oordeel:** NEUTRAAL
+- **PEG-ratio:** 1,83
+- **Toelichting:** Ahold Delhaize is een klassieke stalwart: een groot, solide bedrijf dat langzaam groeit en weinig risico op ondergang heeft. Het verhaal is in twee zinnen uit te leggen: de groep verkoopt boodschappen in Nederland, België en het oosten van de VS en geeft het meeste geld terug aan aandeelhouders. De winst per aandeel groeit vooral door inkoop; de consensus verwacht 6,8% per jaar tot 2028. Met een P/E van 12,5 geeft dat een PEG van 1,83. Lynch kocht stalwarts graag na een daling van 30-50% om ze bij herstel te verkopen; het aandeel staat 26% onder de 52-weekstop, maar de PEG ligt boven zijn grens van 1,5.
+- **Score (1-5):** 2 (PEG 1,83 ≤ 2,0)
 
 ### Phil Fisher
 - **Oordeel:** GEMIDDELD
-- **Toelichting:** Op de 15 Fisher-criteria scoort AD gemiddeld. R&D nauwelijks van toepassing voor supermarkt-retail. Margebescherming via lokale schaal. Management-integriteit hoog (Muller-tenure consistent, ondanks 2024-CFO-overgang). Producten zijn commodity (boodschappen). Het Fisher-criterium "groei-product met groei-markt" is matig; voedingsretail groeit met inflatie + lichte volume.
-- **Score (0-5):** 3
+- **Toelichting:** Fisher zocht bedrijven met producten die nog jaren kunnen groeien, een sterke innovatiecultuur, beschermde marges en integer management. Ahold Delhaize scoort gemengd. Groei zit in online (11% van de omzet, in de VS 14,5% groei in Q2 2026), eigen merken en data, maar de kernmarkt groeit met de inflatie. Een onderzoeksbudget wordt niet gerapporteerd; wel stijgen de investeringen in digitaal en technologie (JV 2025 noemt een "step up" in digitale investeringen voor 2026). De marge is stabiel rond 4%, maar wordt eerder beschermd door besparingen van €1,25 mld per jaar dan door een slotgracht. Het management beoordeel ik als STERK. Eén van drie Fisher-criteria is daarmee duidelijk gehaald.
+- **Score (1-5):** 3 (management STERK; margebescherming niet aantoonbaar door de moat; groeiend digitaal investeringsbudget)
 
 ### Magic Formula (Greenblatt)
-- **Oordeel:** AANTREKKELIJK
-- **Earnings yield %:** EBIT/EV = €3,7 mld / (€37,6 mld + €5,6 mld nettoschuld) = €3,7 mld / €43,2 mld = ~8,6%. Goed.
-- **Return on capital %:** EBIT / (NWC + Net fixed assets). AD heeft licht negatieve NWC + €15 mld+ fixed assets (lease-rights + winkels) = ROC ~25%. Bovengemiddeld.
-- **Toelichting:** Greenblatt scoort AD goed op beide assen — earnings yield 8,6% (omgekeerd EV/EBIT 12) en ROC ~25%. In een Greenblatt-screen top-quintile.
-- **Score (0-5):** 4
+- **Oordeel:** GEMIDDELD
+- **Earnings yield %:** 8,60 (underlying EBIT TTM €3.730 mln / EV incl. lease €43.380 mln)
+- **Return on capital %:** 22,8 (underlying EBIT TTM / (netto werkkapitaal −€5.278 mln + materiële vaste activa, gebruiksrechten en vastgoed €21.625 mln), balans eind 2025)
+- **Toelichting:** Greenblatt zoekt bedrijven die goedkoop zijn (hoog bedrijfsrendement ten opzichte van de ondernemingswaarde) en goed (hoog rendement op het tastbare kapitaal). Ahold Delhaize is goedkoop: elke euro ondernemingswaarde levert 8,6 cent bedrijfsresultaat op, meer dan bij de meeste bedrijven in de AEX. Op kwaliteit scoort het middelmatig: 22,8% rendement op tastbaar kapitaal is goed voor een supermarkt dankzij het negatieve werkkapitaal, maar ver van de 50% van een topbedrijf. In een Magic Formula-screen zou het aandeel vooral om de goedkope kant scoren.
+- **Score (1-5):** 3 (earnings yield ≥ 5%; score 4 vereist ook ROC ≥ 30%)
 
 ### Moat
-- **Score (0-5):** 3
-- ROIC-WACC spread structureel ~5-6pp; geen STERK-categorie; alle 5 categorieën MIDDEL of ZWAK. Voldoet aan rubric "NARROW moat (1-2 categorieën STERK) EN ROIC-WACC spread > 5pp" — net aan; geen STERK-categorie maar wel solide NARROW-moat-positie. Score 3.
+- **Score (1-5):** 2. NARROW MOAT met één categorie STERK (efficiënte schaal), maar de ROIC-WACC-spread ligt in 2025 op 4,6 procentpunt en in acht van de tien jaren onder 5 procentpunt. De rubric voor score 3 eist een spread boven 5 procentpunt; daarom score 2 ("spread < 5pp").
 
 ### Management
-- **Score (0-5):** 4
-- Capital allocation consistent (organische capex + dividend + €1 mld buyback per jaar), prikkels aligned, geen materiële controverses, open over Stop & Shop-review. Score 5 zou owner-operator >1% directe individuele insider eisen — n.v.t.
+- **Score (1-5):** 4. Capital allocation GOED (stabiele kasstroom, ruime uitkering, één misser in FreshDirect), prikkels aligned (bonus op rendement op kapitaal, kasstroom en EPS), geen materiële governancecontroverses. Score 5 vereist excellente capital allocation en meer dan 1% insiderbelang; het bestuur bezit 0,06%.
 
 ### Fair Value DCF
-- **Score (0-5):** 4
-- Upside basis-scenario: +25% (€50 vs €40). Valt in rubric-bandbreedte "upside ≥ 15% EN < 30% → score 4".
+- **Score (1-5):** 5. Basis-fair-value €81,23 tegen koers €31,38: upside 158,9% (≥ 30%). Deze score kantelt naar 4 bij een WACC van 8,06%, naar 3 bij 9,20%, naar 2 bij 10,30% en naar 1 bij 11,35% (sectie 12).
 
 ### Fair Value IPO-gecorr.
-- **Score (0-5):** 4
-- IPO ~78 jaar geleden voor Ahold; AD-fusie 2016 (10 jaar geleden) — randgeval, maar fusie was geen klassieke IPO-with-cash-out. Score = basis-DCF = 4.
+- **Score (1-5):** 5. Beursnotering sinds 1948 en fusie in 2016 zonder geldopname: meer dan tien jaar, dus gelijk aan Fair Value DCF.
 
 ### Scorekaart totaal
-- **Totaalscore:** 3 + 4 + 3 + 3 + 4 + 3 + 4 + 4 + 4 = **32**
+- **Totaalscore:** 4 + 3 + 2 + 3 + 3 + 2 + 4 + 5 + 5 = **31**
 - **Max:** 45
-- **Eindoordeel:** **HOLD**
-  - Regel: totaal=32 → niet ≥33 (geen KOOP); niet <24 (geen PASS); Fair Value DCF=4 (≥3) → **HOLD**.
-- **Samenvatting:** Ahold Delhaize is een narrow-moat consumer-staple-supermarkt met multi-geo-portfolio, structureel 4% underlying op-marge en gedisciplineerde 6-7% dividend-groei plus €1 mld buyback per jaar. Het scorekaart-totaal van 32/45 valt net onder de KOOP-drempel (≥33) — één punt tekort. De DCF-fair-value van €50 ligt 25% boven de huidige koers en de reverse-DCF-implicatie van slechts 2,3% groei toont dat de markt vol pessimisme over US-marge prijst. Voor een dividendbelegger met lange horizon (€1,24 dividend = 3,1% yield) of een waardebelegger zoekend naar onderschatte defensieve compounders is AD aantrekkelijk. **Discretionaire keuze:** executive_summary.oordeel staat op KOOP wegens 25% upside (substantieel) en pessimistische marktverwachtingen — methodisch volg ik de upside-implicatie en wijk af van de mechanische scorekaart. Stage-2 mag dit valideren of corrigeren naar HOLD voor strikte rubric-naleving.
+- **Eindoordeel:** **HOLD** (31 is niet ≥ 33, dus geen KOOP; niet < 24 en DCF-score niet 1, dus geen PASS)
+- **Samenvatting:** Ahold Delhaize is een degelijke supermarktgroep met een smalle slotgracht: sterk in Nederland, middelgroot in de VS, met een stabiele marge van 4% en een rendement op kapitaal rond 10%. De koers van €31,38 is laag ten opzichte van de eigen historie (P/E 12,5 tegen gemiddeld 15,3) en ten opzichte van de kasstroom (rendement circa 8%). De DCF komt met de rubric-WACC van 5,52% op €81,23, maar die uitkomst rust vooral op een regressiebeta van 0,31; de markt rekent impliciet met circa 10%. De synthese van DCF, multiples en EPV geeft €49,52, met een koopniveau van €37,14 bij 25% veiligheidsmarge. De koers ligt daaronder, maar de scorekaart komt op 31 en dus HOLD, omdat moat, groei en PEG zwak scoren. Het oordeel blijft HOLD bij elke WACC tussen 5,5% en 11,3%; pas boven 11,35% wordt het PASS. De belangrijkste onzekerheid is de Amerikaanse marge; de eerstvolgende toets zijn de Q3-cijfers op 4 november 2026, met de eerste inschatting van de schade door het cyberincident.
 
 ---
 
@@ -354,20 +571,22 @@ Jaren 2015-2019 — GEEN BRON BESCHIKBAAR (binnen sessie-tijd)
 
 | # | Omschrijving | Kans | Impact | DCF-aanname geraakt | Toelichting |
 |---|---|---|---|---|---|
-| 1 | US-prijsconcurrentie van Walmart/Aldi/Lidl | HOOG | GROOT | underlying op-marge | Pricing-investering om volume vast te houden drukt marge structureel. Bij daling 4% naar 3,5% = 12,5% EPS-impact. |
-| 2 | Stop & Shop-strategische review-uitkomst | HOOG | MIDDEL | omzet-mix, eenmalige boekverliezen | Mogelijke afsplitsing/verkoop kan eenmalige boekverliezen genereren maar verbetert structureel mix. Onzekere uitkomst per peildatum. |
-| 3 | Inflatie-deflatie-cyclus | HOOG | MIDDEL | omzet en marge | 2023-2024 toonde dat snel-veranderende inflatie marge-volatiliteit creëert door pass-through-vertraging. |
-| 4 | FX-translation USD/EUR | HOOG | MIDDEL | gerapporteerde omzet en EPS | 65% omzet in USD; 10% verzwakking USD = ~6% gerapporteerde omzet-druk. Niet hedge-bare structureel. |
-| 5 | Online-fulfillment-investering drukt korte-termijn-marge | MIDDEN | KLEIN | EBIT-marge 1-2 jaar | Stop & Shop online was verlieslatend tot 2024; bol.com investeringen in NL idem. |
-| 6 | Online-substitutie door Amazon Fresh | MIDDEN | MIDDEL | omzet-mix US | Amazon Fresh + WholeFoods uitbreiding in Noordoost-VS dreigt Stop & Shop-volume te eroderen. |
-| 7 | Belgische Delhaize franchise-conversie-druk | MIDDEN | KLEIN | EBIT-marge BE | Lopende conversie van eigen winkels naar franchise in BE; korte-termijn margedruk maar lange-termijn-uitschakeling van vakbond-issues. |
-| 8 | Pre-IPO financial-engineering check | n.v.t. | n.v.t. | n.v.t. | NIET GECONSTATEERD. AD is sinds decennia genoteerd; fusie 2016 was all-stock zonder schuld-load of insider-cashout. |
+| 1 | Cyberincident van oktober 2026 duurt langer of blijkt een datalek | MIDDEN | MIDDEL | FCF jaar 1, marge, merkwaarde | Sinds 11 oktober liggen websites, apps, bonuskaarten, klantenservice en een deel van de distributiecentra van Albert Heijn stil, met lege schappen bij groente en fruit; ook Delhaize en de Amerikaanse merken melden storingen. Of er data is buitgemaakt is onbekend. Bij het vorige incident (november 2024) ging het om gegevens van 2,2 miljoen mensen. Een week omzetverlies online en hogere kosten raken één kwartaal; een datalek kan leiden tot AVG-boetes en blijvend klantverlies. |
+| 2 | Prijsoorlog en zwakke consument in de VS | HOOG | GROOT | onderliggende marge, groei fase 1 | Walmart, Kroger en Albertsons waarschuwden in 2026 voor een zwakkere Amerikaanse markt. Ahold Delhaize investeert $1 mld in lagere prijzen tot 2028 en de vergelijkbare omzetgroei in de VS was in Q2 2026 maar 0,8%. UBS verwacht geen margeherstel meer in de VS. Een daling van de groepsmarge van 4,0% naar 3,5% kost circa €0,46 mld bedrijfsresultaat per jaar, ruim 12% van het totaal. |
+| 3 | Nieuwe CEO verandert strategie of kapitaalbeleid | MIDDEN | MIDDEL | groei, capex, uitkering | Thierry Garnier komt van Kingfisher, een doe-het-zelfketen, en neemt in 2027 over. Een nieuwe topman kan de strategie herzien, afboekingen nemen of de investeringen verhogen ten koste van de inkoop. Zijn loopbaan lag volgens het persbericht bij Carrefour en Kingfisher, niet in de Amerikaanse supermarktmarkt waar de grootste uitdaging ligt. De markt reageerde op de aankondiging met een koersdaling van ruim 2% op 7 mei 2026. |
+| 4 | Zwakkere dollar | HOOG | MIDDEL | gerapporteerde omzet en FCF in euro | 57,5% van de omzet is in dollars. In H1 2026 kromp de omzet 2,0% in euro's terwijl die tegen constante koersen 2,0% groeide. Een dollar die 10% zwakker wordt, verlaagt de groepsomzet in euro's met circa 6% en de waarde van de Amerikaanse kasstromen in gelijke mate. Het bedrijf dekt dit omrekeningsrisico niet af. |
+| 5 | Kapitaalkosten hoger dan de rubric aanneemt | MIDDEN | GROOT | WACC, terminal value | De WACC van 5,52% rust op een regressiebeta van 0,31. Met een bottom-up beta (Damodaran, supermarkten VS, 1,06) wordt de WACC 7,20% en de basis-fair-value €53,20. De koers impliceert 10,3%. Een stijging van de Duitse tienjaarsrente (nu 3,48%) verhoogt de WACC verder. Dit risico is het grootst voor het DCF-oordeel. |
+| 6 | Arbeidskosten, vakbonden en pensioenen | MIDDEN | MIDDEL | marge | Ahold Delhaize heeft veel vakbondspersoneel in de VS met bedrijfstakpensioenfondsen; de afkoop daarvan kostte in 2020 €1,4 mld. In 2024 kostte de overgang naar een nieuwe Nederlandse pensioenregeling €277 mln. Loonstijgingen in Nederland en België komen bovenop de prijsinvesteringen, en personeel is na inkoop de grootste kostenpost (€12,9 mld in 2025, 14% van de omzet). Elke cao-ronde zonder compenserende besparingen gaat direct van de marge van 4% af. |
+| 7 | Integratie Profi en Midden- en Oost-Europa | LAAG | KLEIN | groei, marge Europa | Profi (Roemenië) had in 2025 een licht negatief effect op de nettowinst. De goodwill van €0,73 mld en de inflatie in Roemenië (boven 9% volgens het jaarverslag) en Servië maken deze landen gevoeliger voor afboekingen en margedruk. Ook de Delfood-overname (februari 2026) moet nog worden ingepast. Samen zijn deze activiteiten een klein deel van de groep. |
+| 8 | Pre-IPO financial engineering | LAAG | KLEIN | n.v.t. | Niet geconstateerd. Albert Heijn is sinds 1948 genoteerd; de fusie van 2016 was in aandelen, zonder schuldopbouw bij verbonden partijen, zonder dividendherkapitalisatie en zonder uitstap van insiders. Er zijn geen beursgangopbrengsten gebruikt om schulden aan insiders af te lossen. Een gecorrigeerde fair value is daarom niet nodig; de IPO-gecorrigeerde score is gelijk aan de DCF-score. |
+
+Gevoeligste DCF-aannames: de WACC (risico 5) en de marge (risico 2). Niet te verifiëren: de omvang van het cyberincident en de insidertransacties.
 
 ---
 
 ## 9. These invalide bij
 
-Deze KOOP-thesis (op upside) is weerlegd wanneer (a) underlying operating margin daalt onder 3,5% (vs 4,0%) zonder duidelijke FX- of eenmalige uitleg = structureel concurrentieverlies, (b) FCF daalt onder €2,0 mld per jaar = onhoudbaar dividend+buyback-niveau, (c) Stop & Shop-review leidt tot meerdere miljarden boekverliezen of strategische verkoop-onder-verwacht-niveau, (d) US-comp-store-sales twee opeenvolgende jaren <0% = volume-erosie aan Walmart, of (e) koers stijgt boven €52 (basis-fair-value) waarbij upside is verdwenen.
+Deze HOLD-these met waarderingsbuffer is weerlegd wanneer (a) de onderliggende bedrijfsmarge twee kwartalen achter elkaar onder 3,5% zakt zonder valuta- of eenmalige verklaring, (b) de vrije kasstroom volgens het bedrijf in 2026 of 2027 onder €2,0 mld uitkomt, (c) uit het cyberincident blijkt dat klant- of betaaldata zijn gestolen of dat de verstoring langer dan twee weken duurt, of (d) de nieuwe CEO het inkoopprogramma stopzet voor een grote overname. Omgekeerd verdwijnt de waarderingsbuffer boven circa €50 per aandeel, het centrale punt van de synthese.
 
 ---
 
@@ -377,13 +596,14 @@ Deze KOOP-thesis (op upside) is weerlegd wanneer (a) underlying operating margin
 
 | Factor | SASB-categorie | Risiconiveau | Financiële impact | DCF-impact |
 |---|---|---|---|---|
-| Voedselveiligheid en kwaliteit | FB-FR-250a | HOOG | Recall-incidenten kunnen reputatie en marge raken | klein-middel |
-| Werknemers-arbeidsomstandigheden | FB-FR-310a | MIDDEN | Vakbond-onderhandelingen US (UFCW), staking-risico | middel |
-| Plastic-verpakking en voedselverspilling | FB-FR-430a | MIDDEN | EU-regulatie (PPWR) en lokale eisen | klein |
-| Klimaat (Scope 1+2 koelkasten/vrachtwagens) | FB-FR-110a | MIDDEN | 2030-target carbon-neutral eigen operations; capex-impact | klein-middel |
+| Datasecurity en cyberrisico | FB-FR-230a (Data security) | Hoog | Twee incidenten binnen twee jaar; in 2024 gegevens van 2,2 mln mensen buitgemaakt; in oktober 2026 stillegging van webwinkels, apps en distributiecentra | FCF jaar 1, kans op boetes, merkwaarde |
+| Voedselveiligheid | FB-FR-250a | Midden | Terugroepacties en uitbraken (zoals de cyclospora-uitbraak via ijsbergsla in de VS, juli 2026) raken omzet en reputatie | klein |
+| Arbeid en pensioenen | FB-FR-310a | Midden | Vakbondsonderhandelingen in de VS; pensioenafkoop 2020 €1,4 mld; Nederlandse pensioenovergang 2024 €277 mln | marge |
+| Klimaat (koeling, transport, energie) | FB-FR-110a/b | Midden | Doel: 50% minder scope 1+2-uitstoot in 2030 t.o.v. 2018; behaald was 52,1% in 2025. Gekoppeld aan obligatiecoupons (+25 tot +50 bp bij missen) | klein |
+| Voedselverspilling en verpakking | FB-FR-430a | Laag | Voedselverspilling −39,1% t.o.v. 2016 (doel −50% in 2030); EU-verpakkingsregels | klein |
 
 - **Eindoordeel ESG:** GEMIDDELD RISICO
-- **Toelichting:** AD scoort op MSCI ESG AA tot A — bovengemiddeld voor sector. "Healthier and more sustainable food"-strategie omvat scope 1+2 net-zero 2030, scope 3 doel 2050. Belangrijkste ESG-zorg is werknemers-arbeid in US (Stop & Shop-stakingen 2019 hadden materiële impact).
+- **Toelichting:** MSCI geeft Ahold Delhaize een AA-rating (JV 2025). De klimaatdoelen voor de eigen uitstoot zijn al vóór 2030 gehaald en de rentekosten van een deel van de obligaties hangen eraan, wat de doelen geloofwaardig maakt. Het grootste ESG-risico is op dit moment datasecurity: twee incidenten in twee jaar zijn voor een bedrijf met tientallen miljoenen klanten met loyaliteitsprofielen een serieus risico, ook financieel. Arbeid blijft een aandachtspunt door de grote vakbondspopulatie in de VS.
 
 ---
 
@@ -391,132 +611,179 @@ Deze KOOP-thesis (op upside) is weerlegd wanneer (a) underlying operating margin
 
 | Datum ca. | Omschrijving | Richting | Impact |
 |---|---|---|---|
-| 2026-04 | AGM 2026 — slot-dividend €0,77 (na interim €0,47) — verstreken | POSITIEF | KLEIN |
-| 2026-05 | Q1 2026 results | NEUTRAAL | KLEIN |
-| 2026-08 | H1 2026 results — eerste check op 2026 4%-marge-guidance | BINAIR | GROOT |
-| 2026-Q3 | Mogelijke Stop & Shop-review-uitkomst aankondiging | BINAIR | GROOT |
-| 2026-Q4 | Q3 2026 results | NEUTRAAL | KLEIN |
-| 2027-Q1 | FY2026 results + 2027-guidance | BINAIR | GROOT |
-| 2026-2027 | Voortgaande €1 mld buyback-programma | POSITIEF | KLEIN |
-| 2027-2028 | Mogelijke Capital Markets Day update strategy "Growing Together" | POSITIEF | MIDDEL |
+| 2026-10 | Herstel na het cyberincident: hoe snel webwinkels, bonuskaart en distributiecentra terug zijn en of er data is gestolen | BINAIR | MIDDEL |
+| 2026-11 | Q3 2026-cijfers (4 november): eerste kwantificering van het incident, bevestiging van de outlook 2026 (marge circa 4%, FCF ≥ €2,3 mld) | BINAIR | GROOT |
+| 2026-11 | Afronding inkoopprogramma €1 mld (gepland vóór eind 2026; €862,6 mln gedaan per 2-10) en mogelijk nieuw programma voor 2027; in 2024 en 2025 werd dat bij de Q3-cijfers aangekondigd | POSITIEF | KLEIN |
+| 2026-Q4/2027-Q1 | Buitengewone aandeelhoudersvergadering voor de benoeming van Thierry Garnier (datum nog niet bekend) | NEUTRAAL | KLEIN |
+| 2027-02 | Jaarcijfers 2026 (53 weken) en outlook 2027; voorstel slotdividend | BINAIR | GROOT |
+| 2027-04 | Jaarvergadering en CEO-wissel van Muller naar Garnier | NEUTRAAL | MIDDEL |
+| 2028-12 | Einde strategische periode: doelen €9 mld cumulatieve FCF 2025-2028, €5 mld besparingen, marge rond 4% | POSITIEF | MIDDEL |
 
 ---
-
 ## 12. Fair value — kwantitatief (DCF)
 
+### DCF-invoeren
+
+```
+Basis            fcf=2441 shares=873.76 net_cash=-5186 gross_debt=8486 revenue=91424
+                 koers=31.38 ipo_jaar=1948
+WACC             rf=3.48 erp=4.23 beta=0.54 crp=0.30 size_premium=0
+                 cost_of_debt_pretax=4.72 tax_rate=20.7
+Pessimistisch    g1=0.0 g2=1.0 gt=1.5 wacc_adj=1.75 kans=35
+Basis            g1=3.0 g2=2.5 gt=2.0 wacc_adj=0.0 kans=45
+Optimistisch     g1=4.5 g2=3.0 gt=2.0 wacc_adj=0.0 kans=20
+EPV              norm_ebit_margin=4.24 maintenance_capex=2208 da=2208
+                 norm_ebitda_margin=8.28
+Multiples        pe=12.50 pb=1.90 p_fcf=12.54 peg=1.83
+Rendement        roic=10.1 earnings_yield=8.60 roc_greenblatt=22.8
+Kwalitatief      moat_oordeel=NARROW moat_categorieen_sterk=1
+                 management_oordeel=STERK
+                 capital_allocation=GOED insider_alignment_pct=0.06
+                 roic_wacc_spread_5j_plus=true structureel_dividend=true debt_equity=1.33
+Eenheid          bedragen in EUR mln; percentages als getal (3.05 = 3,05%)
+```
+
+Toelichting op de invoeren (nodig om na te rekenen):
+- `fcf` = genormaliseerde FCFF na netto leasebetalingen en na SBC (zie DCF model-specs). Omdat de huur als bedrijfslast in de FCFF zit, is `net_cash` de nettoschuld **exclusief** leaseverplichtingen (−5.186 = −(19.261 − 10.775 − 3.300), per 28-06-2026) en `gross_debt` de financiële schuld exclusief lease (8.486). De leaseverplichting van 10.775 nogmaals aftrekken zou de huur dubbel tellen.
+- `shares` = 873,76 mln per 28-06-2026, dezelfde datum als de nettoschuld.
+- Model: 2-fase, jaren 1-5 groei g1, jaren 6-10 groei g2, Gordon-eindwaarde op jaar 10 met gt. Mid-year convention: kasstroom van jaar t verdisconteerd met (1+WACC)^(t−0,5); eindwaarde verdisconteerd met (1+WACC)^10.
+- `crp` = 0,575 × 0,23% (VS) + 0,210 × 0,78% (overige landen, Belgisch tarief) = 0,30%.
+- `roic_wacc_spread_5j_plus=true` betekent: ROIC boven WACC in alle jaren 2017-2025; de spread is nooit boven 10 procentpunt geweest.
+- `debt_equity` = bruto schuld incl. lease / eigen vermogen per 28-06-2026 (19.261 / 14.445).
+- EPV-formule: zie EPV-blok; ik trek lease-rente af van het genormaliseerde EBIT. Een script dat dat niet doet, komt hoger uit (zie Opmerkingen voor Claude Code).
+
 ### WACC-componenten
-- **Risicovrije rente %:** 3,02
-- **Bron risicovrije rente:** Duitsland 10y Bund yield, peildatum 27-04-2026 (TradingEconomics).
-- **Type:** spot.
+- **Risicovrije rente %:** 3,48
+- **Bron risicovrije rente:** Duitse 10-jaars staatsobligatie op 13-10-2026 (tradingeconomics.com). Euro, omdat alle kasstromen in euro zijn gemodelleerd.
+- **Type:** spot. De spot ligt ruim 150 bp boven het gemiddelde van de afgelopen tien jaar (de Bund was in 2019-2021 negatief). Een genormaliseerde rente zou de WACC verder verlagen en de DCF-uitkomst nog verder van de markt brengen; gezien het lage-beta-probleem hieronder kies ik bewust de hogere spotrente.
 - **ERP (equity risk premium) %:** 4,23
-- **Bron ERP:** Aswath Damodaran, "Implied ERP — January 2026" (mature market).
-- **Beta (adjusted, Blume):** 0,70 (= 2/3 × 0,55 + 1/3 × 1,00; raw beta AD.AS schatting 0,55 op basis van defensieve consumer-staple-profile en peer-set Tesco/Carrefour/Kroger).
-- **Bron beta:** Sector-mediaan defensieve voedingsretail; Yahoo Finance AD.AS Beta niet expliciet in zoekresultaten gevonden.
-- **Type beta:** geschat (peer-derived).
-- **Country risk premium %:** 0 (Nederland + VS + EU mature).
-- **Size premium %:** 0 (large-cap, marktkap €38 mld).
-- **Cost of equity %:** 3,02 + 0,70 × 4,23 = **5,98**
-- **Schuldkosten na belasting %:** 4,0 × (1 - 0,25) = **3,00**
-- **E/V gewicht %:** 80,0 (€37,6 mld equity / €47 mld total cap inclusief €9,4 mld bruto schuld)
-- **D/V gewicht %:** 20,0
-- **WACC %:** 0,80 × 5,98 + 0,20 × 3,00 = 4,78 + 0,60 = **5,38**, afgerond naar **5,5** voor DCF
-- **Sector WACC % (referentie Damodaran):** ~6,0-7,0% voor "Food Wholesalers" en "Retail (Grocery)" — onze 5,5% ligt onderaan de range door defensieve beta. Aanvaardbaar voor AD's mature multi-geo-supermarkt-positie.
-- **Illiquiditeitskorting %:** 0 (large-cap, dagvolume miljoenen aandelen).
+- **Bron ERP:** Damodaran, implied ERP (FCFE) begin 2026, histimpl.html (update januari 2026)
+- **Beta (adjusted, Blume):** 0,54 (= 0,67 × 0,31 + 0,33)
+- **Bron beta:** regressiebeta 5 jaar 0,31, StockAnalysis (AD, okt. 2026); Yahoo gaf geen waarde. Ter controle: peers Kroger 0,35, Albertsons 0,23, Tesco 0,56, Carrefour 0,58, Sainsbury 0,98 (zelfde bron).
+- **Type beta:** regressie (5 jaar). Ahold Delhaize is ruim vijf jaar genoteerd en liquide (gemiddeld 2,35 mln aandelen per dag), dus METHODE schrijft de regressiebeta voor.
+- **Robuustheid:** bottom-up beta = Damodaran unlevered beta Retail (Grocery and Food, VS, jan 2026, gecorrigeerd voor kas) 0,85 × (1 + (1 − 0,207) × 8.486/27.419) = 1,06 → cost of equity 8,26%, WACC 7,20%, basis-fair-value €53,20. Damodaran's eigen sector-WACC voor Amerikaanse supermarkten is 7,24%.
+- **Country risk premium %:** 0,30
+- **Size premium %:** 0 (marktwaarde €27,4 mld)
+- **Cost of equity %:** 3,48 + 0,54 × 4,23 + 0,30 = 6,06
+- **Schuldkosten na belasting %:** 4,72 × (1 − 0,207) = 3,74
+- **E/V gewicht %:** 76,37 (marktwaarde €27.419 mln / (27.419 + financiële schuld 8.486))
+- **D/V gewicht %:** 23,63
+- **WACC %:** 5,52
+- **Sector WACC % (referentie Damodaran):** 7,24 (Retail Grocery and Food, VS, jan 2026)
+- **Illiquiditeitskorting %:** null
 
 ### DCF model-specs
-- **Model type:** 2-fase met expliciete 5-jaars projectie + Gordon-growth terminal.
-- **FCF-definitie:** FCF to firm = CFO - capex, verdisconteerd tegen WACC.
-- **Basis FCF (genormaliseerd):** **2.500** (gerapporteerd 2024 niveau; FY2025 guidance >2,3 mld als ondergrens; geen cycliciteits-correctie nodig).
-- **Basis FCF na SBC:** 2.500 (SBC verwaarloosbaar voor AD).
-- **FCF-type:** "Gerapporteerde FCF circa €2.500 mln, structureel — defensieve consumer-staple."
-- **Groei fase 1 % (jaar 1-5):** 3,5 (basis-scenario — overeen met inflatie + lichte volume-groei + buyback-FCF/aandeel-effect).
-- **Groei fase 2 % (jaar 6-10):** n.v.t. (2-fase model).
-- **Terminal groei %:** 2,0 (consumer-staple-norm, EU-inflatie).
-- **Terminal methode:** Gordon growth (primair) + cross-check via exit multiple.
-- **Exit multiple gebruikt:** EV/EBITDA = 9x (sector-mediaan supermarket-retail 7-12x; mid-point voor AD).
-- **Bron exit multiple:** Sector-mediaan Damodaran "Retail (Grocery)" + peer-set Kroger, Tesco, Carrefour.
-- **Terminal value Gordon growth:** FCF jaar 6 (~€2.97 mld bij 3,5% groei) / (5,5% - 2%) = ~€85 mld
-- **Terminal value exit multiple:** EBITDA jaar 5 ~€5,5 mld × 9 = €49 mld; ligt onder Gordon — gemiddelde gehanteerd ~€67 mld.
-- **Terminal value % van totaal:** ~70% (binnen <75% drempel).
-- **Terminal implied EV/EBITDA:** Gordon: ~13x; exit-multiple: 9x — middenvariant 11x, redelijk voor mature retailer.
-- **Terminal groei consistentie:** "Terminal groei 2,0% bij ROIC 10% (mature) → reinvestment 20% — plausibel voor mature retailer met capex 3% van omzet."
-- **Mid-year convention:** true.
-- **Aandelen uitstaand (mln):** ~940 (na buyback-programma's).
-- **Nettoschuld huidig:** 5.600 (af te trekken van enterprise value).
+- **Model type:** 2-fase (5 + 5 jaar) met Gordon-eindwaarde
+- **FCF-definitie:** FCFF na netto leasebetalingen en SBC: cash generated from operations − genormaliseerde operationele belasting − bruto capex + verkoop van activa + dividend van joint ventures − (aflossing leaseverplichtingen − ontvangen leasetermijnen) − SBC
+- **Basis FCF:** 2.441 = mediaan FCFF-marge 2018-2025 (2,67%) × TTM-omzet €91.424 mln
+- **Basis FCF na SBC:** 2.441 (SBC al afgetrokken)
+- **FCF-type:** Genormaliseerde FCFF 2.441 mln (mediaan-marge 2018-2025 × huidige omzet, met genormaliseerde kasbelasting)
+- **Groei fase 1 %:** 3,0
+- **Groei fase 2 %:** 2,5
+- **Terminal groei %:** 2,0
+- **Terminal methode:** Gordon growth; exit multiple als controle
+- **Exit multiple gebruikt:** 6,3 × EBITDA na leasebetalingen
+- **Bron exit multiple:** mediaan EV/EBITDA van Kroger (7,39), Albertsons (6,09), Carrefour (6,22), Tesco (8,04) en Sainsbury (6,31), StockAnalysis okt. 2026
+- **Terminal value Gordon growth:** 92.892 (in jaar 10; contante waarde 54.301)
+- **Terminal value exit multiple:** 45.175 (6,3 × EBITDA na lease in jaar 10 van 7.171)
+- **Terminal value % van totaal:** 71,3 (< 75%)
+- **Terminal implied EV/EBITDA:** 12,7 (op EBITDA na lease); de exit-multiple-variant ligt 51% lager, wat laat zien dat de markt supermarkten tegen veel hogere rendementseisen waardeert dan de rubric-WACC
+- **Terminal groei consistentie:** Terminal groei 2,0% vereist bij een ROIC van circa 10% een herinvesteringsgraad van 20% van het bedrijfsresultaat na belasting. In het model is de FCFF circa 90% van de NOPAT, dus de impliciete herinvestering is 10% en het veronderstelde rendement op nieuwe investeringen circa 20%. Dat is ruim, maar verdedigbaar omdat groei in een supermarkt grotendeels via prijsinflatie op een bestaand netwerk loopt. 2,0% ligt onder de langetermijngroei van het nominale bbp in de eurozone en de VS.
+- **Mid-year convention:** true
+- **Aandelen uitstaand (mln):** 873,76
+- **Nettoschuld huidig:** 5.186 (excl. lease; incl. lease 15.961)
 
 ### DCF-toelichting
-De DCF gebruikt 2024-FCF van €2,5 mld als basis (FY2025 specifiek totaal niet expliciet — guidance >€2,3 mld voor 2026 wijst op stabiel niveau). Geen cycliciteits-correctie nodig. Fase-1 groei van 3,5% over 5 jaar (basis) past bij inflatie + lichte volume + per-aandeel-effect via buyback. Terminal groei 2% past bij EU-inflatie. Terminal value ~70% van totaal — binnen <75%. Mid-year convention toegepast. Nettoschuld €5,6 mld afgetrokken. De drie scenario's variëren met fase-1 groei (1%, 3,5%, 5%) en kansen (25/50/25) — basis breed gewogen voor defensief profiel.
+Ahold Delhaize is niet cyclisch, dus ik neem de FCFF over acht jaar (2018-2025, alle jaren onder IFRS 16) als vertrekpunt. Huur behandel ik als bedrijfslast: de volledige netto leasebetaling gaat van de kasstroom af en de leaseverplichting telt niet mee in de schuld. De kasbelasting is genormaliseerd (REGEL 5): in plaats van de betaalde belasting reken ik 20,7% over het onderliggende bedrijfsresultaat na lease-rente; dat verlaagt de FCFF 2025 met €177 mln. De FCFF lag tussen €1.784 mln (2019, dal) en €2.482 mln (2025, piek), gemiddeld €2.082 mln. Het gekozen startpunt van €2.441 mln (mediaanmarge 2,67% × huidige omzet) ligt 1,7% onder 2025 en 12,6% boven de TTM, die gedrukt is door werkkapitaal; geen van beide wijkt meer dan 20% af. De eindwaarde is 71% van de waarde. De grote zwakte is de WACC van 5,52%, die rust op een beta van 0,31.
 
-### 5-jaars projectie (basis-scenario)
+### 5-jaars projectie (basisscenario; J1 = jul-2026 t/m jun-2027)
 
-| Jaar | Net sales | Sales-groei % | EBIT (underlying) | EBIT-marge % | NOPAT | Capex | ΔNWC | SBC | FCF |
+| Jaar | Omzet | Omzetgroei % | EBIT | EBIT-marge % | NOPAT | Capex | ΔNWC | SBC | FCF |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026 | 95.700 | 3,6 | 3.830 | 4,0 | 2.875 | 2.700 | -50 (negatief) | 50 | 2.575 |
-| 2027 | 99.000 | 3,4 | 3.960 | 4,0 | 2.970 | 2.750 | -50 | 50 | 2.660 |
-| 2028 | 102.500 | 3,5 | 4.100 | 4,0 | 3.075 | 2.800 | -50 | 50 | 2.755 |
-| 2029 | 106.100 | 3,5 | 4.245 | 4,0 | 3.185 | 2.850 | -50 | 50 | 2.855 |
-| 2030 | 109.800 | 3,5 | 4.390 | 4,0 | 3.295 | 2.900 | -50 | 50 | 2.955 |
+| J1 (2026/27) | 94.167 | 3,0 | 3.991 | 4,24 | 2.786 | 2.637 | 0 | 66 | 2.514 |
+| J2 (2027/28) | 96.992 | 3,0 | 4.111 | 4,24 | 2.870 | 2.716 | 0 | 68 | 2.590 |
+| J3 (2028/29) | 99.901 | 3,0 | 4.234 | 4,24 | 2.956 | 2.797 | 0 | 70 | 2.667 |
+| J4 (2029/30) | 102.899 | 3,0 | 4.361 | 4,24 | 3.045 | 2.881 | 0 | 72 | 2.747 |
+| J5 (2030/31) | 105.985 | 3,0 | 4.492 | 4,24 | 3.136 | 2.968 | 0 | 74 | 2.830 |
 
-(NOPAT = EBIT × (1-0,25); FCF ≈ NOPAT + D&A - capex - ΔNWC - SBC. EBIT-marge stabiel 4,0%.)
+EBIT = onderliggend, IFRS 16 (vóór lease-rente). NOPAT = (EBIT − lease-rente) × (1 − 20,7%), met lease-rente €465 mln in 2025 en 3% groei per jaar. Capex = 2,8% van de omzet (2025). ΔNWC op nul gezet (werkkapitaal is negatief en groeit mee, dus feitelijk een kleine instroom; conservatief weggelaten). SBC = 0,07% van de omzet. FCF = basis-FCFF × 1,03^t; het verschil tussen NOPAT en FCF bestaat uit afschrijvingen exclusief gebruiksrechten (circa €2,2 mld) min capex, de kascorrectie op leases en SBC.
 
 ### Scenarios
 
-| Scenario | FCF-groei % | WACC % | Fair value | Upside % | Kans % |
+| Scenario | FCF-groei % (fase 1 / fase 2 / eind) | WACC % | Fair value | Upside % | Kans % |
 |---|---|---|---|---|---|
-| Pessimistisch | 1,0 | 6,3 | 32 | -20 | 25 |
-| Basis | 3,5 | 5,5 | 50 | 25 | 50 |
-| Optimistisch | 5,0 | 5,0 | 65 | 62 | 25 |
+| Pessimistisch | 0,0 / 1,0 / 1,5 | 7,27 | 40,01 | 27,5 | 35 |
+| Basis | 3,0 / 2,5 / 2,0 | 5,52 | 81,23 | 158,9 | 45 |
+| Optimistisch | 4,5 / 3,0 / 2,0 | 5,52 | 89,18 | 184,2 | 20 |
 
-- **Kansgewogen fair value:** 0,25 × 32 + 0,50 × 50 + 0,25 × 65 = **€49**.
+- **Kansgewogen fair value:** 0,35 × 40,01 + 0,45 × 81,23 + 0,20 × 89,18 = **68,40**
+- **Motivering kansen:** afwijkend van 25/50/25. Het pessimistische scenario krijgt 35% en een WACC die 1,75 procentpunt hoger ligt (7,27%, gelijk aan de WACC met een bottom-up beta en aan Damodaran's sector-WACC van 7,24%), omdat de rubric-WACC hier waarschijnlijk te laag is. Het pessimistische scenario beschrijft bovendien wat de markt vreest: tien jaar zonder groei door de Amerikaanse prijsoorlog. Het optimistische scenario (20%) veronderstelt dat online en Profi de groei tot 4,5% opstuwen.
+
+### Kantelpunten WACC (basis-groei 3,0 / 2,5 / 2,0)
+| Fair Value DCF-score | Geldt tot WACC | Totaalscore | Eindoordeel |
+|---|---|---|---|
+| 5 (upside ≥ 30%) | 8,06% | 31 | HOLD |
+| 4 (upside 15-30%) | 9,20% | 29 | HOLD |
+| 3 (upside 0-15%) | 10,30% | 27 | HOLD |
+| 2 (downside 0-15%) | 11,35% | 25 | HOLD |
+| 1 (downside > 15%) | boven 11,35% | 23 | PASS |
 
 ### Reverse DCF
-- **Impliciete groei %:** ~2,3% FCF-groei langjarig om huidige koers €40 te rechtvaardigen.
-- **Historische FCF CAGR %:** ~4-5% (5-jaars indicatief).
-- **Consensus groei %:** ~4-5% omzet 2026-2030 met 6-7% EPS-groei via buyback.
-- **Interpretatie:** De markt prijst slechts 2,3% in — onder zowel historische CAGR als consensus. Markt is pessimistisch over US-marge en concurrentiedruk. Lichte onderwaardering ~20%.
+- **Impliciete groei %:** −7,3 (FCFF-krimp per jaar gedurende tien jaar, bij WACC 5,52% en 2,0% eindgroei). Anders geformuleerd: bij 3,0% / 2,5% / 2,0% groei is de koers van €31,38 alleen te verklaren met een WACC van 10,30%.
+- **Historische FCF CAGR %:** 2,8 (genormaliseerde FCFF 2018-2025: van 2.041 naar 2.482)
+- **Consensus groei % (analisten):** omzet 1,4% (2026), 2,3% (2027), 2,9% (2028); EPS 6,8% per jaar 2025-2028 (MarketScreener)
+- **Interpretatie:** Met de rubric-WACC moet de vrije kasstroom tien jaar lang 7% per jaar krimpen om de koers te rechtvaardigen, terwijl die de afgelopen zeven jaar 2,8% per jaar groeide en analisten 2-3% omzetgroei en 7% winstgroei per aandeel verwachten. Dat is onwaarschijnlijk pessimistisch. De betere lezing is dat de markt een veel hogere rendementseis hanteert, circa 10%, en daarmee Ahold Delhaize waardeert als een bedrijf zonder slotgracht dat alleen zijn kapitaalkosten terugverdient. Wie die 10% te hoog vindt voor een defensieve supermarkt met BBB+-rating, ziet hier een koopkans; wie de Amerikaanse risico's zwaar weegt, niet.
 
 ### EPV (Bruce Greenwald)
-- **Genormaliseerde EBIT-marge %:** 4,0 (cycle-mediaan; al stabiel).
-- **Genormaliseerde NOPAT:** €92,4 mld × 4,0% × (1-0,25) = €2.770 mln.
-- **Maintenance capex:** €2.000 mln (lager dan totale 2.700; rest is groei + online-fulfillment).
-- **Adjusted earnings power:** €2.770 + €1.500 - €2.000 = €2.270 mln.
-- **EPV:** €2.270 / 5,5% = **€41.270 mln** (= €41,3 mld enterprise value).
-- **EPV per aandeel:** (€41.270 - €5.600 nettoschuld) / 940 = €35.670 / 940 = **€38 per aandeel zonder enige groei**.
-- *Op meer optimistische marge (4,2%):* EPV = €43 per aandeel.
-- *Op meer pessimistische marge (3,5%):* EPV = €30 per aandeel.
-- *Gekozen synthese-EPV:* **€38** (basis 4,0% marge).
-- **Groeipremie %:** (huidige koers €40 - EPV €38) / EPV = **5%** premium voor groei. Zeer laag — markt prijst defensief profiel met minimale groei.
+- **Genormaliseerde EBIT-marge %:** 4,24 (mediaan onderliggende bedrijfsmarge 2018-2025)
+- **Genormaliseerd EBIT:** 3.875 (4,24% × TTM-omzet 91.424)
+- **Genormaliseerde NOPAT:** 2.705 = (3.875 − lease-rente 465) × (1 − 20,7%)
+- **Maintenance capex:** 2.208 (gelijk gesteld aan de afschrijvingen exclusief gebruiksrechten in 2025: materiële vaste activa 1.656 + vastgoed 39 + immaterieel 513; de bruto capex van 2.564 bevat groei-investeringen)
+- **Adjusted earnings power:** 2.694 = NOPAT 2.705 + afschrijvingen excl. gebruiksrechten 2.208 − onderhoudscapex 2.208 + kascorrectie lease 47 (netto leasebetaling TTM 1.796 tegenover lease-rente 465 + afschrijving gebruiksrechten 1.378) − SBC 58
+- **EPV ondernemingswaarde:** 48.847 (2.694 / 5,52%)
+- **EPV per aandeel:** 49,97 = (48.847 − 5.186) / 873,76. Bij de pessimistische WACC van 7,27%: 36,50.
+- **Groeipremie %:** 62,6 ((81,23 − 49,97) / 49,97). De koers ligt 37% **onder** de EPV: de markt betaalt niet voor groei, maar prijst zelfs een daling van de huidige verdiencapaciteit in.
 
 ### Andere methoden
-- **DDM uitgevoerd?** false (FCF-DCF is dominant; dividend-yield 3,1% materieel maar geen primaire investeringscase).
-- **SOTP uitgevoerd?** false (hoewel multi-merk, één retail-business-economie).
+- **DDM uitgevoerd?** false. Het dividend volgt de winst (40-50% uitkering) en het grootste deel van de uitkering loopt via inkoop; de FCFF-DCF vangt beide.
+- **SOTP uitgevoerd?** false. Eén bedrijfsmodel (supermarkten) in twee regio's; de segmenten verschillen niet genoeg om een opsplitsing zinvol te maken.
+- **Relatieve waardering:** peermediaan EV/EBITDA 6,31 × TTM underlying EBITDA 7.263 = EV 45.830 − nettoschuld incl. lease 15.961 = €34,18 per aandeel. Peermediaan forward P/E 11,70 × EPS 2026 consensus €2,67 = €31,24. Gemiddelde: **€32,71**.
 
 ### Synthese fair value
-- **Bandbreedte laag:** 32
-- **Bandbreedte centraal:** 49
-- **Bandbreedte hoog:** 65
+- **Bandbreedte laag:** 32,71 (multiples)
+- **Bandbreedte centraal:** 49,52
+- **Bandbreedte hoog:** 68,40 (kansgewogen DCF)
 - **Methode-gewichten:**
-  - DCF %: 70
-  - EPV %: 20
-  - Multiples %: 10
-- **Margin of safety vereist %:** 15 (defensief consumer-staple-profiel + sterke FCF-basis → 15% MOS).
-- **Koopniveau:** €49 × 0,85 = **€42**.
-- **Synthese-toelichting:** De markt betaalt slechts 5% premie boven no-growth EPV — uitzonderlijk laag voor mature consumer-staple-compounder. DCF, EPV en multiples geven samen een centrale fair value van €49, circa 22% boven de huidige koers van €40. Een 15%-MOS-eis op €49 brengt het koopniveau op €42 — net boven huidige €40,05. Voor een nieuwe positie is risk/reward zeer aantrekkelijk; defensieve dividend-aandelen aan deze waardering zijn schaars in 2026 met Bund 3% rente. **Discretionaire keuze:** executive_summary.oordeel staat op KOOP wegens 25% upside, defensieve onderwaardering en sterke kapitaal-discipline; scorekaart-rubric mechanisch geeft HOLD (totaal 32, drempel 33). Ik volg upside-implicatie. Stage-2 mag valideren.
+  - DCF %: 35 (kansgewogen 68,40)
+  - EPV %: 25 (49,97)
+  - Multiples %: 40 (32,71)
+- **Margin of safety vereist %:** 25
+- **Koopniveau:** 37,14 (49,52 × 0,75)
+- **Synthese-toelichting:** De drie methoden lopen ver uiteen, en dat zegt vooral iets over de disconteringsvoet. De DCF en de EPV gebruiken de rubric-WACC van 5,52% en komen op €68 en €50; de multiples, die de rendementseis van de markt bevatten, komen op €33. Daarom krijgt de DCF maar 35% gewicht en de multiples 40%. De centrale waarde is €49,52. Ook de EPV, die geen enkele groei veronderstelt, ligt 59% boven de koers; zelfs bij een WACC van 7,27% is dat nog 16%. Ik eis 25% veiligheidsmarge in plaats van 15-20%, vanwege de onzekerheid over de WACC, de CEO-wissel en het lopende cyberincident. Het koopniveau van €37,14 ligt boven de huidige koers.
 
 ### Gevoeligheid (DCF)
-- **WACC range:** [4,5%, 5,0%, 5,5%, 6,0%, 6,5%, 7,0%]
-- **Groei range:** [0%, 1,5%, 3,0%, 4,5%, 6,0%]
-- **Matrix (5 rijen × 6 kolommen — fair value per aandeel in EUR, indicatief):**
+- **WACC range:** [5,0%, 5,5%, 6,0%, 6,5%, 7,0%, 7,5%]
+- **Groei range:** [−1,0%, 0,0%, 1,0%, 2,0%, 3,0%] (fase 1 = fase 2; eindgroei 2,0%)
+- **Matrix (fair value per aandeel, EUR):**
 
-|    | 4,5% | 5,0% | 5,5% | 6,0% | 6,5% | 7,0% |
+| Groei \ WACC | 5,0% | 5,5% | 6,0% | 6,5% | 7,0% | 7,5% |
 |---|---|---|---|---|---|---|
-| 0% | 60 | 51 | 44 | 38 | 33 | 29 |
-| 1,5% | 73 | 60 | 51 | 44 | 38 | 33 |
-| 3,0% | 95 | 76 | 62 | 52 | 44 | 38 |
-| 4,5% | 138 | 105 | 82 | 66 | 55 | 46 |
-| 6,0% | 240 | 162 | 117 | 89 | 71 | 58 |
+| −1,0% | 67,81 | 57,74 | 50,18 | 44,29 | 39,59 | 35,73 |
+| 0,0% | 74,48 | 63,36 | 55,01 | 48,52 | 43,33 | 39,08 |
+| 1,0% | 81,74 | 69,47 | 60,27 | 53,12 | 47,40 | 42,72 |
+| 2,0% | 89,64 | 76,11 | 65,98 | 58,10 | 51,80 | 46,65 |
+| 3,0% | 98,22 | 83,33 | 72,17 | 63,50 | 56,57 | 50,92 |
 
-(Matrix indicatief — fair value zonder MOS. Huidige koers €40 ligt rond de 1,5%/5,5% en 3,0%/6,0% cellen — onder basis-scenario.)
+- **Eindgroei × WACC (fase 1 3,0%, fase 2 2,5%):**
+
+| Eindgroei \ WACC | 5,0% | 5,5% | 6,0% | 6,5% | 7,0% | 7,5% |
+|---|---|---|---|---|---|---|
+| 1,0% | 76,48 | 67,25 | 59,88 | 53,86 | 48,85 | 44,61 |
+| 1,5% | 84,92 | 73,54 | 64,70 | 57,64 | 51,86 | 47,06 |
+| 2,0% | 96,17 | 81,62 | 70,72 | 62,25 | 55,49 | 49,96 |
+| 2,5% | 111,91 | 92,40 | 78,47 | 68,03 | 59,92 | 53,43 |
+
+Elke cel in beide tabellen ligt boven de koers van €31,38. De koers wordt pas bereikt bij een WACC van 10,3% (basisgroei) of bij tien jaar krimp van 7% per jaar (rubric-WACC).
 
 ---
 
@@ -524,85 +791,123 @@ De DCF gebruikt 2024-FCF van €2,5 mld als basis (FY2025 specifiek totaal niet 
 
 ### Bronnen-hiërarchie
 - **Jaarverslag PDF / IR-pagina** → HOOG
-- **Beursmelding / persrelease** → HOOG
-- **Aggregator** → AGGREGATOR
+- **Beursmelding / persbericht** → HOOG
+- **Aggregator** (StockAnalysis, MarketScreener, ad-hoc-news) → AGGREGATOR; alleen gebruikt voor koers- en marktdata, beta, peers en consensus, nooit voor de historische tabellen
 
 ### Financiële bronnen (10 jaar historie — VERPLICHT)
 
 | Jaar | Bron | URL | Betrouwbaarheid |
 |---|---|---|---|
-| 2015-2019 | — | — | — |
-| 2020 | search-snippet | (companiesmarketcap.com) | AGGREGATOR |
-| 2021 | search-snippet | (companiesmarketcap.com) | AGGREGATOR |
-| 2022 | search-snippet | (companiesmarketcap.com) | AGGREGATOR |
-| 2023 | AD Q4 2024 persrelease vergelijkende kolom | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-q4-2024-financial-results-and-introduces-outlook-for-2025-with-projected-growth-in-sales-and-earnings-in-line-with-its-growing-together-strategic-ambitions/ | AGGREGATOR |
-| 2024 | AD Q4 2024 results press release (12-02-2025) | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-q4-2024-financial-results-and-introduces-outlook-for-2025-with-projected-growth-in-sales-and-earnings-in-line-with-its-growing-together-strategic-ambitions/ | HOOG |
-| 2025 | AD Q4 2025 results press release (11-02-2026) | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-strong-q4-2025-financial-results-priorities-and-outlook-for-2026-underpin-our-value-creation-and-progress-towards-our-growing-together-ambitions/ | HOOG |
+| 2016 | Ahold Delhaize Annual Report 2017 (vergelijkende kolom) | https://media.aholddelhaize.com/media/wsafdah4/annual-report-2017.pdf | HOOG |
+| 2017 | Ahold Delhaize Annual Report 2017 | https://media.aholddelhaize.com/media/wsafdah4/annual-report-2017.pdf | HOOG |
+| 2018 | Ahold Delhaize Annual Report 2019 (vergelijkende kolom, herzien IFRS 16) | https://media.aholddelhaize.com/media/tumbdiev/annual-report-2019.pdf | HOOG |
+| 2019 | Ahold Delhaize Annual Report 2019 | https://media.aholddelhaize.com/media/tumbdiev/annual-report-2019.pdf | HOOG |
+| 2020 | Ahold Delhaize Annual Report 2021 (vergelijkende kolom) | https://media.aholddelhaize.com/media/j3tncmcj/annual-report-2021.pdf | HOOG |
+| 2021 | Ahold Delhaize Annual Report 2021 | https://media.aholddelhaize.com/media/j3tncmcj/annual-report-2021.pdf | HOOG |
+| 2022 | Ahold Delhaize Annual Report 2023 (vergelijkende kolom, herzien IFRS 17) | https://media.aholddelhaize.com/media/bbwfuqw5/annual-report-2023.pdf | HOOG |
+| 2023 | Financial statements Annual Report 2024 (vergelijkende kolom, herzien) | https://media.aholddelhaize.com/media/bkym3erk/financial-statements-annual-report-2024.pdf | HOOG |
+| 2024 | Financial statements Annual Report 2024 | https://media.aholddelhaize.com/media/bkym3erk/financial-statements-annual-report-2024.pdf | HOOG |
+| 2025 | Ahold Delhaize Annual Report 2025 | https://media.aholddelhaize.com/media/k0pnhvk5/ad-annual-report-2025-interactive.pdf | HOOG |
 
-**Status:** alleen 2024-2025 voldoen aan HOOG-eis.
+De vijf meest recente jaren (2021-2025) zijn allemaal HOOG; alle URL's eindigen op .pdf en bevatten "annual-report".
 
 ### Jaarverslagen geraadpleegd
 
 | Jaar | Bron | URL |
 |---|---|---|
-| 2025 | Ahold Delhaize Q4 2025 Summary Report PDF | https://media.aholddelhaize.com/media/bdsnpbxm/ahold-delhaize-q4-2025-summary-report.pdf |
-| 2024 | Ahold Delhaize Annual Report 2024 (referentie) | https://aholddelhaize.com/digitalannualreport/2024/ |
-| 2024 | AD financial-statements-2024 PDF (referentie) | https://www.aholddelhaize.com/media/bhwdqsls/annual-report-2024-ahold-delhaize-financial-statements.pdf |
-| 2025 Q1 | Q1 2025 Interim Report PDF | https://www.aholddelhaize.com/media/1kchisqi/ahold-delhaize-q1-2025-interim-report.pdf |
-| 2025 Q3 | Q3 2025 Interim Report PDF | https://www.aholddelhaize.com/media/1qqb3kiv/ahold-delhaize-q3-2025-interim-report.pdf |
+| 2025 | Annual Report 2025 (volledig) | https://media.aholddelhaize.com/media/k0pnhvk5/ad-annual-report-2025-interactive.pdf |
+| 2025 | Financial statements and sustainability notes 2025 | https://media.aholddelhaize.com/media/xiknotj4/financial-statements-and-sustainability-notes.pdf |
+| 2024 | Financial statements Annual Report 2024 | https://media.aholddelhaize.com/media/bkym3erk/financial-statements-annual-report-2024.pdf |
+| 2023 | Annual Report 2023 | https://media.aholddelhaize.com/media/bbwfuqw5/annual-report-2023.pdf |
+| 2021 | Annual Report 2021 | https://media.aholddelhaize.com/media/j3tncmcj/annual-report-2021.pdf |
+| 2019 | Annual Report 2019 | https://media.aholddelhaize.com/media/tumbdiev/annual-report-2019.pdf |
+| 2017 | Annual Report 2017 | https://media.aholddelhaize.com/media/wsafdah4/annual-report-2017.pdf |
 
-### Beursmeldingen geraadpleegd
+### Beursmeldingen geraadpleegd (kwartaalupdates, winstwaarschuwingen, M&A)
 
 | Datum | Omschrijving | URL |
 |---|---|---|
-| 2026-02-11 | Q4 2025 results — €92,4 mld omzet, marge 4,0%, EPS €2,67 | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-strong-q4-2025-financial-results-priorities-and-outlook-for-2026-underpin-our-value-creation-and-progress-towards-our-growing-together-ambitions/ |
-| 2025-02-12 | Q4 2024 results — €89,4 mld omzet, marge 4,0%, EPS €2,54 | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-q4-2024-financial-results-and-introduces-outlook-for-2025-with-projected-growth-in-sales-and-earnings-in-line-with-its-growing-together-strategic-ambitions/ |
+| 2026-10-12 | Persbericht cyberincident (voorwetenschap, MAR) | https://newsroom.aholddelhaize.com/ahold-delhaize-takes-precautionary-measures-following-cybersecurity-incident/ |
+| 2026-10-06 | Update aandeleninkoop (24.418.253 aandelen, €862,6 mln cumulatief) | https://newsroom.aholddelhaize.com/ahold-delhaize-share-buyback-update-october-6-2026/ |
+| 2026-08-05 | Q2 2026 Interim Report | https://media.aholddelhaize.com/media/si2dlnia/ahold-delhaize-q2-2026-interim-report.pdf |
+| 2026-05-06 | Voordracht Thierry Garnier als CEO; pensioen Frans Muller in 2027 | https://newsroom.aholddelhaize.com/ahold-delhaize-announces-thierry-garnier-as-nominee-for-chief-executive-officer-and-member-of-the-management-board-frans-muller-to-retire-from-the-company-in-2027/ |
+| 2023-11-08 | Verkoop FreshDirect aan Getir | https://aholddelhaize.com/news/ahold-delhaize-usa-to-sell-freshdirect-to-getir |
 
 ### IPO-prospectus
-- **Geraadpleegd?** false — IPO Ahold ~78 jaar geleden, fusie 2016 was all-stock zonder cash-IPO.
+- **Geraadpleegd?** false
 - **URL:** n.v.t.
-- **Pre-IPO data beschikbaar?** false (n.v.t.).
-- **Pre-IPO bron:** n.v.t.
+- **Pre-IPO data beschikbaar?** false
+- **Pre-IPO bron:** n.v.t. (notering sinds 1948; fusie in aandelen 2016)
 
 ### Non-GAAP
-- **Gebruikt?** true — AD rapporteert primair op "underlying" basis (operating profit, EPS).
-- **Toelichting:** Underlying excludeert herstructurering (Stop & Shop-review), boekverliezen, M&A-amortisation. Gebruikt in alle multiples en EPS-berekeningen in dit rapport.
+- **Gebruikt?** true
+- **Toelichting:** Underlying bedrijfsresultaat en EPS van het bedrijf alleen ter vergelijking en voor de genormaliseerde marge (EPV, NOPAT); P/E, Graham en EPS-groei op IFRS-basis. FCF-definitie eigen (FCFF na lease, genormaliseerde belasting); de FCF volgens het bedrijf (na lease en rente) alleen voor P/FCF. Zie sectie 3.
 
-### Ontbrekende data
-- Volledige resultatenrekening 2015-2019 — IFRS-jaarverslagen niet binnen sessie-tijd uit primaire PDF-bron geëxtraheerd; pre-fusie 2016 zou pro-forma combined cijfers vereisen.
-- Cash flow detail 2015-2023 — alleen FCF-totalen voor 2024-2025; geen capex-splitsing maintenance/online.
-- Exact FY2025 FCF-totaal — alleen 2026-guidance >€2,3 mld als ondergrens.
-- Balans pre-2024 — alleen indicatieve nettoschuld; geen goodwill-aandeel.
-- EBITDA per jaar — afgeleid uit underlying OP + D&A schatting.
-- Insider transactions 24 maanden — niet uit AFM-meldingsregister geverifieerd.
-- Beta AD.AS — niet expliciet uit Yahoo gevonden; peer-derived.
-- Compensatie CFO Poots-Bijl — beperkt openbaar (nieuwe in functie).
-- Geografische omzet-mix exact 2025 (NL, BE, US, CSE) — alleen indicatief; niet uit FY2025-PDF rechtstreeks gehaald.
+### Ontbrekende data (eerlijke lijst)
+- Omvang en kosten van het cyberincident van 11 oktober 2026: onbekend op de peildatum.
+- Insidertransacties 24 maanden: AFM-register niet doorzoekbaar in deze sessie.
+- Free float en volledige top-5 aandeelhouders: alleen meldingen boven 3% (BlackRock, Amundi) beschikbaar.
+- TAM/SAM: geen controleerbare bron.
+- Omzetverdeling binnen "overige landen" (België, Roemenië, Servië, Griekenland, Tsjechië): niet gepubliceerd; daardoor is de CRP een benadering.
+- Goodwill 2016-2022: niet uit de jaarverslagen overgenomen (alleen 2023-2025).
+- Lease-rente H1 2026: niet apart gerapporteerd; FY2025-waarde gebruikt in TTM-berekeningen.
+- Regressiebeta uit één bron (StockAnalysis); Yahoo gaf geen waarde.
+- 52-weekshoogte (€42,56): alleen uit een aggregator (ad-hoc-news), niet uit een beursbron.
 
 ### Peildatum analyse
-- **2026-04-28**
+- **2026-10-12** (slotkoers €31,38)
 
 ---
 
-## 14. Volledige bronnen-lijst
+## 14. Volledige bronnen-lijst (voor sectie `bronnen` in JSON)
 
 | Titel | URL | Type |
 |---|---|---|
-| AD Q4 2025 Results Press Release | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-strong-q4-2025-financial-results-priorities-and-outlook-for-2026-underpin-our-value-creation-and-progress-towards-our-growing-together-ambitions/ | beursmelding |
-| AD Q4 2024 Results Press Release | https://newsroom.aholddelhaize.com/ahold-delhaize-reports-q4-2024-financial-results-and-introduces-outlook-for-2025-with-projected-growth-in-sales-and-earnings-in-line-with-its-growing-together-strategic-ambitions/ | beursmelding |
-| AD Q4 2025 Summary Report PDF | https://media.aholddelhaize.com/media/bdsnpbxm/ahold-delhaize-q4-2025-summary-report.pdf | jaarverslag |
-| AD Annual Report 2024 (digital) | https://aholddelhaize.com/digitalannualreport/2024/ | jaarverslag |
-| AD financial-statements 2024 PDF | https://www.aholddelhaize.com/media/bhwdqsls/annual-report-2024-ahold-delhaize-financial-statements.pdf | jaarverslag |
-| AD Q1 2025 Interim Report | https://www.aholddelhaize.com/media/1kchisqi/ahold-delhaize-q1-2025-interim-report.pdf | jaarverslag |
-| AD Q3 2025 Interim Report | https://www.aholddelhaize.com/media/1qqb3kiv/ahold-delhaize-q3-2025-interim-report.pdf | jaarverslag |
-| AD Investor Relations | https://www.aholddelhaize.com/en/investors | beurswebsite |
-| Yahoo Finance AD.AS Statistics | https://finance.yahoo.com/quote/AD.AS/key-statistics/ | aggregator |
-| Damodaran Implied ERP — January 2026 | https://aswathdamodaran.substack.com/p/data-update-4-for-2026-a-risk-journey | onderzoeksrapport |
-| Germany 10-Year Bond Yield | https://tradingeconomics.com/germany/government-bond-yield | aggregator |
-| Ahold Delhaize Wikipedia | https://en.wikipedia.org/wiki/Ahold_Delhaize | nieuwsartikel |
-| Simply Wall St AD Health (debt €9,4 mld) | https://simplywall.st/stocks/nl/consumer-retailing/ams-ad/koninklijke-ahold-delhaize-shares/health | aggregator |
-| Investing.com AD Q4 2025 slides analysis | https://www.investing.com/news/company-news/ahold-delhaize-q4-2025-slides-sales-up-61-online-growth-accelerates-93CH-4499081 | nieuwsartikel |
-| Euronext Live AD Quote | https://live.euronext.com/en/product/equities/NL0011794037-XAMS | beurswebsite |
+| Ahold Delhaize Annual Report 2025 | https://media.aholddelhaize.com/media/k0pnhvk5/ad-annual-report-2025-interactive.pdf | jaarverslag |
+| Financial statements and sustainability notes 2025 | https://media.aholddelhaize.com/media/xiknotj4/financial-statements-and-sustainability-notes.pdf | jaarverslag |
+| Financial statements Annual Report 2024 | https://media.aholddelhaize.com/media/bkym3erk/financial-statements-annual-report-2024.pdf | jaarverslag |
+| Annual Report 2023 | https://media.aholddelhaize.com/media/bbwfuqw5/annual-report-2023.pdf | jaarverslag |
+| Annual Report 2021 | https://media.aholddelhaize.com/media/j3tncmcj/annual-report-2021.pdf | jaarverslag |
+| Annual Report 2019 | https://media.aholddelhaize.com/media/tumbdiev/annual-report-2019.pdf | jaarverslag |
+| Annual Report 2017 | https://media.aholddelhaize.com/media/wsafdah4/annual-report-2017.pdf | jaarverslag |
+| Q2 2026 Interim Report | https://media.aholddelhaize.com/media/si2dlnia/ahold-delhaize-q2-2026-interim-report.pdf | beursmelding |
+| Jaarverslagen-overzicht IR | https://aholddelhaize.com/investors/annual-reports/ | beurswebsite |
+| Persbericht cyberincident 12-10-2026 | https://newsroom.aholddelhaize.com/ahold-delhaize-takes-precautionary-measures-following-cybersecurity-incident/ | beursmelding |
+| Update aandeleninkoop 6-10-2026 | https://newsroom.aholddelhaize.com/ahold-delhaize-share-buyback-update-october-6-2026/ | beursmelding |
+| Voordracht Thierry Garnier, 6-5-2026 | https://newsroom.aholddelhaize.com/ahold-delhaize-announces-thierry-garnier-as-nominee-for-chief-executive-officer-and-member-of-the-management-board-frans-muller-to-retire-from-the-company-in-2027/ | beursmelding |
+| Verkoop FreshDirect aan Getir | https://aholddelhaize.com/news/ahold-delhaize-usa-to-sell-freshdirect-to-getir | beursmelding |
+| Leiderschap Ahold Delhaize | https://aholddelhaize.com/about/leadership/ | beurswebsite |
+| MarketScreener: cyberincident en slotkoers 12-10-2026 | https://nl.marketscreener.com/beursnieuws/albert-heijn-etos-en-gall-gall-slachtoffer-van-cybersecurity-incident-ce785ddcd08cf424 | nieuwsartikel |
+| Beursgenoten koers AD | https://www.beursgenoten.nl/koersen/euronext-aandelen-amsterdam/ahold-delhaize/koers | beurswebsite |
+| ZeelandNet/ANP: AD grootste verliezer AEX 12-10-2026 | https://www.zeelandnet.nl/nieuws/met-problemen-kampende-moeder-albert-heijn-grootste-verliezer-aex | nieuwsartikel |
+| Supermarket News: websites offline na cyberincident | https://www.supermarketnews.com/company-news/ahold-delhaize-shuts-down-websites-after-cybersecurity-issue | nieuwsartikel |
+| Grocery Dive: Ahold Delhaize experiencing cybersecurity issue | https://www.grocerydive.com/news/ahold-delhaize-adusa-cybersecurity/832734/ | nieuwsartikel |
+| BleepingComputer: systems offline after cyberattack | https://www.bleepingcomputer.com/news/security/retail-giant-ahold-delhaize-takes-systems-offline-after-cyberattack/ | nieuwsartikel |
+| NL Times: hack may be behind outage at Albert Heijn | https://nltimes.nl/2026/10/12/cybersecurity-incident-hack-may-behind-outage-albert-heijn | nieuwsartikel |
+| XGN: problemen ook dinsdag 13-10 | https://www.xgn.nl/nieuws/mogelijke-hack-zorgt-ook-vandaag-voor-grote-problemen-bij-albert-heijn | nieuwsartikel |
+| The Asset: UBS verlaagt koersdoel naar €33 (7-10-2026) | https://theasset.nl/kansen/ubs-verlaagt-koersdoel-ahold-delhaize/ | analistenrapport |
+| ad-hoc-news: Jefferies koersdoel €40 (8-10-2026) | https://www.ad-hoc-news.de/boerse/news/corporate-news/jefferies-cuts-ahold-delhaize-stock-target-from-eur-43-00-to-eur-40-00/70297876 | analistenrapport |
+| ad-hoc-news: koers, 52-weekshoogte en Q3-datum | https://www.ad-hoc-news.de/boerse/news/corporate-news/ahold-stock-slips-to-eur-31-66-26-3-percent-below-target/70302310 | nieuwsartikel |
+| Investing.com: JPMorgan Negative Catalyst Watch (24-6-2026) | https://www.investing.com/news/stock-market-news/jp-morgan-places-ahold-delhaize-on-negative-catalyst-watch-ahead-of-q2-results-4757571 | analistenrapport |
+| StockWatch: koersreactie op vertrek Muller (7-5-2026) | https://www.stockwatch.nl/beleggers-kunnen-vertrekkend-ahold-topman-frans-muller-geen-beter-compliment-geven/ | nieuwsartikel |
+| MarketScreener consensus | https://www.marketscreener.com/quote/stock/AHOLD-DELHAIZE-N-V-120788121/valuation/ | aggregator |
+| StockAnalysis AD statistics | https://stockanalysis.com/quote/ams/AD/statistics/ | aggregator |
+| StockAnalysis Kroger | https://stockanalysis.com/stocks/kr/statistics/ | aggregator |
+| StockAnalysis Albertsons | https://stockanalysis.com/stocks/aci/statistics/ | aggregator |
+| StockAnalysis Carrefour | https://stockanalysis.com/quote/epa/CA/statistics/ | aggregator |
+| StockAnalysis Tesco | https://stockanalysis.com/quote/lon/TSCO/statistics/ | aggregator |
+| StockAnalysis Sainsbury | https://stockanalysis.com/quote/lon/SBRY/statistics/ | aggregator |
+| Germany 10Y bond yield | https://tradingeconomics.com/germany/government-bond-yield | databron |
+| Damodaran implied ERP | https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histimpl.html | onderzoeksrapport |
+| Damodaran country risk premiums | https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html | onderzoeksrapport |
+| Damodaran betas by sector (US) | https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/Betas.html | onderzoeksrapport |
+| Damodaran cost of capital by sector (US) | https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/wacc.html | onderzoeksrapport |
+| RetailDetail: marktaandelen supermarkten NL 2025 (NielsenIQ) | https://www.retaildetail.nl/news/food/aldi-en-albert-heijn-winnen-marktaandeel-in-nederland | nieuwsartikel |
+| Wikipedia Ahold Delhaize | https://en.wikipedia.org/wiki/Ahold_Delhaize | nieuwsartikel |
+| Wikipedia Ahold | https://en.wikipedia.org/wiki/Ahold | nieuwsartikel |
+| Wikipedia Albert Heijn | https://en.wikipedia.org/wiki/Albert_Heijn | nieuwsartikel |
+| CNN (2003): Ahold accounting irregularities | https://edition.cnn.com/2003/BUSINESS/02/24/ahold.reut/index.html | nieuwsartikel |
+| FDA: cyclospora-uitbraak ijsbergsla juli 2026 | https://www.fda.gov/food/outbreaks-foodborne-illness/investigation-15-state-outbreak-cyclospora-illnesses-iceberg-lettuce-july-2026 | nieuwsartikel |
 
 ---
 
@@ -610,26 +915,23 @@ De DCF gebruikt 2024-FCF van €2,5 mld als basis (FY2025 specifiek totaal niet 
 
 | Datum | Versie | Wijziging |
 |---|---|---|
-| 2026-04-28 | 1.0 | Eerste publicatie (cowork stage 1 — markdown). HOOG voor FY2024 en FY2025; 2020-2023 AGGREGATOR; 2015-2019 LEEG. |
+| 2026-04-28 | 1.0 | Eerste publicatie (koers €40,05; HOLD 32/45; fair value basis €50). Slechts 2024-2025 uit primaire bron; 2020-2023 AGGREGATOR zonder URL; 2015-2019 leeg; beta en nettoschuld geschat. |
+| 2026-08-03 | 1.0.1 | Oordeel in de executive summary gecorrigeerd van KOOP naar HOLD conform scorekaart. |
+| 2026-10-13 | 2.0 | Volledig nieuwe analyse na koersdaling en cyberincident van 11-10-2026. Alle tien jaren (2016-2025) en TTM op HOOG uit de jaarverslagen. Nieuwe FCFF-definitie met netto leasebetalingen en genormaliseerde kasbelasting; WACC met regressiebeta 0,31 en robuustheidsvariant; synthese met DCF 35% / multiples 40% / EPV 25%. Correcties t.o.v. 1.0: beschermingsstichting SCAD bestaat wel; CFO sinds 1-10-2023 (ex-Van Oord); TAM zonder bron geschrapt; aandeelhouders alleen uit het AFM-register. Uitkomst: HOLD 31/45, fair value basis €81,23, kansgewogen €68,40, synthese €49,52, koopniveau €37,14. |
 
 ---
 
 ## Opmerkingen voor Claude Code
 
-1. **Bronnen-discipline 2015-2023** — vervolg-pas zou IFRS-jaarverslagen 2020-2023 vanaf AD IR-pagina moeten openen. Pre-fusie 2015-2016 vereist pro-forma combined.
-
-2. **FY2025 FCF totaal** — niet expliciet uit zoek-snippets; 2026-guidance >€2,3 mld is ondergrens; werkelijke FY2025 FCF zou in Q4 2025 Summary Report PDF staan.
-
-3. **Beta is geschat (peer-derived)** — Yahoo Finance gaf geen expliciete AD.AS-beta. Gebruikt 0,55 op basis van defensieve consumer-staple-peer-set.
-
-4. **Discrepantie executive_summary.oordeel vs scorekaart-eindoordeel** — Executive summary KOOP; scorekaart-rubric HOLD (totaal 32, één punt onder drempel 33). Ik volg upside-implicatie (25%) en wijk af van mechanische rubric. Stage-2 mag corrigeren naar HOLD voor strikte naleving.
-
-5. **Stop & Shop-strategische review** is grootste onbekende. Bij volledige verkoop: eenmalige boekverliezen mogelijk maar verbetert structurele mix. Niet gemodelleerd in DCF.
-
-6. **WACC 5,5% laag** — sector-norm 6-7%. Bij 6,5% WACC daalt fair value naar circa €40 (= huidige koers).
-
-7. **Geografische mix 2025 niet exact** — gebruikt 65/20/12/3 als orde-van-grootte voor US/NL/CSE/Overig.
-
-8. **Toelichting-velden mogelijk onder/boven minimale woordentelling** — stage-2 woord-telling-validator moet bevestigen.
-
-Stage 2 (Claude Code) kan JSON-injectie en validator-run nu starten. Scorekaart-totaal 32/45 → mechanisch HOLD (één punt onder KOOP-drempel).
+1. **De DCF-score hangt aan de beta.** De rubric (regressiebeta bij > 5 jaar notering en voldoende liquiditeit) geeft beta 0,54 (Blume, uit 0,31) en WACC 5,52%. Daarmee komt de basis-fair-value op €81,23, 159% boven de koers en 115% boven de analistenconsensus (gemiddeld koersdoel €37,83 volgens StockAnalysis). Dat is precies het patroon uit de TMUS-analyse. Ik heb de rubric aangehouden en het opgevangen met (a) een pessimistisch scenario op +1,75 pp WACC met 35% kans, (b) synthese-gewichten DCF 35 / multiples 40 / EPV 25, en (c) de kantel-tabel in sectie 12. Het eindoordeel HOLD blijft gelijk voor elke WACC tussen 5,5% en 11,35%.
+2. **Leasebehandeling, belangrijk voor het rekenscript.** De FCFF is na netto leasebetalingen (aflossing incl. rente minus ontvangen leasetermijnen). Daarom is `net_cash` = −5.186 (excl. lease) en `gross_debt` = 8.486 (excl. lease). Wie de nettoschuld incl. lease (15.961) aftrekt van deze FCFF, telt de huur dubbel en komt circa €12 per aandeel te laag uit. Voor de multiples (EV/EBITDA) gebruik ik wél EV incl. lease, consistent met EBITDA onder IFRS 16.
+3. **EPV-formule.** Ik trek de lease-rente (465) van het genormaliseerde EBIT af vóór belasting en tel een kascorrectie op leases (+47) en SBC (−58) mee. Een script dat NOPAT = marge × omzet × (1 − t) rekent, komt op circa €57,8 per aandeel in plaats van €49,97.
+4. **Kasbelasting genormaliseerd** (REGEL 5): 20,7% (W&V-belasting / winst vóór belasting 2018-2025) over underlying EBIT na lease-rente. Effect 2025: −€177 mln op de FCFF. Over acht jaar betaalde het bedrijf 90% van de W&V-last.
+5. **Aandelen en nettoschuld op dezelfde datum** (28-06-2026). Begin oktober stonden er circa 864,6 mln aandelen uit (24.418.253 ingekocht tot 2-10, ten opzichte van 886,9 mln eind 2025 en na 2,1 mln uitgegeven voor beloningen in H1); de bijbehorende nettoschuld per die datum is niet gepubliceerd.
+6. **Niet in de brug:** netto pensioenverplichting €504 mln (eind 2025) is niet afgetrokken; joint ventures (boekwaarde €259 mln) zitten via ontvangen dividenden in de FCFF en zijn daarom niet apart opgeteld. Wil stage 2 pensioenen als schuld meenemen, dan daalt de fair value met circa €0,58 per aandeel.
+7. **Cyberincident** begon zondag 11-10-2026; de omvang en kosten zijn op de peildatum onbekend. Q3-cijfers op 4-11-2026 (datum via ad-hoc-news, nog te bevestigen via de IR-agenda) zijn het moment voor een update.
+8. **CRP 0,30%** is een benadering: de omzet buiten NL en VS (21%) is niet per land gepubliceerd; ik heb daarop het Belgische tarief (0,78%) toegepast. Met het Roemeense tarief (2,85%) voor die hele groep zou de CRP 0,73% zijn.
+9. **Insidertransacties** niet geverifieerd (AFM-register niet doorzoekbaar).
+10. **Oude AD.md bevatte fouten** die ook in de JSON op de site kunnen staan: "geen beschermingsstichting" (onjuist, SCAD bestaat), CFO "sinds april 2024, ex-Vopak" (onjuist, sinds 1-10-2023, ex-Van Oord), TAM €7.000 mld (geen bron), aandeelhouderspercentages BlackRock/Capital/Vanguard/Norges (niet uit het AFM-register), Natalie Knight "vertrok onder controverse" (niet geverifieerd). Graag de oude JSON volledig vervangen.
+11. **Koopniveau boven koers maar toch HOLD.** De synthese (€49,52, koopniveau €37,14) en de scorekaart (31/45) wijzen verschillende kanten op. Dat is geen rekenfout: de scorekaart straft de smalle ROIC-spread (moat 2), de PEG (Lynch 2) en het ontbreken van een onderzoeksbudget (Fisher 3), terwijl de synthese puur op waarde kijkt.
+12. **Bronnen die structureel blokkeerden** (voor de lijst in METHODE.md): rd.nl (robots.txt), beurs.nl en beursduivel.be (robots.txt), deaandeelhouder.nl (fout bij ophalen), Euronext live (geen koersdata in de HTML), Yahoo key-statistics voor AD.AS (beta leeg). Werkte goed: media.aholddelhaize.com (alle PDF's direct downloadbaar, inclusief jaarverslagen sinds 2017), beursgenoten.nl voor slotkoersen, theasset.nl voor analistennieuws.
