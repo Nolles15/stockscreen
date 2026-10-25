@@ -373,19 +373,19 @@ function bouwGroei(t) {
     esc(x.uitleg), esc(x.drempel), esc(x.bron)]);
   return stap('groei', STAPPEN[7].titel,
     `Snelle groei is het makkelijkst te kopen met verlies, dus omzetgroei alleen zegt weinig.
-     Deze stap toetst wat de groei kost: nieuwe aandelen, een balans die harder groeit dan de
-     omzet, een zwakke F-score, magere brutowinst. Het is een zeef die de structureel zwakke
+     Deze stap toetst wat de groei kost: nieuwe aandelen, een zwakke F-score, magere
+     brutowinst, grillige groei. Het is een zeef die de structureel zwakke
      groeiers eruit haalt — geen koopoordeel en geen voorspelling.`,
     g.niveau === undefined
       ? '<p class="text-sm text-slate-400">Geen groeiprofiel beschikbaar voor dit aandeel.</p>'
       : `<p class="text-sm text-slate-200 mb-1">Oordeel: <strong>${esc(g.kop)}</strong>
        (${esc(g.niveau)}${g.score !== null && g.score !== undefined ? ', score ' + nf(g.score, 1) + ' van 10' : ''})</p>
-     <p class="text-xs text-amber-500/90 mb-2">Voorlopige drempels — de ijking op de Europese
-       literatuurcijfers en het eigen universum volgt.</p>
+     <p class="text-xs text-slate-400 mb-2">Drempels geijkt op het eigen universum (oktober 2026);
+       de controle op de Europese literatuurcijfers volgt nog.</p>
      ${tabel(['Toets','Uitkomst','Waarde','Drempel','Bron'], rijen)}
      <p class="text-xs text-slate-400 mt-2">Eerste harde rode toets bepaalt de kop, in de volgorde
-       verwatering, balansgroei, F-score, brutowinst. Accruals en groeistabiliteit geven hooguit
-       geel. Groen vraagt geen rood, minstens ${nf(d.groen_min_bekend, 0)} bekende toetsen en een
+       verwatering, F-score, brutowinst. Accruals en groeistabiliteit geven hooguit geel. Balansgroei
+       kan sinds de ijking ook geen rood meer geven: die toets scheidde in onze eigen terugrekening niet. Groen vraagt geen rood, minstens ${nf(d.groen_min_bekend, 0)} bekende toetsen en een
        score van ${nf(d.groen_score, 1)} of hoger. R&D kan nooit rood geven (het bewijs is
        eenzijdig) en een ontbrekende R&D-regel telt niet mee. Een definitiewissel in de
        omzetreeks geeft grijs, geen rood.</p>
@@ -393,8 +393,8 @@ function bouwGroei(t) {
        tien jaar volhouden lukt 1 op 22 bedrijven (Mauboussin); in Zweden herhaalt ongeveer 1% van
        de snelle groeiers het in de volgende driejaarsperiode (Daunfeldt &amp; Halvarsson).
        Groen betekent dus alleen: de cijfers spreken niet tegen.</p>
-     <p class="text-xs text-slate-500 mt-2">Bronnen en onderbouwing per toets:
-       <a class="underline" href="https://github.com/Nolles15/stockscreen/blob/main/docs/plan-groeiprofiel.md">docs/plan-groeiprofiel.md</a>.</p>
+     <p class="text-xs text-slate-500 mt-2">Bronnen, onderbouwing per toets en de ijking, in gewone taal:
+       <a class="underline" href="/methode/groeiprofiel">Hoe de screener snelle groeiers beoordeelt</a>.</p>
      ${bron('engine/groei_profiel.py', 'bouw_profiel()')}`);
 }
 

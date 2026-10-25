@@ -61,8 +61,13 @@ def test_t1_verwatering():
 
 
 def test_t2_balansgroei():
+    # Sinds de ijking (okt 2026) geeft T2 geen rood: de rode groep deed het
+    # fundamenteel béter. Zonder die vlag hoort het oude gedrag terug te komen.
     p = gp.bouw_profiel(_gezond(total_assets=[200, 300, 450, 700]), piotroski=GOED_F)
-    assert _t(p, "T2")["uitkomst"] == "rood" and p["niveau"] == "rood"
+    assert _t(p, "T2")["uitkomst"] == "geel" and p["niveau"] != "rood"
+    oud = gp.bouw_profiel(_gezond(total_assets=[200, 300, 450, 700]), piotroski=GOED_F,
+                          drempels={"t2_kan_rood": True})
+    assert _t(oud, "T2")["uitkomst"] == "rood" and oud["niveau"] == "rood"
     # Gat groot maar activa zelf < 20%/jr: geen rood.
     traag = gp.bouw_profiel(_gezond(revenue=[100, 101, 102, 103],
                                     total_assets=[200, 230, 265, 305]), piotroski=GOED_F)
@@ -180,10 +185,10 @@ def test_ttm_rij_telt_niet_mee():
 
 def test_drempels_override():
     basis = gp.bouw_profiel(_gezond(shares_outstanding=[10, 10.4, 10.8, 11.2]), piotroski=GOED_F)
-    strak = gp.bouw_profiel(_gezond(shares_outstanding=[10, 10.4, 10.8, 11.2]), piotroski=GOED_F,
-                            drempels={"t1_rood": 3.0})
-    assert _t(basis, "T1")["uitkomst"] == "geel" and _t(strak, "T1")["uitkomst"] == "rood"
-    assert strak["drempels"]["t1_rood"] == 3.0 and basis["drempels"]["t1_rood"] == gp.T1_ROOD
+    ruim = gp.bouw_profiel(_gezond(shares_outstanding=[10, 10.4, 10.8, 11.2]), piotroski=GOED_F,
+                           drempels={"t1_rood": 5.0})
+    assert _t(basis, "T1")["uitkomst"] == "rood" and _t(ruim, "T1")["uitkomst"] == "geel"
+    assert ruim["drempels"]["t1_rood"] == 5.0 and basis["drempels"]["t1_rood"] == gp.T1_ROOD
     print("  [OK] drempels-override werkt en reist mee")
 
 

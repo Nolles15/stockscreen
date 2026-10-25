@@ -503,10 +503,11 @@ const TABS = [
     id: 'groeiers', label: '🌱 Groeiers',
     uitleg: 'Bedrijven met minstens 15% omzetgroei per jaar, winstgevend of niet. '
       + 'Het groeiprofiel is een zeef, geen koopadvies: rood betekent dat de cijfers tegen '
-      + 'de groei pleiten (verwatering, een balans die harder groeit dan de omzet, een zwakke '
-      + 'F-score), groen alleen dat ze er níet tegen pleiten. Reken niet op winnaars — van de '
+      + 'de groei pleiten (verwatering, een zwakke F-score, magere brutowinst), '
+      + 'groen alleen dat ze er níet tegen pleiten. Reken niet op winnaars — van de '
       + 'bedrijven die drie jaar hard groeien doet maar een klein deel dat nog eens drie jaar. '
-      + '🌱 = verlieslatend, geen fair value te berekenen. Drempels zijn voorlopig; de ijking volgt.',
+      + '🌱 = verlieslatend, geen fair value te berekenen.',
+    uitlegLink: { href: '/methode/groeiprofiel', tekst: 'Hoe dit werkt, met bronnen' },
   },
   {
     // Het sluitstuk van de pijplijn: tussencheck, analyse, gekocht — en dan?
@@ -563,7 +564,16 @@ function kiesTab(id) {
 
 function renderActiveTab() {
   const tab = TABS.find(t => t.id === _actieveTab) || TABS[0];
-  document.getElementById('tab-uitleg').textContent = tab.uitleg;
+  const uitlegEl = document.getElementById('tab-uitleg');
+  uitlegEl.textContent = tab.uitleg;
+  if (tab.uitlegLink) {
+    const a = document.createElement('a');
+    a.href = tab.uitlegLink.href;
+    a.textContent = tab.uitlegLink.tekst;
+    a.className = 'underline';
+    a.style.marginLeft = '0.35em';
+    uitlegEl.append(' ', a);
+  }
 
   // Zichtbaar maken dát er gefilterd is; anders lijkt een korte lijst al gauw
   // op "er zijn geen kansen" terwijl je naar één land kijkt.

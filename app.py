@@ -2798,6 +2798,12 @@ def methode():
     return render_template("methode.html")
 
 
+@app.route("/methode/groeiprofiel")
+def methode_groeiprofiel():
+    """Het groeiprofiel voor een leek: waarom, de zeven toetsen, de bronnen en de ijking."""
+    return render_template("groeiprofiel_uitleg.html")
+
+
 @app.route("/api/stocks/recompute-markets", methods=["POST"])
 def api_recompute_markets():
     """

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Groeiprofiel uitgelegd — Stockscreener{% endblock %}
+
+{% block content %}
+<style>
+  .uitleg { max-width: 46rem; line-height: 1.65; color: var(--text-1); }
+  .uitleg h1 { font-size: 1.6rem; font-weight: 700; line-height: 1.25; margin-bottom: .4rem; }
+  .uitleg h2 { font-size: 1.15rem; font-weight: 700; margin: 2.2rem 0 .6rem; }
+  .uitleg p { margin: 0 0 .9rem; }
+  .uitleg .intro { color: var(--text-2); font-size: 1.02rem; }
+  .uitleg .klein { color: var(--text-2); font-size: .85rem; }
+  .uitleg sup a { color: var(--text-2); text-decoration: none; font-size: .75em; padding: 0 1px; }
+  .uitleg sup a:hover { text-decoration: underline; }
+  .uitleg a.lnk { text-decoration: underline; text-underline-offset: 2px; }
+  .uitleg .kader { background: var(--surface); border: 1px solid var(--border);
+                   border-radius: var(--radius-sm); padding: 1rem 1.15rem; margin: 1.2rem 0; }
+  .uitleg .toets { background: var(--surface); border: 1px solid var(--border);
+                   border-radius: var(--radius-sm); padding: .9rem 1.1rem; margin: .7rem 0; }
+  .uitleg .toets h3 { font-weight: 700; margin-bottom: .25rem; }
+  .uitleg .toets p { margin: 0 0 .4rem; }
+  .uitleg .toets p:last-child { margin: 0; }
+  .uitleg .label { display: inline-block; font-size: .72rem; font-weight: 600; border-radius: 999px;
+                   padding: 1px 8px; margin-left: 6px; vertical-align: 2px; border: 1px solid; }
+  .uitleg .l-groen { color: var(--buy); background: var(--buy-bg); border-color: var(--buy-border); }
+  .uitleg .l-geel  { color: var(--hold); background: var(--hold-bg); border-color: var(--hold-border); }
+  .uitleg .l-rood  { color: var(--pass); background: var(--pass-bg); border-color: var(--pass-border); }
+  .uitleg .l-grijs { color: var(--text-2); background: var(--surface-2); border-color: var(--border); }
+  .uitleg table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: .6rem 0 1rem; }
+  .uitleg th, .uitleg td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--border); }
+  .uitleg td.num, .uitleg th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .uitleg .tabelrol { overflow-x: auto; }
+  .uitleg ol.bronnen { padding-left: 1.4rem; font-size: .85rem; color: var(--text-2); }
+  .uitleg ol.bronnen li { margin-bottom: .45rem; }
+  .uitleg ul.punten { list-style: disc; padding-left: 1.3rem; margin-bottom: .9rem; }
+  .uitleg ul.punten li { margin-bottom: .35rem; }
+</style>
+
+<article class="uitleg">
+  <p class="klein"><a class="lnk" href="/methode">Methode</a> › Groeiprofiel</p>
+  <h1>Hoe de screener snelle groeiers beoordeelt</h1>
+  <p class="intro">Waarom omzetgroei alleen weinig zegt, welke zeven toetsen het groeiprofiel
+    daarom doet, waar die toetsen vandaan komen, en wat er gebeurde toen we ze op ons eigen
+    universum terugrekenden.</p>
+  <p class="klein">Stand van 25 oktober 2026.</p>
+
+  <div class="kader">
+    <strong>In het kort.</strong> Het groeiprofiel is een zeef, geen koopadvies. Groen betekent
+    alleen dat de cijfers <em>niet tegen</em> de groei pleiten. Van alle bedrijven die hard
+    groeien houdt maar een klein deel dat vol. De zeef probeert die kans te verhogen, niet om
+    winnaars aan te wijzen. In onze eigen terugrekening was een jaar later 31% van de groene
+    groeiers winstgevend en van goede kwaliteit, tegen 16% van alle snelle groeiers en 8% van de
+    rode.
+  </div>
+
+  <h2>Het probleem: groei is makkelijk te kopen</h2>
+  <p>Een bedrijf kan zijn omzet snel laten groeien door geld uit te geven: overnames, korting
+    geven, nieuwe aandelen uitgeven om verliezen te dekken. Omzetgroei is daarom het getal dat
+    het makkelijkst te kopen is met verlies. Wie alleen op groei selecteert, krijgt juist veel
+    bedrijven die hun groei duur betalen. Dat zagen we ook terug: de oude tab Groeiers stond vol
+    met zwakke namen.</p>
+  <p>Daar komt bij dat snelle groei zelden blijft. Twintig procent omzetgroei tien jaar lang
+    volhouden lukt ongeveer één op de 22 bedrijven<sup><a href="#b1">1</a></sup>. In Zweden
+    herhaalde maar zo'n 1% van de snelle groeiers dat in de drie jaar daarna<sup><a href="#b2">2</a></sup>.
+    Over lange periodes houdt winstgroei niet beter aan dan je bij toeval zou
+    verwachten<sup><a href="#b3">3</a></sup>. Verlieslatende groeiaandelen renderen gemiddeld slecht,
+    en analisten zijn er stelselmatig te optimistisch over<sup><a href="#b4">4</a></sup>.</p>
+  <p>De vraag is dus niet "groeit dit bedrijf?" maar "<em>wat kost die groei, en is hij
+    gezond?</em>"</p>
+
+  <h2>Wat het profiel doet</h2>
+  <p>Voor elk aandeel met minstens 15% omzetgroei per jaar, gemeten over de laatste drie
+    boekjaren, doet de screener zeven toetsen. Samen leveren ze één van vier kleuren op:</p>
+  <ul class="punten">
+    <li><span class="label l-rood">rood</span> Minstens één harde toets slaat aan: de groei
+      wordt betaald met nieuwe aandelen, de fundamentele trend is zwak, of de brutowinst is te
+      mager.</li>
+    <li><span class="label l-geel">geel</span> Geen duidelijk alarm, maar ook geen overtuigend
+      beeld. Of één zwak punt: grillige groei of winst die niet in kas terugkomt.</li>
+    <li><span class="label l-groen">groen</span> Geen rood en een hoge totaalscore over
+      minstens vier bekende toetsen. De cijfers pleiten niet tegen de groei.</li>
+    <li><span class="label l-grijs">grijs</span> Niet te beoordelen: te weinig jaren,
+      afgekeurde cijfers, een bank of verzekeraar (daar meten deze toetsen iets anders), of een
+      omzetreeks waarin de definitie halverwege verandert.</li>
+  </ul>
+  <p>Alle toetsen gebruiken alleen gepubliceerde jaarcijfers. Ontbreekt een getal, dan telt de
+    toets niet mee. Hij telt dan dus nooit als slecht.</p>
+
+  <h2>De zeven toetsen</h2>
+  <p>Elke toets komt uit onderzoek dat over vele jaren en vaak over meerdere landen laat zien
+    dat het kenmerk samenhangt met latere rendementen. Waar Europees bewijs bestaat, staat dat
+    erbij. De meeste studies gaan over de VS, en onze screener gaat over Europa.</p>
+
+  <div class="toets">
+    <h3>1 · Verwatering <span class="label l-rood">kan rood geven</span></h3>
+    <p><strong>Wat:</strong> groeit het aantal aandelen? Een bedrijf dat steeds nieuwe aandelen
+      uitgeeft, betaalt zijn groei deels met jouw stuk van de taart.</p>
+    <p><strong>Bewijs:</strong> bedrijven die veel aandelen uitgeven, renderen daarna
+      slechter<sup><a href="#b5">5</a></sup>, ook in een studie over 41
+      landen<sup><a href="#b6">6</a></sup>.</p>
+    <p><strong>Grens:</strong> rood vanaf 3% meer aandelen per jaar.</p>
+  </div>
+
+  <div class="toets">
+    <h3>2 · Balansgroei <span class="label l-geel">hooguit geel</span></h3>
+    <p><strong>Wat:</strong> groeit de balans, dus alles wat het bedrijf bezit, veel harder
+      dan de omzet? Dan wordt er veel geïnvesteerd voor weinig extra verkoop.</p>
+    <p><strong>Bewijs:</strong> snelle balansgroei voorspelt lagere
+      rendementen<sup><a href="#b7">7</a></sup>, in Europa ook<sup><a href="#b8">8</a></sup>.
+      Bij verlieslatende bedrijven is het effect ongeveer twee keer zo
+      sterk<sup><a href="#b9">9</a></sup>.</p>
+    <p><strong>Wat wij vonden:</strong> in ons eigen universum werkte deze toets niet zoals
+      verwacht. Bedrijven die erop rood kregen, waren een jaar later vaker gezond dan de rest.
+      Hij telt nog mee in de score, maar kan het oordeel niet meer rood maken.</p>
+  </div>
+
+  <div class="toets">
+    <h3>3 · F-score <span class="label l-rood">kan rood geven</span></h3>
+    <p><strong>Wat:</strong> negen eenvoudige vragen over de jaarcijfers, zoals: is er winst,
+      is er kasstroom, daalt de schuld, stijgt de marge? Elk "ja" is een punt.</p>
+    <p><strong>Bewijs:</strong> oorspronkelijk bedacht om binnen goedkope aandelen de sterke
+      van de zwakke te scheiden<sup><a href="#b10">10</a></sup>. Hij werkt ook binnen
+      groeiaandelen in de eurozone<sup><a href="#b11">11</a></sup> en in vijftien Europese
+      landen<sup><a href="#b12">12</a></sup>.</p>
+    <p><strong>Grens:</strong> rood bij 3 of minder van de 9.</p>
+  </div>
+
+  <div class="toets">
+    <h3>4 · Brutowinstkracht <span class="label l-rood">kan rood geven</span></h3>
+    <p><strong>Wat:</strong> hoeveel brutowinst haalt het bedrijf uit wat het bezit, en
+      brokkelt de brutomarge af? Een bedrijf met weinig marge koopt zijn groei vaak met
+      lage prijzen.</p>
+    <p><strong>Bewijs:</strong> bedrijven met hoge brutowinst ten opzichte van hun bezittingen
+      renderen beter<sup><a href="#b13">13</a></sup>. Dat geldt ook in vijftien Europese
+      markten, iets zwakker dan in de VS<sup><a href="#b14">14</a></sup>.</p>
+    <p><strong>Grens:</strong> rood als de brutowinst minder is dan 15% van het balanstotaal,
+      of als de brutomarge duidelijk daalt.</p>
+  </div>
+
+  <div class="toets">
+    <h3>5 · Accruals <span class="label l-geel">hooguit geel</span></h3>
+    <p><strong>Wat:</strong> ligt de geboekte winst ver boven het geld dat echt binnenkomt?
+      Winst die niet in kas terugkomt, is minder betrouwbaar.</p>
+    <p><strong>Bewijs:</strong> sterk in de VS<sup><a href="#b15">15</a></sup>, gemengd in
+      Europa. In Duitsland werkt het vooral in combinatie met een hoge
+      F-score<sup><a href="#b16">16</a></sup>. Daarom telt deze toets maar half en geeft hij
+      hooguit geel.</p>
+  </div>
+
+  <div class="toets">
+    <h3>6 · Groeistabiliteit <span class="label l-geel">hooguit geel</span></h3>
+    <p><strong>Wat:</strong> groeit de omzet gelijkmatig, of springt hij heen en weer? Grillige
+      groei wijst vaak op één grote order, een overname of een gelukkig jaar.</p>
+    <p><strong>Bewijs:</strong> onderdeel van de G-score voor groeiaandelen<sup><a href="#b17">17</a></sup>,
+      die ook in de eurozone nog werkt<sup><a href="#b18">18</a></sup>. In ons eigen universum was
+      dit de sterkste toets.</p>
+    <p><strong>Grens:</strong> de toets slaat aan als de jaarlijkse groeicijfers gemiddeld meer
+      dan 15 procentpunt van elkaar afwijken. Het hele profiel wordt dan geel: één zwak punt,
+      geen rood.</p>
+  </div>
+
+  <div class="toets">
+    <h3>7 · R&amp;D-intensiteit <span class="label l-groen">alleen positief</span></h3>
+    <p><strong>Wat:</strong> hoeveel van de omzet gaat naar onderzoek en ontwikkeling? Dat zijn
+      kosten nu voor groei later, en de beurs onderschat ze vaak.</p>
+    <p><strong>Bewijs:</strong> bedrijven met hoge R&amp;D-uitgaven worden
+      ondergewaardeerd<sup><a href="#b19">19</a></sup>, in Europa
+      ook<sup><a href="#b20">20</a></sup>. Het bewijs werkt alleen in die richting. Deze toets
+      kan dus helpen, maar nooit rood geven. Veel Europese bedrijven melden R&amp;D niet apart;
+      dan telt de toets niet mee.</p>
+  </div>
+
+  <p class="klein">Bewust weggelaten: de "regel van 40" (alleen onderbouwd voor
+    softwarebedrijven) en operationele hefboom (weinig bewijs als selectiecriterium).</p>
+
+  <h2>Wat we zelf hebben nagerekend</h2>
+  <p>Onderzoek uit de VS hoeft niet op te gaan voor Europese small caps. We hebben de toetsen
+    daarom teruggerekend op ons eigen universum. We namen de cijfers zoals die er in juli 2025
+    lagen, dus met boekjaren tot en met 2024, en keken wat er daarna gebeurde. Dat leverde 488
+    snelle groeiers op. Een bedrijf telt als "gelukt" als het over 2025 winst maakte en nu een
+    kwaliteitsscore van 6 of hoger heeft. Daarnaast keken we of de koers na een jaar beter
+    deed dan het middelste aandeel van het hele universum.</p>
+  <div class="tabelrol">
+    <table>
+      <thead><tr><th>Oordeel in juli 2025</th><th class="num">Aantal</th>
+        <th class="num">Een jaar later gezond</th><th class="num">Koers beter dan het midden</th></tr></thead>
+      <tbody>
+        <tr><td><span class="label l-groen" style="margin:0">groen</span></td><td class="num">170</td><td class="num">31%</td><td class="num">51%</td></tr>
+        <tr><td><span class="label l-geel" style="margin:0">geel</span></td><td class="num">63</td><td class="num">7%</td><td class="num">52%</td></tr>
+        <tr><td><span class="label l-rood" style="margin:0">rood</span></td><td class="num">255</td><td class="num">8%</td><td class="num">46%</td></tr>
+        <tr><td>Alle snelle groeiers</td><td class="num">488</td><td class="num">16%</td><td class="num">49%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Wat je hieruit kunt halen:</p>
+  <ul class="punten">
+    <li><strong>Fundamenteel werkt de zeef duidelijk.</strong> Groen haalt bijna twee keer de
+      basiskans, rood haalt de helft.</li>
+    <li><strong>Op de koers is het verschil klein.</strong> Na één jaar ligt groen een paar
+      procentpunt voor op rood. Dat past bij wat de zeef wil zijn: een manier om minder tijd
+      te verliezen aan zwakke bedrijven, niet een koersvoorspeller.</li>
+    <li><strong>Ook groen is geen garantie.</strong> Twee op de drie groene groeiers waren een
+      jaar later niet winstgevend met goede kwaliteit.</li>
+  </ul>
+  <p>Op basis van deze terugrekening zijn de grenzen aangescherpt. Per toets is de strengste
+    grens gekozen die nog een duidelijk verschil gaf: rood moest slechter scoren dan de rest,
+    zowel fundamenteel als op de koers. De balansgroei-toets haalde dat niet en kan het oordeel
+    sindsdien niet meer rood maken. Hierdoor ging het aandeel groen in de tab van 27% naar 19% (155 naar 108 van de 572 snelle groeiers, gemeten op 25 oktober 2026).</p>
+  <p class="klein">De volledige tabellen, met elke geprobeerde grens per toets, staan in
+    <a class="lnk" href="https://github.com/Nolles15/stockscreen/blob/main/docs/groeiprofiel-ijking.md">het ijkrapport</a>.
+    De berekening is na te lopen in
+    <a class="lnk" href="https://github.com/Nolles15/stockscreen/blob/main/scripts/groei_backtest.py">scripts/groei_backtest.py</a>.
+    Hoe het profiel voor één aandeel uitvalt, staat op <a class="lnk" href="/methode">Methode</a>, stap 8.</p>
+
+  <h2>Wat dit niet kan</h2>
+  <ul class="punten">
+    <li><strong>Eén jaar, één marktklimaat.</strong> De terugrekening beslaat juli 2025 tot juli
+      2026. Een ander jaar kan anders uitvallen. Een eerdere vorming (cijfers t/m 2023) leverde
+      maar 33 groeiers op, te weinig om iets over te zeggen. De meeste aandelen hebben pas
+      cijfers vanaf 2022.</li>
+    <li><strong>Een beetje voorkennis in de maatstaf.</strong> "Gezond" gebruikt de
+      kwaliteitsscore van nu. Er is geen historie van die score.</li>
+    <li><strong>Koers zonder dividend.</strong> We vergelijken alleen slotkoersen.</li>
+    <li><strong>Het blijft voorlopig.</strong> Een tweede controle, op de internationale
+      factordata van Jensen, Kelly en Pedersen<sup><a href="#b21">21</a></sup>, staat nog open.</li>
+    <li><strong>Kleine, weinig verhandelde aandelen.</strong> Dit soort signalen werkt vooral
+      daar<sup><a href="#b18">18</a></sup>. Dat is goed voor het signaal, maar lastig bij het
+      kopen en verkopen. Buiten de VS lijken ze na publicatie niet weg te
+      smelten<sup><a href="#b22">22</a></sup>.</li>
+    <li><strong>Een specifieke studie ontbreekt.</strong> Er is geen onderzoek gevonden naar
+      precies deze combinatie van toetsen op verlieslatende Europese small caps.</li>
+  </ul>
+
+  <h2>Bronnen</h2>
+  <ol class="bronnen">
+    <li id="b1">Mauboussin, M., Callahan, D. &amp; Majd, D. (2016). <em>The Base Rate Book</em>. Credit Suisse.</li>
+    <li id="b2">Daunfeldt, S.-O. &amp; Halvarsson, D. (2015). Are high-growth firms one-hit wonders? Evidence from Sweden. <em>Small Business Economics</em>.</li>
+    <li id="b3">Chan, L., Karceski, J. &amp; Lakonishok, J. (2003). The level and persistence of growth rates. <em>Journal of Finance</em>.</li>
+    <li id="b4">Mohrschladt, H. (2024). <em>Abacus</em>.</li>
+    <li id="b5">Pontiff, J. &amp; Woodgate, A. (2008). Share issuance and cross-sectional returns. <em>Journal of Finance</em>.</li>
+    <li id="b6">McLean, R. D., Pontiff, J. &amp; Watanabe, A. (2009). Share issuance and cross-sectional returns: International evidence. <em>Journal of Financial Economics</em>.</li>
+    <li id="b7">Cooper, M., Gulen, H. &amp; Schill, M. (2008). Asset growth and the cross-section of stock returns. <em>Journal of Finance</em>.</li>
+    <li id="b8">Artikis, P., Diamantopoulou, L. &amp; Papanastasopoulos, G. (2022). <em>European Journal of Finance</em> 28, 1867–1891.</li>
+    <li id="b9">Papanastasopoulos, G. (2017). <em>Economics Letters</em> 156, 106–109.</li>
+    <li id="b10">Piotroski, J. (2000). Value investing: The use of historical financial statement information to separate winners from losers. <em>Journal of Accounting Research</em>.</li>
+    <li id="b11">Mohr, J. (2012). F-score op groeiaandelen in de eurozone, 1999–2010.</li>
+    <li id="b12">Walkshäusl, C. (2017). <em>Review of Finance</em> 21, 845–870; en (2020), <em>Journal of Asset Management</em> 21.</li>
+    <li id="b13">Novy-Marx, R. (2013). The other side of value: The gross profitability premium. <em>Journal of Financial Economics</em> 108, 1–28.</li>
+    <li id="b14">Dimensional Fund Advisors: winstgevendheidspremie in 15 Europese markten, 1982–2014.</li>
+    <li id="b15">Sloan, R. (1996). Do stock prices fully reflect information in accruals and cash flows about future earnings? <em>The Accounting Review</em>.</li>
+    <li id="b16">Walkshäusl, C. (2022). <em>Financial Markets and Portfolio Management</em> 36, 321–367.</li>
+    <li id="b17">Mohanram, P. (2005). Separating winners from losers among low book-to-market stocks using financial statement analysis. <em>Review of Accounting Studies</em>.</li>
+    <li id="b18">Amor-Tapia, B. &amp; Tascón, M. T. (2016). <em>Czech Journal of Economics and Finance</em> 66, 70–94.</li>
+    <li id="b19">Chan, L., Lakonishok, J. &amp; Sougiannis, T. (2001). The stock market valuation of research and development expenditures. <em>Journal of Finance</em>.</li>
+    <li id="b20">Duqi, A., Jaafar, A. &amp; Torluccio, G. (2015). <em>European Journal of Finance</em> 21, 444–465.</li>
+    <li id="b21">Jensen, T., Kelly, B. &amp; Pedersen, L. (2023). Is there a replication crisis in finance? <em>Journal of Finance</em>. Data: jkpfactors.com.</li>
+    <li id="b22">Jacobs, H. &amp; Müller, S. (2020). Anomalies across the globe: Once public, no longer existent? <em>Journal of Financial Economics</em>.</li>
+  </ol>
+</article>
+{% endblock %}

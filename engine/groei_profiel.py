@@ -33,20 +33,31 @@ VENSTER_RIJEN = 4          # vier boekjaren = drie intervallen, als de omzetgroe
 MIN_RIJEN = 3
 
 # --- Voorlopige drempels ----------------------------------------------------
-T1_ROOD = 5.0              # %/jaar groei van het aantal aandelen
+# T1, T2, T4 en T6 zijn op 25 okt 2026 geijkt met scripts/groei_backtest.py
+# (docs/groeiprofiel-ijking.md, vorming t/m FY2024, 488 snelle groeiers, één
+# jaar koers). Keuze van Janco: per toets de STRENGSTE drempel die nog scheidt,
+# dus rood is slechter op fundament (winst + kwaliteit ≥ 6 in FY2025) én op de
+# koers na 12 maanden. Voorlopig blijft het tot de JKP-check (B1) en een tweede
+# vorming het bevestigen.
+T1_ROOD = 3.0              # %/jaar groei van het aantal aandelen (was 5: rood 8% fundament ok tegen 18%)
 T1_GEEL = 2.0
 T1_AANDELENBREUK = 2.0     # sprong ≥ factor 2 tussen twee jaren = klassewissel/split
 T2_ROOD_GAT = 15.0         # procentpunt: activa-CAGR minus omzet-CAGR
 T2_ROOD_ACTIVA = 20.0      # én activa-CAGR zelf minstens zoveel %/jaar
 T2_GEEL_GAT = 5.0
+# T2 geeft geen rood meer: bij elke drempel scoorde de rode groep fundamenteel
+# béter dan de rest (23% tegen 15% bij een gat van 15 pp). Alleen de koers was
+# slechter. Een toets die op de helft van de uitkomsten de verkeerde kant op
+# wijst mag het oordeel niet sturen; hij blijft zichtbaar als geel.
+T2_KAN_ROOD = False
 T3_ROOD = 3                # F-score ≤ 3
 T3_GEEL = 5                # 4–5 geel, ≥ 6 groen
 T3_MIN_BEKEND = 7          # van 9 criteria
-T4_ROOD_NIVEAU = 0.10      # brutowinst / totale activa
+T4_ROOD_NIVEAU = 0.15      # brutowinst / totale activa (was 0,10; 0,20 scheidt niet meer op koers)
 T4_GROEN_NIVEAU = 0.33
 T5_ROOD = 10.0             # accruals in % van de activa
 T6_GROEN = 10.0            # stdev van de jaarlijkse omzetgroei, procentpunt
-T6_ROOD = 25.0
+T6_ROOD = 15.0             # was 25; scheidt bij elke drempel, het sterkst van alle toetsen
 T7_GROEN_ZONDER_SECTOR = 5.0   # R&D in % van de omzet
 GROEN_SCORE = 7.0
 GROEN_MIN_BEKEND = 4
@@ -62,6 +73,7 @@ DREMPELS = {
     "venster_rijen": VENSTER_RIJEN, "min_rijen": MIN_RIJEN,
     "t1_rood": T1_ROOD, "t1_geel": T1_GEEL, "t1_aandelenbreuk": T1_AANDELENBREUK,
     "t2_rood_gat": T2_ROOD_GAT, "t2_rood_activa": T2_ROOD_ACTIVA, "t2_geel_gat": T2_GEEL_GAT,
+    "t2_kan_rood": T2_KAN_ROOD,
     "t3_rood": T3_ROOD, "t3_geel": T3_GEEL, "t3_min_bekend": T3_MIN_BEKEND,
     "t4_rood_niveau": T4_ROOD_NIVEAU, "t4_groen_niveau": T4_GROEN_NIVEAU,
     "t4_marge_erosie_pp": MARGE_EROSIE_PP,
@@ -182,7 +194,9 @@ _BREUK_UITLEG = "Omzetreeks bevat een definitiewissel — deze toets leunt op de
 def _t2(v, omzet_g, d, breuk=None) -> tuple[dict, Optional[float]]:
     activa = _reeks(v, "total_assets", positief=True)
     naam, bron = "Balansgroei", "Cooper, Gulen & Schill 2008; Papanastasopoulos 2017"
-    drempel = f"rood: gat ≥ {d['t2_rood_gat']:g} pp én activa ≥ {d['t2_rood_activa']:g}%/jr"
+    drempel = (f"rood: gat ≥ {d['t2_rood_gat']:g} pp én activa ≥ {d['t2_rood_activa']:g}%/jr"
+               if d["t2_kan_rood"] else
+               f"geel bij een gat ≥ {d['t2_geel_gat']:g} pp; geeft geen rood (ijking okt 2026)")
     if breuk:
         return _toets("T2", naam, "onbekend", None, drempel, bron, _BREUK_UITLEG), None
     if len(v) < 2 or len(activa) < 2 or activa[0]["jaar"] != int(v[0]["fiscal_year"]) \
@@ -192,7 +206,7 @@ def _t2(v, omzet_g, d, breuk=None) -> tuple[dict, Optional[float]]:
     ag = _cagr_van(activa)
     gat = 100 * (ag - omzet_g)
     if gat >= d["t2_rood_gat"] and 100 * ag >= d["t2_rood_activa"]:
-        uit = "rood"
+        uit = "rood" if d["t2_kan_rood"] else "geel"
     elif gat >= d["t2_geel_gat"]:
         uit = "geel"
     else:

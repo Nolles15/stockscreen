@@ -66,6 +66,9 @@ RASTER = {
 # (T4 omgekeerd: een lagere vloer is ruimer).
 RUIMSTE_EERST = {"T1": True, "T2": True, "T4": False, "T6": True}
 MIN_N = 20
+# Welke drempel wint als er meer slagen. Janco koos op 25 okt 2026 "strengste"
+# (meer rood); "ruimste" geeft rood alleen aan de duidelijkste gevallen.
+KEUZE = "strengste"
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +311,8 @@ def _drempels_voor(code: str, waarde: float) -> dict:
     d = {sleutel: waarde}
     if code == "T1":
         d["t1_geel"] = min(gp.T1_GEEL, waarde)
+    if code == "T2":
+        d["t2_kan_rood"] = True       # het raster meet juist wat rood zou doen
     if code == "T6":
         d["t6_groen"] = min(gp.T6_GROEN, waarde)
     return d
@@ -331,7 +336,9 @@ def analyse(data: dict) -> dict:
                 per[n] = {"rood": mr, "niet": mn, "onbekend": len(s["onbekend"]),
                           "oordeel": scheidt(mr, mn)}
             rij.append({"waarde": w, "per": per, "slaagt": _slaagt(per)})
-        volgorde = sorted(rij, key=lambda r: r["waarde"], reverse=RUIMSTE_EERST[code])
+        ruim_eerst = RUIMSTE_EERST[code]
+        volgorde = sorted(rij, key=lambda r: r["waarde"],
+                          reverse=ruim_eerst if KEUZE == "ruimste" else not ruim_eerst)
         gekozen = next((r["waarde"] for r in volgorde if r["slaagt"]), None)
         res["raster"][code] = {"sleutel": sleutel, "rij": rij, "gekozen": gekozen,
                                "huidig": gp.DREMPELS[sleutel]}
@@ -431,10 +438,10 @@ def rapport(res: dict, opgehaald: str) -> str:
          "hield* = omzet groeide daarna nog ≥ 10%/jr. *Koers > mediaan* = slotkoers-op-"
          "slotkoers beter dan de mediaan van het hele geprijsde universum (geen dividend). "
          "Verdwenen tickers tellen als −50% en als fundamenteel mislukt.", "",
-         "**Keuzeregel (vooraf vastgelegd).** Een drempel mag rood geven als de rode groep "
+         f"**Keuzeregel (vooraf vastgelegd).** Een drempel mag rood geven als de rode groep "
          f"n ≥ {MIN_N} heeft en strikt slechter scoort dan niet-rood op fundament én koers "
-         "12m. Een vorming waarin de rode groep te klein is, beslist niet mee; in de andere mag geen tegenspraak zitten. Slagen er meerdere, dan wint de **ruimste** (die het "
-         "minst rood geeft): rood moet een duidelijk geval zijn. Slaagt er geen, dan wordt de "
+         f"12m. Een vorming waarin de rode groep te klein is, beslist niet mee; in de andere mag geen tegenspraak zitten. Slagen er meerdere, dan wint de **{KEUZE}** "
+         "(strengste = die het meest rood geeft). Slaagt er geen, dan wordt de "
          "toets geel-only.", "",
          "## Cohorten", "",
          "| vorming | snelle groeiers | met koers op vorming | verdwenen | mediaan universum 12m | 24m |",
@@ -552,18 +559,21 @@ def _zelftest() -> None:
     assert all(len(gp._venster(c["asof"])) == 3 for c in co), "F2023 hoort alleen FY ≤ 2023 te zien"
     res = analyse(data)
     t1 = res["raster"]["T1"]
-    assert t1["gekozen"] == 12.0, t1["gekozen"]          # 15%/jr verwatering: alle waarden slagen
+    assert t1["gekozen"] == (3.0 if KEUZE == "strengste" else 12.0), t1["gekozen"]
     assert rapport(res, "zelftest").startswith("# Groeiprofiel")
     print("Zelftest geslaagd.")
 
 
 def main() -> None:
+    global KEUZE
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--cache", default=CACHE)
     ap.add_argument("--vernieuw", action="store_true", help="cache negeren, opnieuw ophalen")
     ap.add_argument("--out", help="rapport naar dit bestand (anders stdout)")
+    ap.add_argument("--keuze", choices=("strengste", "ruimste"), default="strengste")
     ap.add_argument("--zelftest", action="store_true")
     a = ap.parse_args()
+    KEUZE = a.keuze
     if a.zelftest:
         _zelftest()
         return

@@ -1,10 +1,10 @@
 # Groeiprofiel — ijking op het eigen universum (fase B2)
 
-Gegenereerd 2026-10-25 09:21 met `scripts/groei_backtest.py`, data opgehaald 2026-10-25T08:20:48.
+Gegenereerd 2026-10-25 09:25 met `scripts/groei_backtest.py`, data opgehaald 2026-10-25T08:20:48.
 
 **Leeswijzer.** Per vorming is het profiel teruggerekend op de cijfers t/m dat boekjaar. *Fundament ok* = winst in FY2025 én kwaliteitsscore ≥ 6 nu. *Groei hield* = omzet groeide daarna nog ≥ 10%/jr. *Koers > mediaan* = slotkoers-op-slotkoers beter dan de mediaan van het hele geprijsde universum (geen dividend). Verdwenen tickers tellen als −50% en als fundamenteel mislukt.
 
-**Keuzeregel (vooraf vastgelegd).** Een drempel mag rood geven als de rode groep n ≥ 20 heeft en strikt slechter scoort dan niet-rood op fundament én koers 12m. Een vorming waarin de rode groep te klein is, beslist niet mee; in de andere mag geen tegenspraak zitten. Slagen er meerdere, dan wint de **ruimste** (die het minst rood geeft): rood moet een duidelijk geval zijn. Slaagt er geen, dan wordt de toets geel-only.
+**Keuzeregel (vooraf vastgelegd).** Een drempel mag rood geven als de rode groep n ≥ 20 heeft en strikt slechter scoort dan niet-rood op fundament én koers 12m. Een vorming waarin de rode groep te klein is, beslist niet mee; in de andere mag geen tegenspraak zitten. Slagen er meerdere, dan wint de **strengste** (strengste = die het meest rood geeft). Slaagt er geen, dan wordt de toets geel-only.
 
 ## Cohorten
 
@@ -29,33 +29,33 @@ Uitval F2024: geen snelle groeier 2035, te weinig jaren 873, bank/verzekeraar 56
 
 | niveau | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| groen | 12 | 29% (7) | 29% | 67% (9) | +28 pp | 67% (9) | +44 pp |
-| geel | 8 | 0% (2) | 0% | 20% (5) | -23 pp | 0% (5) | -22 pp |
-| rood | 13 | 0% (3) | 0% | 12% (8) | -24 pp | 12% (8) | -43 pp |
+| groen | 7 | 33% (3) | 33% | 80% (5) | +43 pp | 80% (5) | +58 pp |
+| geel | 9 | 50% (2) | 0% | 14% (7) | -28 pp | 14% (7) | -49 pp |
+| rood | 17 | 0% (7) | 14% | 30% (10) | -11 pp | 20% (10) | -31 pp |
 
 | score | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| ≥ 7 | 20 | 22% (9) | 22% | 43% (14) | -8 pp | 43% (14) | -22 pp |
-| 5 – 7 | 9 | 0% (2) | 0% | 33% (6) | -19 pp | 17% (6) | -37 pp |
-| < 5 | 4 | 0% (1) | 0% | 0% (2) | -63 pp | 0% (2) | -89 pp |
+| ≥ 7 | 18 | 29% (7) | 14% | 42% (12) | -8 pp | 42% (12) | -22 pp |
+| 5 – 7 | 13 | 0% (4) | 25% | 30% (10) | -21 pp | 20% (10) | -43 pp |
+| < 5 | 2 | 0% (1) | 0% | – (0) | – | – (0) | – |
 
 **F2024**
 
 | niveau | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| groen | 205 | 27% (196) | 47% | 54% (167) | +5 pp | – (0) | – |
-| geel | 47 | 4% (47) | 23% | 47% (34) | -3 pp | – (0) | – |
-| rood | 236 | 9% (222) | 45% | 44% (183) | -4 pp | – (0) | – |
+| groen | 170 | 31% (167) | 50% | 51% (142) | +2 pp | – (0) | – |
+| geel | 63 | 7% (58) | 29% | 52% (46) | +2 pp | – (0) | – |
+| rood | 255 | 8% (240) | 42% | 46% (196) | -3 pp | – (0) | – |
 
 | score | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| ≥ 7 | 283 | 23% (272) | 42% | 52% (227) | +4 pp | – (0) | – |
-| 5 – 7 | 157 | 6% (150) | 45% | 43% (122) | -4 pp | – (0) | – |
-| < 5 | 48 | 9% (43) | 47% | 43% (35) | -5 pp | – (0) | – |
+| ≥ 7 | 263 | 25% (254) | 44% | 53% (213) | +4 pp | – (0) | – |
+| 5 – 7 | 171 | 6% (162) | 42% | 45% (134) | -4 pp | – (0) | – |
+| < 5 | 54 | 6% (49) | 47% | 41% (37) | -5 pp | – (0) | – |
 
 ## Drempelraster per toets
 
-### T1 — `t1_rood` (nu 5)
+### T1 — `t1_rood` (nu 3)
 
 | waarde | vorming | groep | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m | oordeel |
 |---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|
@@ -76,7 +76,7 @@ Uitval F2024: geen snelle groeier 2035, te weinig jaren 873, bank/verzekeraar 56
 | 12 | F2024 | rood | 37 | 6% (35) | 46% | 42% (24) | -6 pp | – (0) | – | scheidt |
 | | | niet-rood | 451 | 17% (430) | 43% | 49% (360) | -1 pp | – (0) | – | onbekend 0 |
 
-**Gekozen:** 12
+**Gekozen:** 3
 
 ### T2 — `t2_rood_gat` (nu 15)
 
@@ -101,7 +101,7 @@ Uitval F2024: geen snelle groeier 2035, te weinig jaren 873, bank/verzekeraar 56
 
 **Geen drempel slaagt → geel-only (kan geen rood meer geven).**
 
-### T4 — `t4_rood_niveau` (nu 0.1)
+### T4 — `t4_rood_niveau` (nu 0.15)
 
 | waarde | vorming | groep | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m | oordeel |
 |---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|
@@ -118,9 +118,9 @@ Uitval F2024: geen snelle groeier 2035, te weinig jaren 873, bank/verzekeraar 56
 | 0.2 | F2024 | rood | 225 | 8% (213) | 41% | 50% (177) | -0 pp | – (0) | – | rood niet slechter op koers 12m |
 | | | niet-rood | 247 | 23% (239) | 46% | 48% (198) | -2 pp | – (0) | – | onbekend 16 |
 
-**Gekozen:** 0.1
+**Gekozen:** 0.15
 
-### T6 — `t6_rood` (nu 25)
+### T6 — `t6_rood` (nu 15)
 
 | waarde | vorming | groep | n | fundament ok (n) | groei hield | koers 12m > mediaan (n) | mediaan rel. 12m | koers 24m > mediaan (n) | mediaan rel. 24m | oordeel |
 |---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|
@@ -137,7 +137,7 @@ Uitval F2024: geen snelle groeier 2035, te weinig jaren 873, bank/verzekeraar 56
 | 35 | F2024 | rood | 94 | 2% (90) | 43% | 43% (72) | -5 pp | – (0) | – | scheidt |
 | | | niet-rood | 394 | 19% (375) | 43% | 50% (312) | +0 pp | – (0) | – | onbekend 0 |
 
-**Gekozen:** 35
+**Gekozen:** 15
 
 ## Toetsen zonder raster (huidige drempel)
 
@@ -176,16 +176,16 @@ Uitval F2024: geen snelle groeier 2035, te weinig jaren 873, bank/verzekeraar 56
 
 Benadering (F-score zonder TTM-rij, zonder aandelenklasse-markering); de echte telling komt uit `/api/scores/recompute` met `dry_run`.
 
-Gekozen drempels: `{"t1_rood": 12.0, "t1_geel": 2.0, "t4_rood_niveau": 0.1, "t6_rood": 35.0, "t6_groen": 10.0}`
+Gekozen drempels: `{"t1_rood": 3.0, "t1_geel": 2.0, "t4_rood_niveau": 0.15, "t6_rood": 15.0, "t6_groen": 10.0}`
 
 | niveau | huidig | gekozen |
 |---|---:|---:|
-| groen | 155 | 184 |
-| geel | 59 | 60 |
-| rood | 232 | 202 |
+| groen | 107 | 107 |
+| geel | 89 | 89 |
+| rood | 250 | 250 |
 | grijs | 148 | 148 |
 
-Groen nu 26%, met de gekozen drempels 31%.
+Groen nu 18%, met de gekozen drempels 18%.
 
 ## Beperkingen
 
