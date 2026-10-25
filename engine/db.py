@@ -967,9 +967,11 @@ def jaarrijen_met_overrides(ticker: str) -> tuple[list[dict], list[int]]:
 
     Geeft terug: (rijen nieuwste-eerst, jaren die alleen handmatig bestaan).
     """
-    rijen = get_financials(ticker, "annual")
-    overrides = get_overrides(ticker)
+    return _pas_overrides_toe(get_financials(ticker, "annual"), get_overrides(ticker))
 
+
+def _pas_overrides_toe(rijen: list[dict], overrides: dict) -> tuple[list[dict], list[int]]:
+    """De ene regel achter `jaarrijen_met_overrides` en de bulkvariant."""
     bestaande = {r.get("fiscal_year") for r in rijen}
     alleen_handmatig = sorted(
         {jr for (_, jr) in overrides if jr is not None and jr not in bestaande},
@@ -988,6 +990,31 @@ def jaarrijen_met_overrides(ticker: str) -> tuple[list[dict], list[int]]:
                 rij[veld] = entry["value"]
 
     return rijen, alleen_handmatig
+
+
+def jaarrijen_met_overrides_bulk() -> dict[str, list[dict]]:
+    """`jaarrijen_met_overrides` voor álle tickers in twee queries (nieuwste-eerst).
+
+    Voor eenmalige analyses zoals scripts/groei_backtest.py; inclusief inactieve
+    tickers, want wie die weglaat meet alleen de overlevers.
+    """
+    with _cursor() as cur:
+        cur.execute("SELECT * FROM financials WHERE period_type='annual' "
+                    "ORDER BY ticker, fiscal_year DESC")
+        fin = cur.fetchall()
+        cur.execute("SELECT ticker, field_name, fiscal_year, value, note FROM overrides")
+        ovr = cur.fetchall()
+    per_ticker: dict[str, list[dict]] = {}
+    for r in fin:
+        per_ticker.setdefault(r["ticker"], []).append(dict(r))
+    ov_per: dict[str, dict] = {}
+    for r in ovr:
+        ov_per.setdefault(r["ticker"], {})[(r["field_name"], r["fiscal_year"])] = {
+            "value": r["value"], "note": r["note"]}
+    uit = {}
+    for t in set(per_ticker) | set(ov_per):
+        uit[t] = _pas_overrides_toe(per_ticker.get(t, []), ov_per.get(t, {}))[0]
+    return uit
 
 
 def get_scores(ticker: str) -> dict | None:
