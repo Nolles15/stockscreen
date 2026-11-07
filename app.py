@@ -10,6 +10,7 @@ import logging
 import math
 import os
 import re
+import signal
 import threading
 import time
 import uuid
@@ -35,6 +36,7 @@ from engine import oordelen
 from engine import refresh
 from engine import scorebord as scorebord_mod
 from engine import remap_rules
+from engine import stilte
 from engine.data_fetcher import (
     fetch_and_store,
     fetch_market_only,
@@ -104,6 +106,41 @@ _startup_job_id: str | None = None   # job_id of the auto-refresh triggered at s
 # recta in de rate-limits; de scheduler en de handmatige knop delen deze vlag.
 _fundamentals_lock = threading.Lock()
 _fundamentals_running = False
+
+
+def _jobs_of_rondes_bezig() -> bool:
+    if _fundamentals_running:
+        return True
+    with _jobs_lock:
+        return any(j.get("status") in ("pending", "running") for j in _jobs.values())
+
+
+# Zelf stoppen bij stilte, zie engine/stilte.py en CLAUDE.md. Alleen op Fly
+# (FLY_MACHINE_ID); lokaal zou SIGTERM naar de ouder je eigen shell raken.
+STIL_MINUTEN = 10
+_stilte = stilte.Stiltebewaker(STIL_MINUTEN, max_werk_uren=3,
+                               ander_werk=_jobs_of_rondes_bezig)
+
+
+@app.before_request
+def _noteer_verzoek():
+    _stilte.verzoek()
+
+
+def _stiltebewaker_loop() -> None:
+    while True:
+        time.sleep(60)
+        try:
+            if _stilte.moet_stoppen():
+                log.info("Stil sinds %.0f min en geen werk (bezig=%s) — machine stopt zichzelf",
+                         _stilte.stil_sinds_minuten(), _stilte.bezig())
+                # Gunicorn-master netjes afsluiten → exitcode 0 → Fly laat de
+                # machine gestopt (restartbeleid on-failure) tot het volgende verzoek.
+                os.kill(os.getppid(), signal.SIGTERM)
+                return
+        except Exception:
+            log.exception("Stiltebewaker crashte — machine blijft aan")
+            return
 
 STALE_HEAVY_DAYS = 6   # dagen zonder zware refresh → opnieuw ophalen bij next run
 
@@ -1649,13 +1686,16 @@ def _scheduler_loop(cfg: dict) -> None:
 
             past_price_time = (now.hour, now.minute) >= (PRICE_REFRESH_HOUR, PRICE_REFRESH_MINUTE)
             if past_price_time and not _ran_today("last_price_refresh_at"):
-                _run_price_refresh(cfg)
+                with _stilte.werk():
+                    _run_price_refresh(cfg)
 
             if now.hour >= FUNDAMENTALS_HOUR and not _ran_today("last_fundamentals_refresh_at"):
-                _run_fundamentals_refresh(cfg)
+                with _stilte.werk():
+                    _run_fundamentals_refresh(cfg)
 
             if _days_since("last_reprobe_at") >= 7:
-                _run_weekly_tasks(cfg)
+                with _stilte.werk():
+                    _run_weekly_tasks(cfg)
 
         except Exception:
             log.exception("Scheduler-tick crashte — loop blijft draaien")
@@ -2517,6 +2557,10 @@ def api_refresh_prices():
     cfg = load_config()
 
     def _work():
+        with _stilte.werk():
+            _work_inner()
+
+    def _work_inner():
         try:
             db.log_activity("refresh_prices", None, "start",
                             {"tickers": len(tickers), "trigger": "handmatig"})
@@ -3524,6 +3568,11 @@ def _on_startup() -> None:
 
 # Wordt aangeroepen bij module-import (Gunicorn) én bij python app.py
 _on_startup()
+
+if os.environ.get("FLY_MACHINE_ID") and os.environ.get("ZELF_STOPPEN", "1") == "1":
+    threading.Thread(target=_stiltebewaker_loop, daemon=True).start()
+    log.info("Stiltebewaker actief: machine stopt zichzelf na %d min zonder verzoek en zonder werk",
+             STIL_MINUTEN)
 
 
 if __name__ == "__main__":

@@ -6,13 +6,14 @@ primary_region = "ams"
 [http_service]
   internal_port = 8080
   force_https = true
-  # Sinds 2026-11-07 slaapt de machine als er geen verkeer is (was: altijd aan,
-  # $3,96/mnd). De scheduler draait nog steeds in het proces; een externe wekker
-  # (cron-job.org) vraagt elke minuut /api/health op in de uren 3, 4, 18 en 19
-  # Amsterdam, zodat de machine wakker blijft tijdens de rondes.
-  # Valt de wekker uit, dan haalt de eerstvolgende start het werk in
-  # (`_ran_today` in _scheduler_loop). Zie CLAUDE.md.
-  auto_stop_machines = "stop"
+  # Sinds 2026-11-07 slaapt de machine als er niets te doen is (was: altijd aan,
+  # $3,96/mnd). Fly's auto_stop staat bewust UIT: die stopte op 7 nov een
+  # koersronde halverwege, ondanks een ping per minuut. De app stopt zichzelf
+  # (engine/stilte.py): na 10 min zonder verzoek én zonder lopende ronde.
+  # Exitcode 0 + restartbeleid on-failure = machine blijft uit; auto_start
+  # wekt hem bij het volgende verzoek. De wekker (cron-job.org) vraagt elke
+  # minuut /api/health op in de uren 3, 4, 18 en 19 Amsterdam. Zie CLAUDE.md.
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 0
 
