@@ -6,9 +6,15 @@ primary_region = "ams"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false
+  # Sinds 2026-11-07 slaapt de machine als er geen verkeer is (was: altijd aan,
+  # $3,96/mnd). De scheduler draait nog steeds in het proces; een externe wekker
+  # (cron-job.org) vraagt elke minuut /api/health op in de uren 3, 4, 18 en 19
+  # Amsterdam, zodat de machine wakker blijft tijdens de rondes.
+  # Valt de wekker uit, dan haalt de eerstvolgende start het werk in
+  # (`_ran_today` in _scheduler_loop). Zie CLAUDE.md.
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
 [[vm]]
   # 512MB sinds 2026-08-01. Op 256MB raakte de app in een OOM-crashloop zodra
