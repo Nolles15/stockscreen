@@ -114,6 +114,63 @@ en voorwaarden van de locatiecontracten, en recente prijsverhogingen per foto of
 4. **Bestuur en kapitaalallocatie.** Een familie-gedomineerd bedrijf (de Crasnianski's)
    dat het dividend verlaagt en tegelijk inkoopt: hoe wordt het geld verdeeld, en hoe zit
    het met de belangen van minderheidsaandeelhouders?
+5. **De kascorrectie en de accountantscontrole** (zie de aanvulling hieronder). Lees in het
+   jaarverslag 2025 noot 1.1 (de correctie), het verslag van de auditcommissie en het
+   kernpunt over muntgeld in de automaten. Het gaat om de vraag of ME Group weet hoeveel
+   contant geld er in tienduizenden automaten zit, en of de vrije kasstroom die de analyse
+   gebruikt de gecorrigeerde is.
+
+## Aanvulling 7 november 2026: het uitgestelde jaarverslag
+
+Deze check miste op 25 oktober een gebeurtenis die er voor een pitch toe doet. Het oordeel
+VERDIEPEN blijft staan. De voorspelling hieronder is bewust niet aangepast, want ze is een
+ijkpunt.
+
+**Wat er gebeurde.** Op 25 februari 2026 meldde ME Group dat het gecontroleerde jaarverslag
+over FY2025 later kwam. Accountant Forvis Mazars, sinds 2019 de vaste accountant en dus geen
+nieuwe, "needs more time to finish its audit procedures". Er werd geen reden gegeven. Op
+12 maart volgde een tweede uitstel. Omdat de wettelijke termijn verstreek, werd de handel in
+het aandeel **van 2 tot 23 maart opgeschort**. Beide berichten zeggen dat het bedrijf "has
+not been told of any material audit issues". Het jaarverslag verscheen op 23 maart.
+([RNS 25 feb](https://www.ticker.app/lse/MEGP/rns/2026-02-25/Delay-in-FY25-Audited-Financial-Statements/2510U),
+[RNS 12 mrt](https://www.ticker.app/lse/MEGP/rns/2026-03-12/Update-delay-in-FY25-Audited-Financial-Statements/4544W),
+[jaarcijfers 23 mrt](https://www.ticker.app/lse/MEGP/rns/2026-03-23/2025-Annual-Results/6674X))
+
+**Hoe het afliep.** Het bleef bij uitstel; er volgde geen afkeuring:
+
+| | |
+|---|---|
+| Accountantsverklaring | goedkeurend, zonder beperking. Geen materiële onzekerheid over de continuïteit. |
+| Kernpunt van de controle | één: fraude- en foutrisico in de omzetverantwoording, vooral de voorziening voor **nog niet opgehaald muntgeld in de automaten** op balansdatum. De accountant meldt geen materiële bevindingen. |
+| Correctie vorig jaar | ja: de vergelijkende cijfers over FY2024 zijn aangepast voor een fout. Volgens een samenvatting ging er ongeveer £8,7 mln van "kas" naar "schulden". Geen effect op winst, eigen vermogen of winst per aandeel. Dit bedrag is niet in de noot zelf nagegaan. |
+| Cijfers | omzet £315,4 mln, winst vóór belasting £78,2 mln, netto kas £26,5 mln. Dat valt binnen de verwachting die op 25 februari werd herhaald (£311–318 mln en £76–79 mln). |
+| Daarna | geen accountantswissel. Wel een inkoopprogramma van £18 mln, gestart op 23 maart. |
+
+([Jaarverslag 2025](https://reports.ticker.app/2138006YJ65EKBYYYX41/2026-03-23/2138006YJ65EKBYYYX41-2025-10-31-T01_html.md))
+
+**Hoe het te lezen is.** Dit is een geel signaal, geen rood. De verklaring is schoon en de
+cijfers kwamen uit zoals aangekondigd. Maar de correctie zit precies op de zwakke plek van
+dit verdienmodel, het contante geld in de automaten, en dat is ook het enige kernpunt van de
+accountant. Het is tevens de waarschijnlijke verklaring voor de factor-100-fout in de
+koershistorie van maart 2026 (zie "Wat de cijfers zeggen"): in die weken werd er niet
+gehandeld.
+
+**Wat er sindsdien speelde.**
+- **21 oktober 2026:** financieel directeur Stéphane Gibon gaat tijdelijk met ziekteverlof.
+  Ludovic Liaut, adjunct-financieel directeur, neemt het waar. Dat valt midden in de afsluiting
+  van het boekjaar en de voorbereiding van het jaarverslag over FY2026, het eerste jaar na een
+  moeizame controle.
+  ([Investegate](https://www.investegate.co.uk/company/MEGP))
+- **Jaarupdate FY2026 nog niet verschenen** (stand 7 november). Vorig jaar kwam hij op
+  7 november. Daarin staat of de winst binnen de verlaagde verwachting van £69–74 mln
+  valt.
+- Opvolging binnen de familie: Vlad Crasneanscki werd op 2 februari 2026 adjunct-CEO en
+  kreeg in juli een optie op 300.000 aandelen, afhankelijk van de winst per aandeel in
+  2028. Geen aandelentransacties van oprichter Serge Crasnianski gevonden.
+
+**Voor de pitch:** dit is de eerste vraag die een kritische luisteraar stelt. Het antwoord
+is "uitgesteld, opgeschort, uiteindelijk goedgekeurd, met een kascorrectie van vorig jaar".
+Komt het jaarverslag over FY2026 weer laat, dan wordt het geel rood.
 
 ## Voorspelling
 
