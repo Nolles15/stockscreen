@@ -7,7 +7,7 @@
   <div>
     <h1 class="text-2xl font-bold">Dashboard</h1>
     <p class="text-slate-400 text-sm mt-0.5">
-      Gesorteerd op grootste korting t.o.v. gecombineerde fair value
+      Welk bedrijf verdient als volgende een tussencheck
     </p>
     <!-- Dekkingsverklaring: hoeveel van de universe is daadwerkelijk beoordeeld.
          Zonder dit oogt een lijst met 900 namen volledig, terwijl een deel geen
@@ -140,6 +140,7 @@
 <!-- Verkoopregels per bezit — alleen op het tabblad "Ik bezit".
      Geen tabel: de inhoud is per aandeel een lijstje regels met de getallen
      waaruit ze volgen, en dat past niet in kolommen. -->
+<div id="wachtrij-view" class="hidden space-y-4"></div>
 <div id="bezit-view" class="hidden space-y-3"></div>
 
 <!-- Volledige tabel — alleen op het tabblad "Alles" -->
@@ -468,6 +469,15 @@ function wisFilters() {
 // dashboard iets anders dan de server bedoelde.
 const TABS = [
   {
+    // Waar de site voor is: bepalen wat er als volgende onderzocht wordt. De
+    // regels staan in engine/wachtrij.py; hier alleen de presentatie.
+    id: 'wachtrij', label: '🧭 Wachtrij',
+    uitleg: 'Bedrijven die een tussencheck waard zijn en die je het afgelopen jaar '
+      + 'nog niet hebt bekeken, in twee sporen. Een zeef, geen kooplijst: in de '
+      + 'wachtrij staan betekent dat het de moeite van uitzoeken waard is.',
+    eigenWeergave: true,
+  },
+  {
     id: 'kansen', label: '⭐ Kansen',
     uitleg: 'De twintig aandelen met de grootste korting op de modelwaarde, '
       + 'gewogen op kwaliteit en betrouwbaarheid. Let op: het model rekent met '
@@ -534,7 +544,7 @@ const TABS = [
   },
 ];
 
-let _actieveTab = localStorage.getItem(TAB_KEY) || 'kansen';
+let _actieveTab = localStorage.getItem(TAB_KEY) || 'wachtrij';
 
 function renderTabs() {
   const pins = getPins().length;
@@ -581,15 +591,138 @@ function renderActiveTab() {
   if (wis) wis.classList.toggle('hidden', !_actiefLand && !_actieveSector && !_actiefSignaal);
   const isAlles = tab.id === 'alles';
   const isBezit = tab.id === 'bezit';
+  const isWachtrij = tab.id === 'wachtrij';
 
   document.getElementById('filterbalk').classList.toggle('hidden', !isAlles);
   document.getElementById('alles-view').classList.toggle('hidden', !isAlles);
   document.getElementById('bezit-view').classList.toggle('hidden', !isBezit);
-  document.getElementById('focus-view').classList.toggle('hidden', isAlles || isBezit);
+  document.getElementById('wachtrij-view').classList.toggle('hidden', !isWachtrij);
+  document.getElementById('focus-view').classList.toggle('hidden', isAlles || isBezit || isWachtrij);
 
   if (isAlles) { renderTable(); return; }
   if (isBezit) { renderBezit(); return; }
+  if (isWachtrij) { renderWachtrij(); return; }
   renderFocus(tab);
+}
+
+// ---- Weergave "Wachtrij" ---------------------------------------------------
+// Twee sporen onder elkaar. Wat er afviel en waarom staat eronder: een korte
+// lijst is anders niet te onderscheiden van een lijst die stilletjes dingen
+// weglaat.
+let _wachtrijData = null;
+let _wachtrijSleutel = null;
+
+function wachtrijVeilig(tekst) {
+  const kaart = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+  return String(tekst == null ? '' : tekst).replace(/[&<>"]/g, c => kaart[c]);
+}
+
+function wachtrijPct(waarde, decimalen) {
+  return waarde === null || waarde === undefined ? '—' : waarde.toFixed(decimalen) + '%';
+}
+
+function wachtrijRij(r, spoor) {
+  const vast = getPins().includes(r.ticker);
+  const heeft = _bezit.has(r.ticker);
+  const groei = r.revenue_cagr === null || r.revenue_cagr === undefined
+    ? '—' : (r.revenue_cagr > 0 ? '+' : '') + (r.revenue_cagr * 100).toFixed(0) + '%';
+  const krimp = r.wachtrij_krimper
+    ? ' <span style="color:var(--hold); border:1px solid var(--hold-border); border-radius:4px; '
+      + 'padding:0 5px; font-size:10px; text-transform:uppercase; letter-spacing:.4px">omzet krimpt</span>'
+    : '';
+  const begin = `<td class="px-3 py-2 whitespace-nowrap">
+      <button onclick="togglePin('${r.ticker}', event)" class="text-lg leading-none"
+        style="color:${vast ? 'var(--hold)' : 'var(--text-3)'}" title="Bewaar in Mijn lijst">${vast ? '★' : '☆'}</button>
+      <button onclick="toggleBezit('${r.ticker}', event)" class="text-sm leading-none ml-1"
+        style="opacity:${heeft ? 1 : 0.25}" title="${heeft ? 'Uit bezit halen' : 'Vastleggen dat je dit bezit'}">💼</button></td>
+    <td class="px-3 py-2 whitespace-nowrap"><a href="/stock/${r.ticker}" class="hover:underline font-medium"
+        style="color:var(--text-1)">${r.ticker}</a></td>
+    <td class="px-3 py-2" style="color:var(--text-1)">${wachtrijVeilig(r.name)}${krimp}</td>
+    <td class="px-3 py-2 text-xs" style="color:var(--text-2)">${wachtrijVeilig(r.sector || '—')}</td>
+    <td class="px-3 py-2 text-right" style="color:var(--text-1)">${r.quality_score ?? '—'}</td>`;
+  if (spoor === 'goedkoop') {
+    return `<tr style="border-top:1px solid var(--border)">${begin}
+      <td class="px-3 py-2 text-right font-medium" style="color:var(--buy)">${wachtrijPct(r.margin_of_safety, 0)}</td>
+      <td class="px-3 py-2 text-right" style="color:${r.wachtrij_krimper ? 'var(--hold)' : 'var(--text-1)'}">${groei}</td></tr>`;
+  }
+  const marge = r.groeimarge === null || r.groeimarge === undefined
+    ? '—' : '+' + r.groeimarge.toFixed(1) + ' pp';
+  return `<tr style="border-top:1px solid var(--border)">${begin}
+    <td class="px-3 py-2 text-right" style="color:var(--text-1)">${groei}</td>
+    <td class="px-3 py-2 text-right" style="color:var(--text-1)">${wachtrijPct(r.implied_growth, 1)}</td>
+    <td class="px-3 py-2 text-right font-medium" style="color:var(--buy)">${marge}</td></tr>`;
+}
+
+function wachtrijSpoor(spoor, regels) {
+  const goedkoop = spoor.code === 'goedkoop';
+  const uitleg = goedkoop
+    ? `Kwaliteit vanaf ${regels.goedkoop_min_kwaliteit} en minstens ${regels.goedkoop_min_korting}% onder de modelwaarde, `
+      + 'op de bestaande rangorde. Bedrijven met krimpende omzet staan onderaan: het model geeft die juist de grootste korting.'
+    : `Kwaliteit vanaf ${regels.compounder_min_kwaliteit}, de omzet groeit, en de koers prijst minder groei in dan het bedrijf `
+      + 'de afgelopen drie jaar liet zien. De modelwaarde telt hier niet mee: die vindt deze bedrijven per constructie te duur.';
+  const koppen = goedkoop
+    ? ['Kwaliteit', 'Korting', 'Omzetgroei']
+    : ['Kwaliteit', 'Omzetgroei', 'Ingeprijsd', 'Marge'];
+  const filter = actieveFilterTekst() ? ' ' + actieveFilterTekst() : '';
+  const rijen = spoor.rijen.length
+    ? spoor.rijen.map(r => wachtrijRij(r, spoor.code)).join('')
+    : `<tr><td colspan="${4 + koppen.length}" class="px-3 py-6 text-center" style="color:var(--text-2)">Niets in dit spoor${filter}.</td></tr>`;
+  const meer = spoor.kandidaten > regels.per_spoor
+    ? `De eerste ${regels.per_spoor} van ${spoor.kandidaten} kandidaten.`
+    : `${spoor.kandidaten} kandidaten.`;
+  const krimp = spoor.krimpers
+    ? ` Daarnaast ${spoor.krimpers} met krimpende omzet, waarvan de eerste ${Math.min(spoor.krimpers, regels.krimpers_onderaan)} onderaan.`
+    : '';
+  return `<section class="rounded-lg overflow-x-auto" style="border:1px solid var(--border)">
+    <div class="px-4 pt-3 pb-2">
+      <h2 class="font-semibold" style="color:var(--text-1)">${spoor.titel}</h2>
+      <p class="text-sm mt-1" style="color:var(--text-2)">${uitleg}</p>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="text-xs uppercase tracking-wide" style="color:var(--text-2)"><tr>
+        <th class="px-3 py-2 w-16"></th><th class="px-3 py-2 text-left">Ticker</th>
+        <th class="px-3 py-2 text-left">Naam</th><th class="px-3 py-2 text-left">Sector</th>
+        ${koppen.map(k => `<th class="px-3 py-2 text-right">${k}</th>`).join('')}
+      </tr></thead>
+      <tbody>${rijen}</tbody>
+    </table>
+    <p class="px-4 py-2 text-xs" style="color:var(--text-2)">${meer}${krimp}</p>
+  </section>`;
+}
+
+async function renderWachtrij() {
+  const el = document.getElementById('wachtrij-view');
+  document.getElementById('row-count').textContent = '';
+  // De strook "x van deze 20 zijn al onderzocht" hoort bij de andere tabbladen;
+  // hier staat per constructie niets wat al onderzocht is.
+  toonOnderzoekStrook('');
+  const p = new URLSearchParams();
+  if (_actiefLand)    p.set('land', _actiefLand);
+  if (_actieveSector) p.set('sector', _actieveSector);
+  const sleutel = p.toString();
+  // Een ster of koffer aanklikken tekent opnieuw; daarvoor hoeft de server niet
+  // opnieuw gevraagd te worden.
+  if (_wachtrijData === null || _wachtrijSleutel !== sleutel) {
+    el.innerHTML = '<p class="text-sm" style="color:var(--text-2)">Wachtrij laden…</p>';
+    try {
+      const res = await fetch('/api/wachtrij?' + sleutel, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Server fout: ' + res.status);
+      _wachtrijData = await res.json();
+      _wachtrijSleutel = sleutel;
+    } catch (e) {
+      console.error('renderWachtrij fout:', e);
+      el.innerHTML = `<p class="text-sm" style="color:var(--pass)">⚠ Wachtrij laden mislukt: ${wachtrijVeilig(e.message)}</p>`;
+      return;
+    }
+  }
+  const d = _wachtrijData;
+  const t = d.tellingen;
+  const filter = actieveFilterTekst() ? ' ' + actieveFilterTekst() : '';
+  el.innerHTML = d.sporen.map(s => wachtrijSpoor(s, d.regels)).join('')
+    + `<p class="text-xs" style="color:var(--text-2)">
+        Niet getoond: ${t.al_onderzocht} bedrijven met een tussencheck of analyse van minder dan een jaar oud,
+        ${t.tweede_noteringen === 1 ? '1 tweede notering' : t.tweede_noteringen + ' tweede noteringen'}, en alle banken en verzekeraars (de kwaliteitsscore meet daar niets).
+        Gekozen uit ${t.beoordeelbaar} beoordeelbare aandelen${filter}. Peildatum ${d.peildatum}.</p>`;
 }
 
 // ---- Weergave "Ik bezit" ---------------------------------------------------

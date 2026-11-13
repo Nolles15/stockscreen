@@ -282,6 +282,31 @@ een HOLD.
 - **De module verwijdert niets uit Kansen.** Dat is een keuze, geen omissie: een lijst waar dingen ongemerkt uit verdwijnen ga je wantrouwen. Het oordeel wordt getoond, de rangorde blijft van de screener.
 - **Rapporten mengen Europese en Amerikaanse getalnotatie.** `1.239,40` (ASML) staat naast `93.79` (NVDA). Wie de punt blind als decimaalteken leest, maakt van ASML's koers 1,239 en krijgt een upside van +114476%. `engine/analyses.py:_parse_getal` handelt dit af: komma wint altijd als decimaalteken, een punt met precies drie cijfers erachter is een duizendtalscheiding.
 
+## Wachtrij (2026-11-13)
+
+Het doel van de site, vastgelegd na de review van november 2026: **bepalen welk
+bedrijf als volgende een tussencheck krijgt.** De fair value is een wegwijzer,
+geen beslisgrootheid. Tabblad 🧭 Wachtrij (standaard open), motor
+[engine/wachtrij.py](engine/wachtrij.py), eindpunt `GET /api/wachtrij`.
+
+- **Twee sporen.** *Goedkope kwaliteit* (kwaliteit ≥ 6, ≥ 20% onder de
+  modelwaarde, op `rank_score`) en *compounders tegen een redelijke prijs*
+  (kwaliteit ≥ 8, omzet groeit, koers prijst minder groei in dan gerealiseerd).
+  Het tweede spoor gebruikt de fair value bewust níet: die zet deze groep per
+  constructie op SELL.
+- **Een oordeel jonger dan een jaar haalt een bedrijf eruit.** Op 13 november
+  waren 15 van de 20 Kansen al onderzocht. Daarna mag het terugkomen.
+- **Eén regel per bedrijf**; van meerdere noteringen blijft de hoogst geplaatste.
+- **Krimpers staan onderaan spoor 1, gemarkeerd** (besluit Janco). Het model
+  geeft krimpende bedrijven juist de grootste korting: mediaan +20% tegen −20%
+  bij snelle groei.
+- **Banken en verzekeraars staan in geen van beide sporen.** Bekende blinde vlek.
+- **Nog niet gedaan:** het moat-profiel weegt niet mee in spoor 2 (het wordt per
+  ticker uit de database gebouwd en zit niet in de dashboardrij), en de trefkans
+  per spoor wordt nog niet in de tijd bijgehouden.
+- Kansen blijft voorlopig bestaan naast de wachtrij.
+- Achtergrond: [docs/REVIEW-2026-11-eindrapport.md](docs/REVIEW-2026-11-eindrapport.md).
+
 ## Groeiprofiel (2026-10)
 
 Plan, literatuur en statuslog: [docs/plan-groeiprofiel.md](docs/plan-groeiprofiel.md). Motor:
