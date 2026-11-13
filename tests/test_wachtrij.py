@@ -143,6 +143,40 @@ def test_een_bedrijf_staat_nooit_in_beide_sporen():
     assert _tickers(uitslag, 1) == []
 
 
+# --- Moat ---------------------------------------------------------------------
+
+def test_rode_moat_staat_in_spoor_1_onderaan_en_gemarkeerd():
+    rijen = [_rij("ZWAK", rank_score=95.0, moat_niveau="rood"),
+             _rij("STERK", rank_score=50.0, moat_niveau="geel")]
+    uitslag = wachtrij.bouw(rijen, VANDAAG)
+    assert _tickers(uitslag, 0) == ["STERK", "ZWAK"]
+    per = {r["ticker"]: r for r in uitslag["sporen"][0]["rijen"]}
+    assert per["ZWAK"]["wachtrij_moat_rood"] is True
+    assert "moat-profiel rood" in per["ZWAK"]["wachtrij_waarom"]
+    assert per["STERK"]["wachtrij_moat_rood"] is False
+
+
+def test_rode_moat_komt_niet_in_spoor_2():
+    rijen = [_compounder("ROOD", moat_niveau="rood"), _compounder("GEEL", moat_niveau="geel")]
+    assert _tickers(wachtrij.bouw(rijen, VANDAAG), 1) == ["GEEL"]
+
+
+def test_groene_moat_gaat_in_spoor_2_voor_op_een_grotere_marge():
+    geel = _compounder("GEEL", moat_niveau="geel", implied_growth=1.0)      # marge 9
+    groen = _compounder("GROEN", moat_niveau="groen", implied_growth=6.0)   # marge 4
+    assert _tickers(wachtrij.bouw([geel, groen], VANDAAG), 1) == ["GROEN", "GEEL"]
+
+
+def test_ontbrekend_moat_niveau_sluit_niet_uit_en_trekt_niet_voor():
+    # Eerste ronde na de deploy: de kolom is nog leeg. De wachtrij moet dan
+    # werken zoals zonder moat, niet leeg blijven.
+    onbekend = _compounder("ONBEKEND", implied_growth=1.0)                  # marge 9
+    geel = _compounder("GEEL", moat_niveau="geel", implied_growth=2.0)      # marge 8
+    uitslag = wachtrij.bouw([geel, onbekend], VANDAAG)
+    assert _tickers(uitslag, 1) == ["ONBEKEND", "GEEL"]
+    assert uitslag["tellingen"]["zonder_moat"] == 1
+
+
 # --- Datapoort ----------------------------------------------------------------
 
 def test_banken_afgekeurde_data_en_oude_cijfers_staan_er_niet_in():

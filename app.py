@@ -881,6 +881,8 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             "is_growth_lossmaker":  is_growth_lossmaker,
             "is_groeier":           is_groeier,
             "groei_niveau":         r.get("groei_niveau"),
+            "moat_niveau":          r.get("moat_niveau"),
+            "moat_roic_mediaan":    r.get("moat_roic_mediaan"),
             "groei_score":          r.get("groei_score"),
             "groei_kop":            r.get("groei_kop"),
             "groei_rood":           r.get("groei_rood") or [],

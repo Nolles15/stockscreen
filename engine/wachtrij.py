@@ -24,6 +24,15 @@ Drie regels gelden voor beide sporen:
   - Eén regel per bedrijf: van meerdere noteringen blijft de hoogst geplaatste.
   - Krimpers staan onderaan spoor 1, gemarkeerd. Niet weggefilterd.
 
+Het moat-profiel weegt in beide sporen mee (13 november 2026). Uit de eigen
+analyses: vijf aandelen waren goedkoop maar zwak op concurrentiepositie, en alle
+vijf werden HOLD. Goedkoop met een rode moat is dus de bekendste bron van
+missers. In spoor 1 krijgt een rode moat daarom dezelfde behandeling als krimp:
+onderaan, gemarkeerd. In spoor 2 hoort een rode moat per definitie niet thuis —
+een compounder is juist een bedrijf waarvan het rendement standhoudt — en staat
+groen boven geel. Zonder dit stonden er een bouwer, een goudmijn en een
+luchtvaartmaatschappij tussen de compounders.
+
 Het blijft een zeef. In de wachtrij staan betekent "de moeite van een
 tussencheck waard", niet "koopwaardig".
 
@@ -41,7 +50,11 @@ Rij = dict[str, Any]
 OORDEEL_GELDIG_DAGEN = 365     # jonger dan dit: al onderzocht, niet in de wachtrij
 KRIMP_GRENS = -0.02            # omzetgroei per jaar; zelfde grens als exit_regels
 PER_SPOOR = 10
-KRIMPERS_ONDERAAN = 3          # hooguit zoveel gemarkeerde krimpers onder spoor 1
+KRIMPERS_ONDERAAN = 3          # hooguit zoveel gemarkeerde regels onder spoor 1
+
+# Een ontbrekend moat-niveau (nog niet berekend, of grijs door te weinig jaren)
+# telt als "de cijfers zeggen het niet": niet uitsluiten, niet voortrekken.
+MOAT_RANG = {"groen": 0, "geel": 1, "grijs": 1, None: 1}
 
 # Voor banken en verzekeraars meet de kwaliteitsscore niets (de pagina toont daar
 # "n.v.t.") en zijn de kasstroommaten betekenisloos. Ze staan in geen van beide
@@ -109,6 +122,15 @@ def is_krimper(rij: Rij) -> bool:
     return groei is not None and groei < KRIMP_GRENS
 
 
+def moat_rood(rij: Rij) -> bool:
+    return rij.get("moat_niveau") == "rood"
+
+
+def kanttekening(rij: Rij) -> bool:
+    """Goedkoop met een reden: krimpende omzet of een rode moat."""
+    return is_krimper(rij) or moat_rood(rij)
+
+
 def beoordeelbaar(rij: Rij) -> bool:
     """De datapoort: dezelfde eisen als de rangscore, plus een vers boekjaar."""
     return (rij.get("data_status") in ("ok", "warning")
@@ -142,7 +164,8 @@ def _past_compounder(rij: Rij) -> bool:
     marge = groeimarge(rij)
     return ((rij.get("quality_score") or 0) >= COMPOUNDER_MIN_KWALITEIT
             and (rij.get("revenue_cagr") or 0) >= COMPOUNDER_MIN_GROEI
-            and marge is not None and marge >= COMPOUNDER_MIN_MARGE)
+            and marge is not None and marge >= COMPOUNDER_MIN_MARGE
+            and not moat_rood(rij))
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +197,8 @@ def een_per_bedrijf(rijen: list[Rij]) -> tuple[list[Rij], int]:
 def _regel(rij: Rij, spoor: str, waarom: str) -> Rij:
     """Een kopie met de wachtrijvelden erbij; de rij in de cache blijft ongemoeid."""
     return {**rij, "wachtrij_spoor": spoor, "wachtrij_waarom": waarom,
-            "wachtrij_krimper": is_krimper(rij), "groeimarge": groeimarge(rij)}
+            "wachtrij_krimper": is_krimper(rij), "wachtrij_moat_rood": moat_rood(rij),
+            "groeimarge": groeimarge(rij)}
 
 
 def _waarom_goedkoop(r: Rij) -> str:
@@ -182,6 +206,8 @@ def _waarom_goedkoop(r: Rij) -> str:
              f"{r.get('margin_of_safety'):.0f}% onder de modelwaarde")
     if is_krimper(r):
         tekst += f" · omzet krimpt {100 * r['revenue_cagr']:.0f}% per jaar"
+    if moat_rood(r):
+        tekst += " · moat-profiel rood"
     return tekst
 
 
@@ -203,8 +229,8 @@ def bouw(rijen: list[Rij], vandaag: Optional[date] = None) -> dict:
     goedkoop = sorted((r for r in vrij if _past_goedkoop(r)),
                       key=lambda r: -r["rank_score"])
     goedkoop, dubbel_1 = een_per_bedrijf(goedkoop)
-    gezond = [r for r in goedkoop if not is_krimper(r)]
-    krimpers = [r for r in goedkoop if is_krimper(r)]
+    gezond = [r for r in goedkoop if not kanttekening(r)]
+    krimpers = [r for r in goedkoop if kanttekening(r)]
 
     spoor_1 = ([_regel(r, "goedkoop", _waarom_goedkoop(r)) for r in gezond[:PER_SPOOR]]
                + [_regel(r, "goedkoop", _waarom_goedkoop(r)) for r in krimpers[:KRIMPERS_ONDERAAN]])
@@ -215,7 +241,8 @@ def bouw(rijen: list[Rij], vandaag: Optional[date] = None) -> dict:
         al_in_1 |= _bedrijf(r)
     compounders = sorted(
         (r for r in vrij if _past_compounder(r) and not (_bedrijf(r) & al_in_1)),
-        key=lambda r: (-(groeimarge(r) or 0), -(r.get("quality_score") or 0)))
+        key=lambda r: (MOAT_RANG.get(r.get("moat_niveau"), 1),
+                       -(groeimarge(r) or 0), -(r.get("quality_score") or 0)))
     compounders, dubbel_2 = een_per_bedrijf(compounders)
     spoor_2 = [_regel(r, "compounder", _waarom_compounder(r)) for r in compounders[:PER_SPOOR]]
 
@@ -230,6 +257,9 @@ def bouw(rijen: list[Rij], vandaag: Optional[date] = None) -> dict:
             "beoordeelbaar": len(basis),
             "al_onderzocht": len(onderzocht),
             "tweede_noteringen": dubbel_1 + dubbel_2,
+            # Zolang dit gelijk is aan `beoordeelbaar` is het moat-niveau nog
+            # niet berekend (eerste ronde na de deploy) en doet het niet mee.
+            "zonder_moat": sum(1 for r in basis if not r.get("moat_niveau")),
         },
         "regels": REGELS,
         "peildatum": vandaag.isoformat(),

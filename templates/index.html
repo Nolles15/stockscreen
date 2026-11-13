@@ -626,10 +626,13 @@ function wachtrijRij(r, spoor) {
   const heeft = _bezit.has(r.ticker);
   const groei = r.revenue_cagr === null || r.revenue_cagr === undefined
     ? '—' : (r.revenue_cagr > 0 ? '+' : '') + (r.revenue_cagr * 100).toFixed(0) + '%';
-  const krimp = r.wachtrij_krimper
-    ? ' <span style="color:var(--hold); border:1px solid var(--hold-border); border-radius:4px; '
-      + 'padding:0 5px; font-size:10px; text-transform:uppercase; letter-spacing:.4px">omzet krimpt</span>'
-    : '';
+  const merkStijl = 'style="color:var(--hold); border:1px solid var(--hold-border); border-radius:4px; '
+    + 'padding:0 5px; font-size:10px; text-transform:uppercase; letter-spacing:.4px"';
+  const krimp = (r.wachtrij_krimper ? ` <span ${merkStijl}>omzet krimpt</span>` : '')
+    + (r.wachtrij_moat_rood ? ` <span ${merkStijl}>moat rood</span>` : '');
+  const moatKleuren = { groen: 'var(--buy)', geel: 'var(--hold)', rood: 'var(--pass)' };
+  const moatTekst = r.moat_niveau && r.moat_niveau !== 'grijs' ? r.moat_niveau : '—';
+  const moatCel = `<td class="px-3 py-2 text-right text-xs" style="color:${moatKleuren[r.moat_niveau] || 'var(--text-3)'}">${moatTekst}</td>`;
   const begin = `<td class="px-3 py-2 whitespace-nowrap">
       <button onclick="togglePin('${r.ticker}', event)" class="text-lg leading-none"
         style="color:${vast ? 'var(--hold)' : 'var(--text-3)'}" title="Bewaar in Mijn lijst">${vast ? '★' : '☆'}</button>
@@ -639,7 +642,7 @@ function wachtrijRij(r, spoor) {
         style="color:var(--text-1)">${r.ticker}</a></td>
     <td class="px-3 py-2" style="color:var(--text-1)">${wachtrijVeilig(r.name)}${krimp}</td>
     <td class="px-3 py-2 text-xs" style="color:var(--text-2)">${wachtrijVeilig(r.sector || '—')}</td>
-    <td class="px-3 py-2 text-right" style="color:var(--text-1)">${r.quality_score ?? '—'}</td>`;
+    <td class="px-3 py-2 text-right" style="color:var(--text-1)">${r.quality_score ?? '—'}</td>${moatCel}`;
   if (spoor === 'goedkoop') {
     return `<tr style="border-top:1px solid var(--border)">${begin}
       <td class="px-3 py-2 text-right font-medium" style="color:var(--buy)">${wachtrijPct(r.margin_of_safety, 0)}</td>
@@ -657,12 +660,13 @@ function wachtrijSpoor(spoor, regels) {
   const goedkoop = spoor.code === 'goedkoop';
   const uitleg = goedkoop
     ? `Kwaliteit vanaf ${regels.goedkoop_min_kwaliteit} en minstens ${regels.goedkoop_min_korting}% onder de modelwaarde, `
-      + 'op de bestaande rangorde. Bedrijven met krimpende omzet staan onderaan: het model geeft die juist de grootste korting.'
+      + 'op de bestaande rangorde. Krimpende omzet of een rood moat-profiel staat onderaan: goedkoop met een reden.'
     : `Kwaliteit vanaf ${regels.compounder_min_kwaliteit}, de omzet groeit, en de koers prijst minder groei in dan het bedrijf `
-      + 'de afgelopen drie jaar liet zien. De modelwaarde telt hier niet mee: die vindt deze bedrijven per constructie te duur.';
+      + 'de afgelopen drie jaar liet zien. Een rood moat-profiel valt af, groen staat boven geel. '
+      + 'De modelwaarde telt hier niet mee: die vindt deze bedrijven per constructie te duur.';
   const koppen = goedkoop
-    ? ['Kwaliteit', 'Korting', 'Omzetgroei']
-    : ['Kwaliteit', 'Omzetgroei', 'Ingeprijsd', 'Marge'];
+    ? ['Kwaliteit', 'Moat', 'Korting', 'Omzetgroei']
+    : ['Kwaliteit', 'Moat', 'Omzetgroei', 'Ingeprijsd', 'Marge'];
   const filter = actieveFilterTekst() ? ' ' + actieveFilterTekst() : '';
   const rijen = spoor.rijen.length
     ? spoor.rijen.map(r => wachtrijRij(r, spoor.code)).join('')
@@ -671,7 +675,7 @@ function wachtrijSpoor(spoor, regels) {
     ? `De eerste ${regels.per_spoor} van ${spoor.kandidaten} kandidaten.`
     : `${spoor.kandidaten} kandidaten.`;
   const krimp = spoor.krimpers
-    ? ` Daarnaast ${spoor.krimpers} met krimpende omzet, waarvan de eerste ${Math.min(spoor.krimpers, regels.krimpers_onderaan)} onderaan.`
+    ? ` Daarnaast ${spoor.krimpers} met krimpende omzet of een rode moat, waarvan de eerste ${Math.min(spoor.krimpers, regels.krimpers_onderaan)} onderaan.`
     : '';
   return `<section class="rounded-lg overflow-x-auto" style="border:1px solid var(--border)">
     <div class="px-4 pt-3 pb-2">
@@ -722,7 +726,8 @@ async function renderWachtrij() {
     + `<p class="text-xs" style="color:var(--text-2)">
         Niet getoond: ${t.al_onderzocht} bedrijven met een tussencheck of analyse van minder dan een jaar oud,
         ${t.tweede_noteringen === 1 ? '1 tweede notering' : t.tweede_noteringen + ' tweede noteringen'}, en alle banken en verzekeraars (de kwaliteitsscore meet daar niets).
-        Gekozen uit ${t.beoordeelbaar} beoordeelbare aandelen${filter}. Peildatum ${d.peildatum}.</p>`;
+        Gekozen uit ${t.beoordeelbaar} beoordeelbare aandelen${filter}. Peildatum ${d.peildatum}.
+        ${t.beoordeelbaar && t.zonder_moat === t.beoordeelbaar ? '<br>Het moat-profiel is nog niet berekend en weegt nog niet mee; dat gebeurt bij de eerstvolgende herberekening.' : ''}</p>`;
 }
 
 // ---- Weergave "Ik bezit" ---------------------------------------------------

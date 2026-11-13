@@ -301,9 +301,17 @@ geen beslisgrootheid. Tabblad 🧭 Wachtrij (standaard open), motor
   geeft krimpende bedrijven juist de grootste korting: mediaan +20% tegen −20%
   bij snelle groei.
 - **Banken en verzekeraars staan in geen van beide sporen.** Bekende blinde vlek.
-- **Nog niet gedaan:** het moat-profiel weegt niet mee in spoor 2 (het wordt per
-  ticker uit de database gebouwd en zit niet in de dashboardrij), en de trefkans
-  per spoor wordt nog niet in de tijd bijgehouden.
+- **Het moat-profiel weegt mee.** Rood staat in spoor 1 onderaan (zelfde
+  behandeling als krimp: van de vijf aandelen die goedkoop maar zwak waren werden
+  er vijf HOLD) en valt in spoor 2 af; groen staat daar boven geel. Zonder dit
+  stonden Heijmans, Lundin Gold en Ryanair tussen de compounders.
+- **`moat_niveau` en `moat_roic_mediaan` staan nu in `calculated_scores`**, gevuld
+  door `run_ticker`, zodat lijsten erop kunnen rangschikken. Het volledige profiel
+  met de cyclusregel blijft alleen op de aandeelpagina.
+- **Na de deploy: `POST /api/scores/recompute`.** Anders vult de kolom zich pas in
+  de ronde jaarcijfers (ruim vijf dagen). Tot die tijd meldt de wachtrij onderaan
+  dat het moat-profiel nog niet meeweegt en gedraagt hij zich als zonder moat.
+- **Nog niet gedaan:** de trefkans per spoor wordt nog niet in de tijd bijgehouden.
 - Kansen blijft voorlopig bestaan naast de wachtrij.
 - Achtergrond: [docs/REVIEW-2026-11-eindrapport.md](docs/REVIEW-2026-11-eindrapport.md).
 

@@ -22,6 +22,7 @@ from . import data_quality
 from . import dubbelingen
 from . import exit_regels
 from . import groei_profiel
+from . import moat_profile
 from .normalizer import normalize_all, historical_median_multiple
 from .quality_score import quality_score as calc_quality
 from .valuation import combined_fair_value, implied_growth_pct
@@ -149,7 +150,10 @@ def _calc_accruals(rows: list[dict]) -> Optional[float]:
 
 # Een ticker die afgekeurd wordt of geen cijfers heeft moet ook een oud groeioordeel
 # kwijtraken; `upsert_scores` schrijft alleen wat meegegeven wordt.
-_GROEI_GRIJS = {"groei_niveau": "grijs", "groei_score": None, "groei_profiel": None}
+_GROEI_GRIJS = {"groei_niveau": "grijs", "groei_score": None, "groei_profiel": None,
+                # Hetzelfde geldt voor het moat-oordeel: zonder bruikbare cijfers
+                # hoort er geen oud groen te blijven staan.
+                "moat_niveau": "grijs", "moat_roic_mediaan": None}
 
 
 _DUBBEL_KAART: dict = {"tot": 0.0, "kaart": {}}
@@ -366,6 +370,12 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         omzetbreuk=breuk, dubbel_soort=dubbel_soort_van(ticker),
     )
 
+    # Moat-profiel: alleen het niveau en de mediaan gaan de database in, zodat
+    # lijsten erop kunnen rangschikken. Over de jaarrijen (met overrides), zonder
+    # koershistorie — die voedt alleen de cyclusregel in de toelichting op de
+    # aandeelpagina en verandert het niveau niet.
+    moat = moat_profile.bouw_profiel(annual_rows)
+
     min_quality = config.get("screening", {}).get("min_quality_score", 7)
     below_threshold = q_total < min_quality
 
@@ -503,6 +513,8 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         "groei_niveau":    groei["niveau"],
         "groei_score":     groei["score"],
         "groei_profiel":   groei,
+        "moat_niveau":     moat["niveau"],
+        "moat_roic_mediaan": moat.get("roic_mediaan"),
         # Meta
         "below_quality_threshold": below_threshold,
         "warnings":         warnings,
@@ -545,6 +557,8 @@ def run_ticker(ticker: str, config: dict, persist: bool = True) -> dict:
         groei_niveau=groei["niveau"],
         groei_score=groei["score"],
         groei_profiel=groei_profiel.compact(groei),
+        moat_niveau=moat["niveau"],
+        moat_roic_mediaan=moat.get("roic_mediaan"),
     )
 
     return result
