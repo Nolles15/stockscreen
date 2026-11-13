@@ -100,6 +100,26 @@ def boekjaar_achterstand(latest_fy: int | None, vandaag: date | None = None) -> 
     return max(0, verwacht_boekjaar(vandaag) - int(latest_fy))
 
 
+def holle_boekjaren(annual_rows: list[dict] | None) -> list[int]:
+    """Boekjaren waarvan de kern van de winst-en-verliesrekening ontbreekt.
+
+    Een jaar is "hol" als omzet én nettowinst allebei leeg zijn. Yahoo levert
+    zulke jaren af en toe: bij Equasens (13 november 2026) stond FY2024 er met
+    alleen EBITDA, winst per aandeel en kasstroom. `completeness_pct` middelt
+    over de laatste drie jaar en bleef op 88%, de status op 'ok', en de pagina
+    zei "De cijfers zijn compleet" — terwijl de F-score vijf van de negen
+    toetsen niet kon bepalen en de groeireeks een stap van twee jaar als één
+    jaar telde.
+
+    Het oudste jaar telt niet mee: dat is bij Yahoo vaak een halve kolom aan de
+    rand van het venster, en er wordt nergens tegenaan vergeleken.
+    """
+    rijen = sorted((r for r in (annual_rows or []) if r.get("fiscal_year")),
+                   key=lambda r: r["fiscal_year"])
+    return [int(r["fiscal_year"]) for r in rijen[1:]
+            if r.get("revenue") is None and r.get("net_income") is None]
+
+
 def _clean_split_factor(ratio: float) -> float | None:
     """Geef het split-getal terug als `ratio` (of 1/ratio) er dicht bij ligt, anders None."""
     for f in _SPLIT_CLEAN_FACTORS:
@@ -424,6 +444,16 @@ def evaluate(
             f"verwacht FY{verwacht_boekjaar()}. {staart}"
         )
 
+    # 4c. Holle boekjaren — een jaar dat er wel staat maar waar omzet en winst
+    # in ontbreken. Zie `holle_boekjaren`.
+    hol = holle_boekjaren(annual_rows)
+    if hol:
+        jaren = ", ".join(f"FY{j}" for j in hol)
+        issues.append(
+            f"{jaren} is vrijwel leeg (omzet en nettowinst ontbreken) — reeksen en "
+            f"jaar-op-jaarvergelijkingen slaan dit jaar over. Alleen handmatig invoeren helpt."
+        )
+
     # 5. Afgeleide status
     #
     # Harde blockers = data is écht onbruikbaar (geen jaren, geen koers, omzet ≤0,
@@ -469,6 +499,12 @@ def evaluate(
     if fy_achterstand >= 2:
         status = "bad"
     elif fy_achterstand == 1 and status == "ok":
+        status = "warning"
+
+    # Een hol boekjaar is geen reden om de waardering te blokkeren (de mediaan
+    # over de overige jaren staat nog), maar "compleet" is het niet. Expliciet
+    # gezet om dezelfde reden als hierboven: één losse melding blijft anders 'ok'.
+    if hol and status == "ok":
         status = "warning"
 
     if fail_note:
