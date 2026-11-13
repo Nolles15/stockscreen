@@ -11,7 +11,7 @@ Dutch-language stock screener voor Europese small/mid-caps. Flask + PostgreSQL (
 | **DB** | Neon PostgreSQL, Frankfurt |
 | **GitHub** | github.com/Nolles15/stockscreen (branch `main`) |
 | **Local dev** | `DATABASE_URL="..." python app.py` → http://localhost:5001 |
-| **Deploy** | `fly deploy --remote-only --depot=false`, en **daarna `fly apps destroy fly-builder-*`**. Zie de twee regels hieronder; die volgorde is geen detail. |
+| **Deploy** | **Vanzelf bij elke wijziging op `main`** (sinds 2026-11-13), via [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Het image wordt op de runner van GitHub gebouwd (`--local-only`), dus er ontstaat geen bouwmachine bij Fly en er valt niets op te ruimen. Secret: `FLY_API_TOKEN` (deploy-sleutel van deze app). Met de hand: Actions → "Deploy naar Fly" → Run workflow. De oude weg werkt nog: `fly deploy --remote-only --depot=false`, en **daarna `fly apps destroy <naam van de fly-builder>`**. |
 
 ## Kritieke operationele feiten
 
