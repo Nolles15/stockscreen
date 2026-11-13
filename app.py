@@ -37,6 +37,7 @@ from engine import refresh
 from engine import scorebord as scorebord_mod
 from engine import remap_rules
 from engine import stilte
+from engine import wachtrij
 from engine.data_fetcher import (
     fetch_and_store,
     fetch_market_only,
@@ -671,6 +672,28 @@ def api_dashboard_selectie():
     return jsonify(uitslag)
 
 
+@app.route("/api/wachtrij")
+def api_wachtrij():
+    """Welk bedrijf verdient als volgende een tussencheck — in twee sporen.
+
+    De regels staan in engine/wachtrij.py. Hier gebeurt alleen het ophalen van
+    dezelfde rijen als het dashboard (`_dashboard_rows`, dus inclusief de
+    oordeelkoppeling en de dubbelingen waar de wachtrij op filtert) en de land-
+    en sectorkeuze. Kost geen databaseverkeer buiten de cache.
+    """
+    rijen = _dashboard_rows(load_config())
+    land = request.args.get("land") or ""
+    sector = request.args.get("sector") or ""
+    if land:
+        rijen = [r for r in rijen if markets.land_naam(r.get("ticker") or "") == land]
+    if sector:
+        rijen = [r for r in rijen if (r.get("sector") or "Onbekend") == sector]
+    uitslag = wachtrij.bouw(rijen)
+    for spoor in uitslag["sporen"]:
+        spoor["rijen"] = _sanitize(spoor["rijen"])
+    return jsonify(uitslag)
+
+
 @app.route("/api/tickers")
 def api_tickers():
     """Alleen ticker en naam — genoeg voor een keuzelijst.
@@ -858,6 +881,8 @@ def _verrijk_dashboardrijen(ruwe: list[dict], cfg: dict) -> list[dict]:
             "is_growth_lossmaker":  is_growth_lossmaker,
             "is_groeier":           is_groeier,
             "groei_niveau":         r.get("groei_niveau"),
+            "moat_niveau":          r.get("moat_niveau"),
+            "moat_roic_mediaan":    r.get("moat_roic_mediaan"),
             "groei_score":          r.get("groei_score"),
             "groei_kop":            r.get("groei_kop"),
             "groei_rood":           r.get("groei_rood") or [],

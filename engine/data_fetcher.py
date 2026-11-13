@@ -742,13 +742,18 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
     if not price:
         return
 
-    # For proper historical multiples we'd need historical prices — yfinance provides these
-    # As a pragmatic approximation: store current TTM multiples for the latest year,
-    # and use historical stock price / historical EPS for prior years.
+    # `auto_adjust=False` is hier geen detail. Standaard levert yfinance koersen
+    # die achteraf zijn verlaagd met alle sindsdien betaalde dividenden. Een
+    # multiple is "wat betaalde de markt toen", dus de koers van toen: gemeten op
+    # 13 november 2026 lag de gecorrigeerde slotkoers van eind 2021 bij Rai Way
+    # 24% en bij Ahold 16% onder de werkelijke. De historische K/W en K/B van
+    # dividendbetalers vielen daardoor structureel te laag uit, en daarmee hun
+    # fair value. De koersronde (refresh.py) haalde altijd al ongecorrigeerd op.
     try:
         t = yf.Ticker(ticker)
-        hist_price = _yf_retry(lambda: t.history(period="5y", interval="1mo"),
-                                label=f"history {ticker}")
+        hist_price = _yf_retry(
+            lambda: t.history(period="5y", interval="1mo", auto_adjust=False),
+            label=f"history {ticker}")
     except Exception:
         return
 
@@ -756,50 +761,87 @@ def _store_historical_multiples(ticker: str, data: dict) -> None:
     # cijfers staan al in GBP → price moet ook naar GBP om multiples kloppend
     # te maken.
     pence_scale = bool(meta.get("_price_pence_scale"))
+    maand = _boekjaar_maand(meta.get("boekjaar_einde"))
 
     for row in data.get("annual", []):
         yr = row["fiscal_year"]
-        eps = row.get("eps_diluted")
-        bvps = row.get("book_value_ps")
-        fcf = row.get("fcf")
-        ebitda = row.get("ebitda")
-        total_debt = row.get("total_debt")
-        net_cash = row.get("net_cash")
 
-        # Find approximate year-end price
-        yr_price = _historical_year_end_price(hist_price, yr)
+        yr_price = _historical_year_end_price(hist_price, yr, maand)
         if yr_price is None:
             continue
         if pence_scale:
             yr_price = yr_price / 100.0
 
-        shares = row.get("shares_outstanding")
-        ev = None
-        if yr_price and shares and total_debt is not None:
-            market_cap_hist = yr_price * shares
-            # EV = beurswaarde + nettoschuld. Hier stonden twee eerdere pogingen
-            # boven deze regel die allebei meteen werden overschreven — dode code
-            # die de indruk wekte dat er iets subtielers gebeurde dan dit.
-            net_debt = (total_debt or 0) - max(0, -(net_cash or 0))
-            ev = market_cap_hist + net_debt
-
-        pe   = (yr_price / eps)     if eps   and eps > 0   else None
-        pb   = (yr_price / bvps)    if bvps  and bvps > 0  else None
-        ev_ebitda = (ev / ebitda)   if ev    and ebitda and ebitda > 0 else None
-        ev_fcf    = (ev / fcf) if ev and fcf and fcf > 0 else None
-
-        db.upsert_historical_multiples(ticker, yr, pe_ratio=pe, ev_ebitda=ev_ebitda, pb_ratio=pb, ev_fcf=ev_fcf)
+        db.upsert_historical_multiples(ticker, yr, **multiples_voor_jaar(row, yr_price))
 
 
-def _historical_year_end_price(hist: pd.DataFrame, year: int) -> float | None:
-    """Find the closing price closest to Dec 31 of a given year."""
+def multiples_voor_jaar(row: dict, yr_price: float) -> dict:
+    """De vier multiples van één boekjaar, uit de jaarrij en de koers van toen.
+
+    Zuiver rekenwerk, zonder netwerk of database, zodat het tegen een met de
+    hand nagerekend voorbeeld te toetsen is (tests/test_historische_multiples.py).
+
+    Bedrijfswaarde = beurswaarde + nettoschuld, en nettoschuld = schuld − kas =
+    −`net_cash`. Tot november 2026 stond hier
+    `total_debt - max(0, -net_cash)`, wat uitgeschreven `min(schuld, kas)` is:
+    bij schuld 100 en kas 20 een nettoschuld van 20 in plaats van 80, bij schuld
+    20 en kas 100 +20 in plaats van −80. `valuation.py` trekt daarna de échte
+    nettoschuld af, dus bedrijven met schuld kregen een te lage fair value en
+    kasrijke een te hoge.
+
+    Is de kas onbekend (`net_cash` leeg), dan telt alleen de schuld — dat deed
+    de oude regel in dat geval ook, en zo valt er geen multiple weg die er eerst
+    wel was.
+    """
+    eps = row.get("eps_diluted")
+    bvps = row.get("book_value_ps")
+    fcf = row.get("fcf")
+    ebitda = row.get("ebitda")
+    total_debt = row.get("total_debt")
+    net_cash = row.get("net_cash")
+    shares = row.get("shares_outstanding")
+
+    ev = None
+    if yr_price and shares and total_debt is not None:
+        nettoschuld = -net_cash if net_cash is not None else total_debt
+        ev = yr_price * shares + nettoschuld
+
+    return {
+        "pe_ratio":  (yr_price / eps)  if eps  and eps > 0  else None,
+        "pb_ratio":  (yr_price / bvps) if bvps and bvps > 0 else None,
+        # Een negatieve bedrijfswaarde (kas groter dan de beurswaarde) geeft geen
+        # bruikbaar veelvoud; `ev > 0` in plaats van alleen "niet leeg".
+        "ev_ebitda": (ev / ebitda) if ev and ev > 0 and ebitda and ebitda > 0 else None,
+        "ev_fcf":    (ev / fcf)    if ev and ev > 0 and fcf and fcf > 0 else None,
+    }
+
+
+def _boekjaar_maand(boekjaar_einde: str | None) -> int:
+    """Maand waarin het boekjaar eindigt; december als het onbekend is."""
+    try:
+        maand = int(str(boekjaar_einde)[5:7])
+        return maand if 1 <= maand <= 12 else 12
+    except (TypeError, ValueError):
+        return 12
+
+
+def _historical_year_end_price(hist: pd.DataFrame, year: int, maand: int = 12) -> float | None:
+    """Slotkoers van de maand waarin boekjaar `year` eindigde.
+
+    Nam eerder altijd de laatste koers van het kalenderjaar. Bij een gebroken
+    boekjaar klopt dat niet: Games Workshop sluit eind mei, en de winst over
+    boekjaar 2025 hoort dan bij de koers van mei 2025, niet bij die van december.
+    Ontbreekt precies die maand, dan de laatste koers uit de twee maanden ervoor.
+    """
     if hist is None or hist.empty:
         return None
     try:
-        yr_data = hist[hist.index.year == year]
-        if yr_data.empty:
+        doel = year * 12 + maand
+        positie = hist.index.year * 12 + hist.index.month
+        venster = hist[(positie <= doel) & (positie >= doel - 2)]
+        if venster.empty:
             return None
-        return float(yr_data["Close"].iloc[-1])
+        return float(venster["Close"].dropna().iloc[-1])
     except Exception:
         return None
 

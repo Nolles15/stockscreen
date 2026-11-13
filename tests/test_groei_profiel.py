@@ -214,6 +214,17 @@ def test_piotroski_zonder_invoer_wordt_berekend():
     print("  [OK] F-score valt terug op berekening uit de jaarrijen")
 
 
+def test_groei_over_een_ontbrekend_boekjaar_wordt_per_jaar_gerekend():
+    """Equasens: 220 (2023) naar 237 (2025) is +3,8% per jaar, niet +7,7% in één jaar."""
+    from engine.groei_profiel import DREMPELS, _t6
+    v = [{"fiscal_year": 2022, "revenue": 214.0},
+         {"fiscal_year": 2023, "revenue": 220.0},
+         {"fiscal_year": 2025, "revenue": 237.0}]
+    _, groei = _t6(v, DREMPELS)
+    assert round(groei[0], 1) == 2.8
+    assert round(groei[1], 1) == 3.8
+
+
 if __name__ == "__main__":
     print("Groeiprofiel")
     for naam, f in sorted(globals().items()):

@@ -278,7 +278,11 @@ def _t6(v, d, breuk=None) -> tuple[dict, list[float]]:
     for a, b in zip(v, v[1:]):
         ra, rb = _f(a, "revenue"), _f(b, "revenue")
         if ra and rb and ra > 0:
-            groei.append(100 * (rb / ra - 1))
+            # Ontbreekt er een boekjaar tussen (Equasens: 2023 → 2025), dan is de
+            # stap over twee jaar. Omgerekend naar per jaar, anders telt een gat
+            # in de data als een groeiversnelling en dus als instabiliteit.
+            gat = max(1, int(b["fiscal_year"]) - int(a["fiscal_year"]))
+            groei.append(100 * ((rb / ra) ** (1 / gat) - 1))
     if len(groei) < 2:
         return _toets("T6", naam, "onbekend", None, drempel, bron,
                       "Minder dan twee jaar-op-jaar-groeicijfers"), groei

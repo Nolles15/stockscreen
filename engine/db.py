@@ -235,6 +235,11 @@ def init_db() -> None:
             ("groei_niveau",    "TEXT"),      # groen/geel/rood/grijs
             ("groei_score",     "REAL"),      # 0-10 of NULL
             ("groei_profiel",   "TEXT"),      # JSON, alleen scalars (groei_profiel.compact)
+            # Moat-profiel (engine/moat_profile.py). Stond alleen op de
+            # aandeelpagina, per ticker uit de database gebouwd; de wachtrij
+            # heeft het voor honderden kandidaten tegelijk nodig.
+            ("moat_niveau",        "TEXT"),   # groen/geel/rood/grijs
+            ("moat_roic_mediaan",  "REAL"),   # mediaan rendement op kapitaal, %
         ):
             cur.execute(f"ALTER TABLE calculated_scores ADD COLUMN IF NOT EXISTS {col} {typ}")
         # Migratie: native-only — rename oude *_eur kolommen zodat historische
@@ -1292,6 +1297,7 @@ _DASHBOARD_SQL = """
             c.fv_methods_dropped, c.revenue_cagr, c.implied_growth,
             c.signal, c.margin_of_safety, c.warnings, c.last_calculated, c.accruals_ratio, c.hist_relative,
             c.groei_niveau, c.groei_score, c.groei_profiel,
+            c.moat_niveau, c.moat_roic_mediaan,
             fy.latest_fy, fy.laatste_yahoo,
             dq.completeness_pct, dq.years_available, dq.freshness_days,
             dq.fetch_success, dq.consecutive_failures, dq.data_status,

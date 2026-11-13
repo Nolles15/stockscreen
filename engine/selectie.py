@@ -123,6 +123,10 @@ TABBLADEN: dict[str, Callable[[list[Rij]], list[Rij]]] = {
     # "bezit" heeft een eigen bron; allebei hieronder afgehandeld.
     "pins":        _alles,
     "bezit":       _alles,
+    # De wachtrij heeft een eigen eindpunt (/api/wachtrij, engine/wachtrij.py).
+    # Hier levert hij geen rijen: het dashboard vraagt dit eindpunt dan alleen
+    # nog om de tellingen voor de keuzelijsten, niet om 1.500 ongebruikte rijen.
+    "wachtrij":    lambda rijen: [],
 }
 
 

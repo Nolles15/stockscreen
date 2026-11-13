@@ -153,6 +153,64 @@ def test_reden_bucket_is_eigen_categorie():
     print(f"  [OK] eigen reden-bucket: {reden['reason_label']}")
 
 
+# ---------------------------------------------------------------------------
+# Holle boekjaren (review november 2026)
+# ---------------------------------------------------------------------------
+
+def _jaar(fy, **velden):
+    return {"fiscal_year": fy, **velden}
+
+
+def test_hol_boekjaar_tussen_gevulde_jaren_wordt_gevonden():
+    from engine.data_quality import holle_boekjaren
+    rijen = [
+        _jaar(2025, revenue=237.0, net_income=39.0),
+        _jaar(2024, revenue=None, net_income=None, ebitda=64.0),   # Equasens
+        _jaar(2023, revenue=220.0, net_income=47.0),
+        _jaar(2022, revenue=214.0, net_income=46.0),
+    ]
+    assert holle_boekjaren(rijen) == [2024]
+
+
+def test_het_oudste_jaar_telt_niet_als_hol():
+    from engine.data_quality import holle_boekjaren
+    rijen = [
+        _jaar(2025, revenue=10.0, net_income=1.0),
+        _jaar(2024, revenue=9.0, net_income=1.0),
+        _jaar(2021, revenue=None, net_income=None),
+    ]
+    assert holle_boekjaren(rijen) == []
+
+
+def test_jaar_met_alleen_omzet_of_alleen_winst_is_niet_hol():
+    from engine.data_quality import holle_boekjaren
+    rijen = [
+        _jaar(2025, revenue=10.0, net_income=None),
+        _jaar(2024, revenue=None, net_income=1.0),
+        _jaar(2023, revenue=8.0, net_income=1.0),
+    ]
+    assert holle_boekjaren(rijen) == []
+    assert holle_boekjaren([]) == [] and holle_boekjaren(None) == []
+
+
+def test_hol_boekjaar_maakt_de_status_een_waarschuwing(monkeypatch):
+    """Eén leeg jaar tussen gevulde jaren: niet blokkeren, wel niet langer 'ok'."""
+    monkeypatch.setattr(dq, "verwacht_boekjaar", lambda vandaag=None: 2025)
+
+    hol = {"fiscal_year": 2024, "ebitda": 64_000_000.0, "eps_diluted": 2.39,
+           "fcf": 36_000_000.0, "shares_outstanding": 38_000_000.0}
+    r = dq.evaluate(
+        "EQS.PA",
+        annual_rows=[_rij(2025), hol, _rij(2023), _rij(2022)],
+        market_data=_markt(),
+        stock_info={"quote_type": "EQUITY"},
+        fetch_success=True,
+        fetched_date="2026-11-13",
+    )
+    assert r["data_status"] == "warning", f"kreeg '{r['data_status']}' met issues {r['issues']}"
+    assert any("FY2024 is vrijwel leeg" in m for m in r["issues"]), r["issues"]
+
+
 if __name__ == "__main__":
     class _Patch:
         """Minimale monkeypatch-vervanger zodat dit bestand ook zonder pytest draait."""
