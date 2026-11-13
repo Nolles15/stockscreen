@@ -1,0 +1,97 @@
+name: Deploy naar Fly
+
+# Elke wijziging op main gaat vanzelf online. Tot november 2026 gebeurde dat met
+# de hand vanaf één computer (`fly deploy --remote-only`), en toen die computer
+# niet bij de hand was bleef een samengevoegde wijziging liggen.
+#
+# Het image wordt HIER gebouwd, op de runner van GitHub (`--local-only`), niet op
+# een bouwmachine van Fly. Twee redenen:
+#   1. `--remote-only` laat Fly een bouwmachine met een schijf van 50 GB
+#      aanmaken die maandelijks wordt doorberekend tot je hem opruimt. Dat
+#      opruimen is in het verleden vergeten. Hier bestaat die machine niet.
+#   2. Een deploy-sleutel die alleen deze ene app mag bijwerken volstaat dan.
+#      Een bouwmachine opruimen zou een sleutel voor het hele account vragen.
+# De reden dat `--local-only` thuis niet werkte (TLS-onderschepping op dat
+# netwerk, zie CLAUDE.md) speelt op een runner van GitHub niet.
+#
+# Benodigd secret (Settings → Secrets and variables → Actions):
+#   FLY_API_TOKEN — een deploy-sleutel van de app stockscreen-janco,
+#                   aangemaakt op fly.io → app → Tokens.
+#
+# Met de hand starten: Actions-tab → "Deploy naar Fly" → "Run workflow".
+#
+# Anders dan een geplande workflow wordt deze niet uitgeschakeld na 60 dagen
+# zonder push: hij start op een push, niet op een klok.
+
+on:
+  push:
+    branches: [main]
+    # Wijzigingen die niet in het image terechtkomen (zie .dockerignore) hoeven
+    # geen deploy te starten. Analyses en tussenchecks staan hier bewust NIET
+    # bij: die zitten wel in het image.
+    paths-ignore:
+      - "docs/**"
+      - "tests/**"
+      - "scripts/**"
+      - ".github/**"
+      - "README.md"
+      - "CLAUDE.md"
+  workflow_dispatch:
+
+# Nooit twee deploys door elkaar; een nieuwere wacht tot de lopende klaar is.
+concurrency:
+  group: deploy-fly
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # De twee controles die CLAUDE.md vóór elke deploy voorschrijft. Beide
+      # hebben een productiestoring voorkomen kunnen worden: een NameError die
+      # wel compileerde (1 augustus 2026) en één verkeerd teken dat het hele
+      # dashboardscript brak (22 augustus 2026).
+      - name: Controle op ongedefinieerde namen
+        run: |
+          pip install --quiet pyflakes
+          python -m pyflakes app.py engine/*.py
+
+      - name: Controle op JavaScript in de sjablonen
+        run: python tests/test_template_javascript.py
+
+      - name: Sleutel aanwezig?
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Het secret FLY_API_TOKEN ontbreekt. Maak een deploy-sleutel aan op fly.io (app stockscreen-janco → Tokens) en zet hem bij Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Bouwen en uitrollen
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --local-only
+
+      # Een geslaagde deploy zegt alleen dat het image is uitgerold, niet dat de
+      # app opstart: de database wordt bij het opstarten bijgewerkt (init_db), en
+      # als dat misgaat staat er een foutpagina terwijl deze workflow groen is.
+      - name: Start de site op?
+        run: |
+          for poging in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 60 https://stockscreen-janco.fly.dev/api/health || true)
+            echo "poging $poging: /api/health gaf $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "::error::De site geeft na de deploy geen 200 op /api/health. Kijk in de Fly-logs en rol zo nodig de vorige versie terug."
+          exit 1
